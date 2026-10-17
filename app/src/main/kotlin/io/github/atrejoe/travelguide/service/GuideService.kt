@@ -19,12 +19,14 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.github.atrejoe.travelguide.GuideStatus
+import io.github.atrejoe.travelguide.MapPlace
 import io.github.atrejoe.travelguide.StoryItem
 import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
+import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
@@ -142,7 +144,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         session.isActive = false
         engine.reset()
         GuideStatus.update {
-            it.copy(running = false, paused = false, speaking = false, pauseReason = null, message = null, upcoming = emptyList())
+            it.copy(
+                running = false, paused = false, speaking = false, pauseReason = null, message = null,
+                upcoming = emptyList(), route = emptyList(), routeSource = PathSource.NONE,
+            )
         }
         GuideTileService.requestUpdate(this)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
@@ -206,14 +211,26 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 title = story.poi.title,
                 where = NarrationComposer.label(story.relative),
                 expectedAtMillis = story.etaSeconds?.let { now + it * 1000L },
+                point = story.poi.point,
             )
         }
-        GuideStatus.update { it.copy(upcoming = items) }
+        val path = engine.predictedPath()
+        GuideStatus.update {
+            it.copy(
+                upcoming = items,
+                route = path?.points.orEmpty(),
+                routeSource = path?.source ?: PathSource.NONE,
+            )
+        }
     }
 
     private suspend fun tell(narration: Narration) {
         val poi = narration.poi
-        val item = StoryItem(poi.title, narration.text, poi.url, System.currentTimeMillis(), narration.companions.map { it.title })
+        val item = StoryItem(
+            poi.title, narration.text, poi.url, System.currentTimeMillis(),
+            also = narration.companions.map { it.title },
+            places = (listOf(poi) + narration.companions).map { MapPlace(it.title, it.point) },
+        )
         GuideStatus.update { it.copy(current = item, speaking = true, history = (listOf(item) + it.history).take(50)) }
         updateSession()
         abortStory = false
@@ -321,6 +338,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             it.copy(
                 mode = motion.mode,
                 speedKmh = motion.speedMps * 3.6,
+                position = motion.fix.point,
+                headingDeg = motion.headingDeg,
                 message = it.message?.takeUnless { m -> m.startsWith("Waiting for location") },
             )
         }

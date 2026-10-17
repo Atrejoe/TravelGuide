@@ -9,6 +9,11 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Map at the top of the guide screen showing where you are, the places in the current story and
+  the upcoming ones. The road ahead is drawn as a solid line when it comes from navigation, and
+  as a dashed line labelled "guessed" when it is estimated from your movement.
+- In automatic travel mode, the detected mode is shown ("Auto · Cycling", "Cycling (detected)").
+
 - Timeline on the guide screen: upcoming stories with their expected time on top, then the
   current story, then earlier ones, joined by a line on the left.
 - Stories combine places along the route: up to two nearby places, or places the article
