@@ -17,4 +17,6 @@ All notable changes to this project are documented here. The format follows
     with system-TTS fallback, adjustable pitch and rate, and a manual travel-mode override.
   - Pauses for phone calls and navigation prompts; pause and resume from the notification,
     the media controls and a Quick Settings tile.
-  - CI that keeps costs down: JVM-only tests on PRs, and APK builds only when needed.
+  - CI: JVM core tests on every PR; Android build and lint on app changes, with APKs on PRs,
+    a rolling `preview` pre-release from `main`, and release assets for tags.
+- Apache 2.0 license.

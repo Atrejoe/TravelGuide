@@ -46,8 +46,9 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
 Download the latest APK:
 
 - **Stable**: the [latest release](../../releases/latest).
-- **Development**: the [*preview* pre-release](../../releases/tag/preview), rebuilt from the
-  most recent PR or manual *Android APK* run.
+- **Development**: the [*preview* pre-release](../../releases/tag/preview), rebuilt from every
+  app change on `main`.
+- **A pull request**: the APK artifact on that PR's *Android* workflow run.
 
 Enable "Install unknown apps" for your browser or file manager, open the APK, start the app and
 tap **Start guiding**. On first use, open **Settings → Narrator** and download a voice (~64 MB).
@@ -87,12 +88,11 @@ scripts/fetch-sherpa-onnx.sh      # downloads the TTS runtime into app/libs (onc
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the workflow (feature branches, Conventional Commits,
 changelog, CI).
 
-### CI and cost
+### CI
 
-- **CI** runs only the JVM core tests on each PR (about a minute, no Android SDK).
-- **Android APK** builds only when app code changes on a non-draft PR, on manual dispatch, or
-  for `v*` tags. APKs are published as release assets (the rolling `preview` pre-release, or the
-  tagged release), which don't use the Actions artifact storage quota.
+- **CI** runs the JVM core tests on each PR (about a minute, no Android SDK).
+- **Android** builds and lints the app when app-related files change. PRs get an APK artifact,
+  `main` updates the `preview` pre-release, and `v*` tags attach the APK to their release.
 
 ## Roadmap
 
@@ -107,3 +107,8 @@ LLM storytelling and climate facts.
   its source article.
 - Speech: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache 2.0) with
   [Piper](https://github.com/rhasspy/piper) voices (see each voice's model card for its license).
+
+## License
+
+[Apache License 2.0](LICENSE). Wikipedia content and voice models keep their own licenses (see
+Credits).
