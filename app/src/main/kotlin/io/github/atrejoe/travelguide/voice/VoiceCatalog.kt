@@ -43,7 +43,8 @@ object VoiceCatalog {
         ),
         NeuralVoice(
             "piper-ryan", "Ryan", "American, expressive · lite",
-            VoicePackage("vits-piper-en_US-ryan-high-fp16", VoiceEngine.PIPER, 56),
+            // The fp16 export of this model fails in onnxruntime on some sentences.
+            VoicePackage("vits-piper-en_US-ryan-high", VoiceEngine.PIPER, 110),
         ),
         NeuralVoice(
             "piper-alan", "Alan", "British, soft-spoken · lite",

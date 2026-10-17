@@ -104,17 +104,24 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     engines = {}
     lines = ["| Voice | Engine | Package | Speaker | Real-time factor (CI CPU) |", "|---|---|---|---|---|"]
+    failures = []
     for voice in read_catalog():
-        root = fetch(voice["pkg"], models)
-        tts = engines.get(voice["pkg"]) or engines.setdefault(voice["pkg"], engine_for(voice, root))
         samples, rate, spent = [], 0, 0.0
-        for sentence in STORY:
-            start = time.time()
-            audio = tts.generate(sentence, sid=voice["sid"], speed=0.95)
-            spent += time.time() - start
-            rate = audio.sample_rate
-            samples.extend(audio.samples)
-            samples.extend([0.0] * int(rate * 0.25))  # the app's pause between sentences
+        try:
+            root = fetch(voice["pkg"], models)
+            tts = engines.get(voice["pkg"]) or engines.setdefault(voice["pkg"], engine_for(voice, root))
+            for sentence in STORY:
+                start = time.time()
+                audio = tts.generate(sentence, sid=voice["sid"], speed=0.95)
+                spent += time.time() - start
+                rate = audio.sample_rate
+                samples.extend(audio.samples)
+                samples.extend([0.0] * int(rate * 0.25))  # the app's pause between sentences
+        except Exception as e:  # keep going so the other voices still get samples
+            print(f"{voice['id']} FAILED: {e}", flush=True)
+            failures.append(voice["id"])
+            lines.append(f"| {voice['name']} | {voice['engine'].title()} | `{voice['pkg']}` | {voice['sid']} | **failed** |")
+            continue
         mp3 = out / f"{voice['name']}-{voice['id']}.mp3"
         write_mp3(mp3, samples, rate)
         rtf = spent / (len(samples) / rate)
@@ -122,7 +129,7 @@ def main():
         print(f"{voice['id']}: {mp3.name}, RTF {rtf:.2f}", flush=True)
     # Every Kokoro speaker announcing its number, to double-check the speaker ids in the catalog.
     kokoro = next((v for v in read_catalog() if v["engine"] == "KOKORO"), None)
-    if kokoro:
+    if kokoro and kokoro["pkg"] in engines:
         tts = engines[kokoro["pkg"]]
         roll = []
         for sid in range(tts.num_speakers):
@@ -132,6 +139,8 @@ def main():
         write_mp3(out / "kokoro-all-speakers.mp3", roll, audio.sample_rate)
         lines.append(f"\nKokoro package has {tts.num_speakers} speakers; `kokoro-all-speakers.mp3` lets you check the ids.")
     (out / "summary.md").write_text("\n".join(lines) + "\n")
+    if failures:
+        sys.exit(f"Voices failed to synthesise: {', '.join(failures)}")
 
 
 if __name__ == "__main__":

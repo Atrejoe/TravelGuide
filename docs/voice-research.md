@@ -26,12 +26,13 @@ to run, work offline, and optionally let users plug in a paid voice service with
 |---|---|---|---|---|---|
 | **Kokoro v0.19 int8** | Very good: natural prosody and breathing | 99 MB (all 11 speakers) | Real time on recent mid/high-end phones; slower than real time on budget phones | George, Lewis (British), Michael, Adam (American) | Apache 2.0 |
 | Kokoro v1.x multi-lang | Very good; more voices | 140 MB (int8) – 348 MB | As above | More, but needs extra lexicons | Apache 2.0 |
-| Piper high | Fair | 56 MB (fp16) | Fast | Ryan | MIT / per-voice |
+| Piper high | Fair | 110 MB (the fp16 export crashes on some sentences) | Fast | Ryan | MIT / per-voice |
 | Piper medium | Fair to robotic | 34 MB (fp16) | Very fast | Norman, Alan, Joe, … | MIT / per-voice |
 | Kitten TTS | Fair; expressive for its size | ~25 MB | Slow for its size | Several | Apache 2.0 |
 | Supertonic | Good, multilingual | Varies | Fast | Several | License unclear (check before use) |
 
-Speed figures are indicative: a Kokoro app built on sherpa-onnx reports about 20–40 s of
+In CI (2 CPU threads) Kokoro synthesises at about 0.55× real time and Piper medium at 0.03×.
+Other speed figures are indicative: a Kokoro app built on sherpa-onnx reports about 20–40 s of
 generation per minute of audio on a Snapdragon 8 Gen 3, and 60–90 s on mid-range phones. The app
 synthesises the next sentence while the current one plays, which hides most of that.
 

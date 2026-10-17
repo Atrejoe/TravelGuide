@@ -37,8 +37,10 @@ jobs:
       - name: Render
         run: python scripts/voice_samples.py models out
       - name: Summary
-        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY"
+        if: always()
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY" || true
       - name: Publish
+        if: always() && hashFiles('out/*.mp3') != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ github.event.pull_request.head.sha || github.sha }}
