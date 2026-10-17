@@ -1,0 +1,36 @@
+{
+  "batchcomplete": true,
+  "query": {
+    "pages": [
+      {
+        "pageid": 32198,
+        "ns": 0,
+        "title": "Utrecht",
+        "index": 0,
+        "coordinates": [{"lat": 52.09083, "lon": 5.12222, "primary": true, "globe": "earth", "type": "city(361924)", "dim": 10000}],
+        "description": "City and municipality in the Netherlands",
+        "descriptionsource": "local",
+        "extract": "Utrecht (UK: , US: ; Dutch: [ˈytrɛxt] ) is the fourth-largest city of the Netherlands, as well as the capital and the most populous city of the province of Utrecht. The municipality of Utrecht is located in the eastern part of the Randstad conurbation. Utrecht's ancient city centre features many buildings and structures, several dating as far back as the High Middle Ages.",
+        "contentmodel": "wikitext",
+        "fullurl": "https://en.wikipedia.org/wiki/Utrecht"
+      },
+      {
+        "pageid": 1004556,
+        "ns": 0,
+        "title": "Dom Tower of Utrecht",
+        "index": 1,
+        "coordinates": [{"lat": 52.090556, "lon": 5.121389, "primary": true, "globe": "earth", "type": "landmark", "dim": "100"}],
+        "description": "Church tower in Utrecht, Netherlands",
+        "extract": "The Dom Tower (Dutch: Domtoren) is the tallest church tower in the Netherlands, at 112.32 metres in height. It is considered the symbol of Utrecht.",
+        "fullurl": "https://en.wikipedia.org/wiki/Dom_Tower_of_Utrecht"
+      },
+      {
+        "pageid": 999,
+        "ns": 0,
+        "title": "Article without coordinates",
+        "index": 2,
+        "extract": "Ignored."
+      }
+    ]
+  }
+}

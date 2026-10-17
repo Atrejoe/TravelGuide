@@ -1,0 +1,63 @@
+package io.github.atrejoe.travelguide.core.route
+
+import io.github.atrejoe.travelguide.core.geo.GeoMath
+import io.github.atrejoe.travelguide.core.geo.GeoPoint
+import io.github.atrejoe.travelguide.core.geo.LocalProjection
+import kotlin.math.hypot
+
+/** Where a point lies relative to the predicted path. */
+data class PathPosition(
+    /** Distance along the path to the closest point, in metres. Negative when behind the start. */
+    val alongM: Double,
+    /** Distance from the path, in metres (always >= 0). */
+    val crossM: Double,
+)
+
+/**
+ * The route we expect the user to follow over the next few minutes, as a polyline starting at
+ * the current position.
+ */
+class PredictedPath(val points: List<GeoPoint>) {
+    init {
+        require(points.isNotEmpty()) { "A path needs at least one point" }
+    }
+
+    val start: GeoPoint get() = points.first()
+    val end: GeoPoint get() = points.last()
+
+    val lengthM: Double = points.zipWithNext().sumOf { (a, b) -> GeoMath.distance(a, b) }
+
+    fun locate(p: GeoPoint): PathPosition {
+        val proj = LocalProjection(start)
+        val (px, py) = proj.toXY(p)
+        if (points.size == 1) return PathPosition(0.0, hypot(px, py))
+
+        var best: PathPosition? = null
+        var bestScore = Double.MAX_VALUE
+        var travelled = 0.0
+        val xy = points.map(proj::toXY)
+        for (i in 0 until xy.size - 1) {
+            val (ax, ay) = xy[i]
+            val (bx, by) = xy[i + 1]
+            val dx = bx - ax
+            val dy = by - ay
+            val segLen = hypot(dx, dy)
+            if (segLen < 1e-6) continue
+            val rawT = ((px - ax) * dx + (py - ay) * dy) / (segLen * segLen)
+            // Allow extending before the first segment so we can tell "behind" from "beside".
+            val t = if (i == 0) rawT.coerceAtMost(1.0) else rawT.coerceIn(0.0, 1.0)
+            val cx = ax + t * dx
+            val cy = ay + t * dy
+            val cross = hypot(px - cx, py - cy)
+            val along = travelled + t * segLen
+            // Prefer the nearest segment; a point behind the start must not win over a close one.
+            val score = cross + if (along < 0) -along else 0.0
+            if (score < bestScore) {
+                bestScore = score
+                best = PathPosition(along, cross)
+            }
+            travelled += segLen
+        }
+        return best ?: PathPosition(0.0, hypot(px, py))
+    }
+}
