@@ -39,7 +39,7 @@ class GuideEngineTest {
         val town = poi(1, "Townsville", GeoMath.destination(ahead, 270.0, 2_500.0), PoiType.CITY, population = 20_000)
         val behind = poi(2, "Old Barn", GeoMath.destination(start, 180.0, 2_000.0), PoiType.BUILDING)
         val farOff = poi(3, "Remote Hill", GeoMath.destination(start, 90.0, 9_000.0), PoiType.MOUNTAIN)
-        val engine = GuideEngine({ _, _ -> listOf(town, behind, farOff) }, Random(1))
+        val engine = GuideEngine({ _, _ -> listOf(town, behind, farOff) }, random = Random(1))
 
         val now = engine.drive(speedMps = 25.0, seconds = 30)
         assertEquals(TravelMode.DRIVING, engine.motion.state!!.mode)
@@ -57,7 +57,7 @@ class GuideEngineTest {
         val places = (1..3).map { i ->
             poi(i.toLong(), "Place $i", GeoMath.destination(start, 0.0, 200.0 * i), PoiType.LANDMARK)
         }
-        val engine = GuideEngine({ _, _ -> places }, Random(1))
+        val engine = GuideEngine({ _, _ -> places }, random = Random(1))
         var now = engine.drive(speedMps = 1.4, seconds = 30)
         engine.refreshIfNeeded(now)
 

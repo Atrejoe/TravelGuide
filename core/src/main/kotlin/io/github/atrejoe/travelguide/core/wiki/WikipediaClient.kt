@@ -21,6 +21,12 @@ fun interface PoiSource {
     suspend fun nearby(center: GeoPoint, radiusM: Int): List<Poi>
 }
 
+/** Something that can provide the full article about a place, for richer stories. */
+fun interface ArticleSource {
+    /** Plain text with `== Section ==` headings, or null when unavailable. */
+    suspend fun article(poi: Poi): String?
+}
+
 /**
  * Finds geotagged Wikipedia articles near a point, together with their lead section, in a single
  * request (geosearch generator + extracts). Free to use; please keep request rates modest and send
@@ -30,10 +36,27 @@ class WikipediaClient(
     private val http: HttpFetcher,
     private val lang: String = "en",
     private val limit: Int = 20,
-) : PoiSource {
+) : PoiSource, ArticleSource {
 
     override suspend fun nearby(center: GeoPoint, radiusM: Int): List<Poi> =
         parse(http.get(nearbyUrl(center, radiusM)))
+
+    override suspend fun article(poi: Poi): String? = parseArticle(http.get(articleUrl(poi.pageId)))
+
+    fun articleUrl(pageId: Long): String = apiUrl(
+        linkedMapOf(
+            "action" to "query",
+            "format" to "json",
+            "formatversion" to "2",
+            "prop" to "extracts",
+            "explaintext" to "1",
+            "exsectionformat" to "wiki",
+            "pageids" to pageId.toString(),
+        ),
+    )
+
+    fun parseArticle(body: String): String? =
+        json.decodeFromString(ApiResponse.serializer(), body).query?.pages?.firstOrNull()?.extract?.takeIf { it.isNotBlank() }
 
     fun nearbyUrl(center: GeoPoint, radiusM: Int): String {
         val params = linkedMapOf(
@@ -53,6 +76,10 @@ class WikipediaClient(
             "exlimit" to "20",
             "inprop" to "url",
         )
+        return apiUrl(params)
+    }
+
+    private fun apiUrl(params: Map<String, String>): String {
         val query = params.entries.joinToString("&") { (k, v) -> "$k=${URLEncoder.encode(v, "UTF-8")}" }
         return "https://$lang.wikipedia.org/w/api.php?$query"
     }
