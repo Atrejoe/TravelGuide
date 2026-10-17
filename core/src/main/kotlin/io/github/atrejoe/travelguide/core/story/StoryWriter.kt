@@ -14,7 +14,9 @@ class StoryWriter(private val random: Random = Random.Default) {
 
     fun write(poi: Poi, sections: List<ArticleSection>, maxSentences: Int): List<String> {
         val budget = maxSentences.coerceAtLeast(1)
-        val identity = identityLine(poi)
+        // For towns and regions the short description is an administrative fact ("municipality in
+        // Gelderland"); their history makes the better story.
+        val identity = if (poi.type.isArea) null else identityLine(poi)
         val candidates = candidates(poi, sections, skipDefinition = identity != null)
         val chosen = select(candidates, if (identity != null) budget - 1 else budget)
             // The name's origin makes a natural start; otherwise keep the article's order.
@@ -35,8 +37,8 @@ class StoryWriter(private val random: Random = Random.Default) {
             previousKind = c.kind
         }
         if (out.isEmpty()) {
-            // Nothing scored well: fall back to the opening of the article.
-            sections.firstOrNull()?.let { s -> out += SentenceSplitter.split(TextCleaner.clean(s.text)).take(budget) }
+            // Nothing scored well: a brief mention beats a long recital of dull facts.
+            sections.firstOrNull()?.let { s -> out += SentenceSplitter.split(TextCleaner.clean(s.text)).take(minOf(budget, 2)) }
         }
         return out
     }
@@ -66,12 +68,35 @@ class StoryWriter(private val random: Random = Random.Default) {
             sentences.forEachIndexed { index, sentence ->
                 val isDefinition = section.kind == SectionKind.INTRO && index == 0 && isDefinition(sentence, poi.title)
                 if (!(skipDefinition && isDefinition)) {
-                    result += Candidate(sentence, section.kind, order, score(sentence, section.kind, index == 0))
+                    val focus = if (poi.type.isArea) areaFocus(section.kind) else 1.0
+                    result += Candidate(sentence, section.kind, order, score(sentence, section.kind, index == 0) * focus)
                 }
                 order++
             }
         }
         return result
+    }
+
+    /**
+     * A short addition about a nearby place, woven into another story: its best one or two
+     * sentences from the lead section.
+     */
+    fun companion(poi: Poi, maxSentences: Int = 2): List<String> {
+        val intro = listOf(ArticleSection("", SectionKind.INTRO, poi.extract))
+        val picked = candidates(poi, intro, skipDefinition = false)
+            .filter { it.score >= MIN_SCORE }
+            .sortedByDescending { it.score }
+            .take(maxSentences)
+            .sortedBy { it.order }
+            .map { it.text }
+        return picked.ifEmpty { SentenceSplitter.split(TextCleaner.clean(poi.extract)).take(1) }
+    }
+
+    /** For towns and regions, favour their past over today's facts and figures. */
+    private fun areaFocus(kind: SectionKind): Double = when (kind) {
+        SectionKind.HISTORY, SectionKind.NAME, SectionKind.LEGEND -> 1.15
+        SectionKind.LANDMARKS -> 1.0
+        else -> 0.7
     }
 
     /** "It is a village in Utrecht, Netherlands." from the Wikidata description, when usable. */

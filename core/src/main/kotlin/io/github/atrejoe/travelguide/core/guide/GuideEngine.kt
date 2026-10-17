@@ -4,6 +4,7 @@ import io.github.atrejoe.travelguide.core.geo.GeoMath
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.interest.Interest
+import io.github.atrejoe.travelguide.core.interest.InterestClassifier
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
 import io.github.atrejoe.travelguide.core.route.PredictedPath
@@ -14,10 +15,20 @@ import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.PoiScorer
+import io.github.atrejoe.travelguide.core.story.RelativePosition
+import io.github.atrejoe.travelguide.core.story.ScoredPoi
 import io.github.atrejoe.travelguide.core.wiki.ArticleSource
 import io.github.atrejoe.travelguide.core.wiki.PoiSource
 import kotlinx.coroutines.CancellationException
 import kotlin.random.Random
+
+/** A story we expect to tell, for showing on a timeline. */
+data class UpcomingStory(
+    val poi: Poi,
+    /** Seconds until we pass the place, or null when not moving. */
+    val etaSeconds: Int?,
+    val relative: RelativePosition,
+)
 
 /**
  * The guide's brain, free of any Android dependency: feed it location fixes, let it refresh its
@@ -37,7 +48,7 @@ class GuideEngine(
     val extrapolator = RouteExtrapolator()
     private val composer = NarrationComposer(random)
 
-    var interestWeights: Map<Interest, Double> = emptyMap()
+    var interestWeights: Map<Interest, Double> = InterestClassifier.defaultWeights
 
     private val known = LinkedHashMap<Long, Poi>()
     private val told = HashSet<Long>()
@@ -87,32 +98,107 @@ class GuideEngine(
 
     /**
      * The next story worth telling, or null when it is too soon after the last one or nothing
-     * nearby is interesting enough. A returned story is marked as told.
+     * nearby is interesting enough. A returned story (and the places woven into it) are marked as
+     * told.
+     *
+     * Places we will reach soon are preferred over equally interesting ones further ahead, and
+     * places just beyond the main one, or mentioned in its article, are combined into one story.
      */
     suspend fun nextNarration(nowMillis: Long): Narration? {
         val state = motion.state ?: return null
         val profile = DetailProfile.forMode(state.mode)
         lastNarrationEnd?.let { if (nowMillis - it < profile.minGapSeconds * 1000L) return null }
 
-        val path = extrapolator.predict(state, profile.lookaheadSeconds)
-        val scorer = PoiScorer(profile, interestWeights)
-        val best = known.values
-            .asSequence()
-            .filter { it.pageId !in told && it.extract.isNotBlank() }
-            .mapNotNull { scorer.score(it, path) }
-            .filter { it.score >= profile.minScore }
-            .maxByOrNull { it.score }
-            ?: return null
+        val ranked = rank(state, profile, profile.minScore)
+        val best = ranked.maxByOrNull { it.scored.score * urgency(it.etaSeconds, profile) } ?: return null
+        told += best.scored.poi.pageId
 
-        told += best.poi.pageId
         val sections = try {
-            articles?.article(best.poi)?.let(ArticleParser::parse)
+            articles?.article(best.scored.poi)?.let(ArticleParser::parse)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             null // The lead section from the search result is good enough.
         }
-        return composer.compose(best, state, profile, sections)
+        val articleText = sections?.joinToString(" ") { it.text } ?: best.scored.poi.extract
+        val companions = companions(best, rank(state, profile, minScore = 0.0), articleText, state, profile)
+        told += companions.map { it.poi.pageId }
+        return composer.compose(best.scored, state, profile, sections, companions)
+    }
+
+    /**
+     * Stories we expect to tell soon, in the order we will reach them, for the timeline on screen.
+     * The arrival time is a prediction from the current speed and route.
+     */
+    fun upcoming(limit: Int = 5): List<UpcomingStory> {
+        val state = motion.state ?: return emptyList()
+        val profile = DetailProfile.forMode(state.mode)
+        return rank(state, profile, profile.minScore)
+            .sortedWith(compareBy<Ranked>({ it.etaSeconds ?: Int.MAX_VALUE }, { -it.scored.score }))
+            .take(limit)
+            .map { UpcomingStory(it.scored.poi, it.etaSeconds, composer.relativePosition(it.scored, state)) }
+    }
+
+    internal data class Ranked(val scored: ScoredPoi, val etaSeconds: Int?)
+
+    /** Untold places worth a story, with when we will pass them. */
+    private fun rank(state: MotionState, profile: DetailProfile, minScore: Double): List<Ranked> {
+        val path = extrapolator.predict(state, profile.lookaheadSeconds)
+        val scorer = PoiScorer(profile, interestWeights)
+        val moving = state.speedMps > 0.5 && path.points.size > 1
+        return known.values
+            .asSequence()
+            .filter { it.pageId !in told && it.extract.isNotBlank() }
+            .mapNotNull { scorer.score(it, path) }
+            .filter { it.score >= minScore }
+            .map { scored ->
+                val eta = if (moving) (scored.position.alongM.coerceAtLeast(0.0) / state.speedMps).toInt() else null
+                Ranked(scored, eta)
+            }
+            .toList()
+    }
+
+    /** 1 for places we reach within a minute, down to 0.5 for those at the end of the look-ahead. */
+    private fun urgency(etaSeconds: Int?, profile: DetailProfile): Double {
+        if (etaSeconds == null || etaSeconds <= 60) return 1.0
+        val horizon = (profile.lookaheadSeconds * 1.5).coerceAtLeast(120.0)
+        return (1.0 - 0.5 * (etaSeconds - 60) / horizon).coerceIn(0.5, 1.0)
+    }
+
+    /**
+     * Up to two places to weave into the story: ones the article mentions, or ones we pass right
+     * after the main place.
+     */
+    private fun companions(
+        main: Ranked,
+        ranked: List<Ranked>,
+        articleText: String,
+        state: MotionState,
+        profile: DetailProfile,
+    ): List<ScoredPoi> {
+        // What we pass in about two minutes, but at least what you can see from the main place.
+        val window = maxOf(state.speedMps * 120, profile.visibilityM * 2)
+        val mainAlong = main.scored.position.alongM
+        return ranked
+            .asSequence()
+            .filter { it.scored.poi.pageId != main.scored.poi.pageId }
+            .mapNotNull { other ->
+                val distance = GeoMath.distance(main.scored.poi.point, other.scored.poi.point)
+                val gap = other.scored.position.alongM - mainAlong
+                val mentioned = distance < maxOf(window * 4, 5_000.0) &&
+                    NarrationComposer.mentions(articleText, other.scored.poi.title)
+                val near = gap in -window * 0.3..window && distance < window * 1.5 &&
+                    other.scored.score >= profile.minScore
+                when {
+                    mentioned -> other to other.scored.score + 1.0
+                    near -> other to other.scored.score
+                    else -> null
+                }
+            }
+            .sortedByDescending { it.second }
+            .take(MAX_COMPANIONS)
+            .map { it.first.scored }
+            .toList()
     }
 
     /** Call when a story has finished playing so the next one waits for the configured gap. */
@@ -127,6 +213,10 @@ class GuideEngine(
         lastFetchMillis = 0
         lastFetchRadius = 0
         lastNarrationEnd = null
+    }
+
+    private companion object {
+        const val MAX_COMPANIONS = 2
     }
 
     private fun pointAlong(path: PredictedPath, distanceM: Double): GeoPoint {

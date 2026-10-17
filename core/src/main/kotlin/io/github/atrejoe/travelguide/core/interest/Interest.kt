@@ -18,6 +18,8 @@ object InterestClassifier {
         Interest.HISTORY to listOf(
             "battle", "castle", "fort", "war", "ancient", "medieval", "roman", "century", "historic",
             "ruin", "monument", "memorial", "archaeolog", "abbey", "palace", "founded", "siege",
+            "monastery", "manor", "estate", "dynasty", "viking", "prehistoric", "burial", "mound",
+            "fortress", "rampart", "citadel", "heritage", "former", "demolished", "rebuilt",
         ),
         Interest.NATURE to listOf(
             "river", "lake", "mountain", "forest", "nature reserve", "national park", "valley", "hill",
@@ -31,10 +33,13 @@ object InterestClassifier {
             "building", "tower", "bridge", "architect", "windmill", "mill", "house", "castle", "church",
             "cathedral", "station", "canal", "lock", "dam", "skyscraper",
         ),
-        Interest.PLACES to listOf(
-            "city", "town", "village", "municipality", "capital", "province", "region", "county",
-            "district", "neighbourhood", "neighborhood",
-        ),
+    )
+
+    /** Description openings that mark an administrative place ("municipality in Gelderland"). */
+    private val placeNouns = setOf(
+        "city", "town", "village", "municipality", "capital", "province", "region", "county",
+        "district", "neighbourhood", "neighborhood", "hamlet", "commune", "borough", "parish",
+        "former", "human", "place", "census-designated",
     )
 
     fun classify(poi: Poi): Set<Interest> {
@@ -43,6 +48,11 @@ object InterestClassifier {
             append(poi.extract.take(300).lowercase())
         }
         val found = keywords.filterValues { words -> words.any { it in text } }.keys.toMutableSet()
+        // Only what a place *is* makes it a town or region, not a mention of "the region" in its text.
+        val firstWords = poi.description.orEmpty().lowercase().split(' ', ',').filter { it.isNotBlank() }.take(3)
+        if (firstWords.firstOrNull() in placeNouns && firstWords.none { it in setOf("church", "castle", "fort", "mill") }) {
+            found += Interest.PLACES
+        }
         when (poi.type) {
             PoiType.CITY, PoiType.REGION, PoiType.COUNTRY -> found += Interest.PLACES
             PoiType.MOUNTAIN, PoiType.RIVER, PoiType.WATERBODY, PoiType.GLACIER, PoiType.FOREST,
@@ -53,10 +63,25 @@ object InterestClassifier {
         return found
     }
 
-    /** The strongest weight among the POI's interests (1.0 when none match). */
+    /**
+     * The strongest weight among the POI's topical interests (1.0 when none match), scaled by the
+     * [Interest.PLACES] weight for towns and regions: a historic town still ranks well, a plain
+     * municipality does not.
+     */
     fun weight(poi: Poi, weights: Map<Interest, Double>): Double {
         val tags = classify(poi)
-        if (tags.isEmpty()) return 1.0
-        return tags.maxOf { weights[it] ?: 1.0 }
+        val topical = (tags - Interest.PLACES).maxOfOrNull { weights[it] ?: 1.0 } ?: 1.0
+        val places = if (Interest.PLACES in tags) weights[Interest.PLACES] ?: 1.0 else 1.0
+        return topical * places
     }
+
+    /**
+     * The default emphasis: the history of the surroundings first, administrative units last.
+     * Users will be able to change this (issue #4).
+     */
+    val defaultWeights: Map<Interest, Double> = mapOf(
+        Interest.HISTORY to 1.6,
+        Interest.ARCHITECTURE to 1.1,
+        Interest.PLACES to 0.55,
+    )
 }
