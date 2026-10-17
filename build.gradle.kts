@@ -1,7 +1,3 @@
-plugins {
-    // Declared here so all modules share one Kotlin Gradle plugin classloader.
-    alias(libs.plugins.kotlin.jvm) apply false
-    alias(libs.plugins.kotlin.android) apply false
-    alias(libs.plugins.kotlin.serialization) apply false
-    alias(libs.plugins.kotlin.compose) apply false
-}
+// Plugins are applied per module. Loading the Kotlin plugin here would put it in a parent
+// classloader that cannot see the Android Gradle plugin, which is only resolved when the app
+// module is included (see settings.gradle.kts).
