@@ -52,6 +52,9 @@ android {
     lint {
         // CI runs lintDebug on every app change; no need to repeat it for release builds.
         checkReleaseBuilds = false
+        // Print findings in the build log so they are visible without downloading the report.
+        textReport = true
+        textOutput = file("stdout")
     }
 }
 
