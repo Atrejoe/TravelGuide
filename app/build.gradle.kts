@@ -13,12 +13,12 @@ if (!sherpaAar.exists()) {
 
 android {
     namespace = "io.github.atrejoe.travelguide"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.atrejoe.travelguide"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         versionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
         versionName = (findProperty("versionName") as String?) ?: "0.1.0"
 
