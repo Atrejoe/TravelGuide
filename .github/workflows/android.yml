@@ -1,0 +1,86 @@
+# Builds the installable APK. Android builds are the expensive part of CI, so this only runs when
+# app code changes on a non-draft PR, on demand (Actions tab -> "Android APK" -> Run workflow),
+# or for a release tag.
+name: Android APK
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - 'app/**'
+      - 'core/src/main/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'sherpa-onnx.version'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # attach the APK to releases
+
+jobs:
+  apk:
+    name: Build debug APK
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Cache sherpa-onnx
+        uses: actions/cache@v4
+        with:
+          path: |
+            app/libs/sherpa-onnx.aar
+            app/libs/sherpa-onnx.aar.version
+          key: sherpa-onnx-${{ hashFiles('sherpa-onnx.version') }}
+      - name: Fetch sherpa-onnx
+        run: scripts/fetch-sherpa-onnx.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Version from tag or run number
+        id: version
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            echo "name=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          else
+            echo "name=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build
+        run: >
+          ./gradlew :app:assembleDebug :core:test
+          -PversionCode=${{ github.run_number }}
+          -PversionName=${{ steps.version.outputs.name }}
+
+      - name: Rename APK
+        run: |
+          mkdir -p out
+          cp app/build/outputs/apk/debug/app-debug.apk "out/travelguide-${{ steps.version.outputs.name }}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: travelguide-${{ steps.version.outputs.name }}
+          path: out/*.apk
+          retention-days: 14
+
+      - name: Attach to release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: out/*.apk
+          generate_release_notes: true
