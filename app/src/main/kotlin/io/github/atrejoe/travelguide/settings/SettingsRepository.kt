@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import io.github.atrejoe.travelguide.core.motion.TravelMode
@@ -15,10 +16,10 @@ import kotlinx.coroutines.flow.map
 data class AppSettings(
     /** `neural:<id>` for an on-device Piper voice, `system:<name>` for an Android TTS voice. */
     val voiceId: String = VoiceCatalog.DEFAULT_VOICE_ID,
-    /** Below 1 gives a deeper voice. */
-    val pitch: Float = 0.9f,
+    /** Below 1 gives a deeper voice; 1 avoids the artefacts of pitch shifting. */
+    val pitch: Float = 1.0f,
     /** Below 1 is slower, calmer narration. */
-    val rate: Float = 0.9f,
+    val rate: Float = 0.95f,
     /** Null means detect the travel mode from speed. */
     val modeOverride: TravelMode? = null,
 )
@@ -31,6 +32,25 @@ class SettingsRepository(private val context: Context) {
         val pitch = floatPreferencesKey("pitch")
         val rate = floatPreferencesKey("rate")
         val mode = stringPreferencesKey("mode_override")
+        val version = intPreferencesKey("version")
+    }
+
+    /**
+     * Upgrades settings stored by older versions: version 1 lowered the pitch by default (which
+     * made voices sound metallic) and used voice ids that no longer exist.
+     */
+    suspend fun migrate() {
+        context.dataStore.edit { p ->
+            if ((p[Keys.version] ?: 1) < CURRENT_VERSION) {
+                p[Keys.pitch] = AppSettings().pitch
+                p[Keys.rate] = AppSettings().rate
+                val voice = p[Keys.voice]
+                if (voice != null && voice.startsWith(VoiceCatalog.NEURAL_PREFIX) && VoiceCatalog.neural(voice) == null) {
+                    p.remove(Keys.voice)
+                }
+                p[Keys.version] = CURRENT_VERSION
+            }
+        }
     }
 
     val settings: Flow<AppSettings> = context.dataStore.data.map(::fromPrefs)
@@ -45,6 +65,10 @@ class SettingsRepository(private val context: Context) {
             p[Keys.rate] = next.rate
             if (next.modeOverride == null) p.remove(Keys.mode) else p[Keys.mode] = next.modeOverride.name
         }
+    }
+
+    private companion object {
+        const val CURRENT_VERSION = 2
     }
 
     private fun fromPrefs(p: Preferences): AppSettings {

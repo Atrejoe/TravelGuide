@@ -63,7 +63,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     override fun onCreate() {
         super.onCreate()
-        engine = GuideEngine(WikipediaClient(UrlConnectionFetcher(), lang = "en"))
+        val wikipedia = WikipediaClient(UrlConnectionFetcher(), lang = "en")
+        engine = GuideEngine(wikipedia, articles = wikipedia)
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
         session = MediaSessionCompat(this, "TravelGuide").apply {
@@ -161,18 +162,22 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     }
 
     /** The narrator to use for the next sentence; never swapped while one is speaking. */
-    private fun currentNarrator(): Narrator {
+    private suspend fun currentNarrator(): Narrator {
         val existing = narrator
         if (existing != null && !narratorDirty) return existing
         existing?.release()
         narratorDirty = false
-        return Narrators.create(this, settings, app.voiceModels).also { narrator = it }
+        val choice = Narrators.create(this, settings, app.voiceModels)
+        GuideStatus.update { it.copy(voiceLabel = choice.narrator.label, voiceWarning = choice.warning) }
+        return choice.narrator.also { narrator = it }
     }
 
     private suspend fun runGuide() {
         while (true) {
             delay(TICK_MILLIS)
             if (isPaused()) continue
+            // Load (or reload) the voice ahead of the first story so problems show up early.
+            if (narratorDirty) currentNarrator()
             val now = System.currentTimeMillis()
             try {
                 if (engine.refreshIfNeeded(now)) {
@@ -203,9 +208,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                     delay(1_000)
                     continue
                 }
-                val completed = currentNarrator().speak(narration.sentences[index])
+                val completed = currentNarrator().speak(
+                    narration.sentences[index],
+                    upcoming = narration.sentences.getOrNull(index + 1),
+                )
                 // Interrupted by a pause: say the sentence again after resuming.
                 if (completed || !isPaused()) index++
+                // A short breath between sentences sounds more like a person telling a story.
+                if (completed && index < narration.sentences.size) delay(SENTENCE_PAUSE_MILLIS)
             }
         } finally {
             focus.abandon()
@@ -333,6 +343,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     companion object {
         private const val TAG = "GuideService"
         private const val TICK_MILLIS = 3_000L
+        private const val SENTENCE_PAUSE_MILLIS = 250L
 
         const val ACTION_START = "io.github.atrejoe.travelguide.START"
         const val ACTION_PAUSE = "io.github.atrejoe.travelguide.PAUSE"
