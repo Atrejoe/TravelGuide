@@ -1,6 +1,8 @@
 package io.github.atrejoe.travelguide
 
+import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.motion.TravelMode
+import io.github.atrejoe.travelguide.core.route.PathSource
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -13,7 +15,11 @@ data class StoryItem(
     val timeMillis: Long,
     /** Nearby places woven into the story. */
     val also: List<String> = emptyList(),
+    /** The places the story is about, for the map: the main place first. */
+    val places: List<MapPlace> = emptyList(),
 )
+
+data class MapPlace(val title: String, val point: GeoPoint)
 
 /** A story we expect to tell, shown on the timeline. */
 data class UpcomingItem(
@@ -22,6 +28,7 @@ data class UpcomingItem(
     val where: String,
     /** When we expect to pass it, or null when not moving. */
     val expectedAtMillis: Long?,
+    val point: GeoPoint,
 )
 
 data class GuideUiState(
@@ -36,6 +43,11 @@ data class GuideUiState(
     val current: StoryItem? = null,
     val history: List<StoryItem> = emptyList(),
     val upcoming: List<UpcomingItem> = emptyList(),
+    val position: GeoPoint? = null,
+    val headingDeg: Double? = null,
+    /** The stretch we expect to travel next, and whether it is planned or guessed. */
+    val route: List<GeoPoint> = emptyList(),
+    val routeSource: PathSource = PathSource.NONE,
     val message: String? = null,
     /** The voice actually speaking, and why it differs from the chosen one, if it does. */
     val voiceLabel: String? = null,

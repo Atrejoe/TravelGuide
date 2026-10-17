@@ -42,6 +42,9 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
   article mentions, into one story.
 - **A timeline of what's coming.** The screen shows upcoming stories with their expected time,
   the current story, and earlier ones.
+- **A map of the stories.** An OpenStreetMap view shows you, the places of the current story and
+  the ones coming up. The road ahead is solid when it comes from navigation and dashed when it is
+  guessed from your movement.
 - **Pauses when it should.** Phone and VoIP calls and navigation prompts (e.g. Google Maps
   saying "turn left") pause the guide, and it resumes the sentence afterwards. Music is ducked
   while the guide speaks.
@@ -116,6 +119,8 @@ LLM storytelling and climate facts.
 - Place information: [Wikipedia](https://www.wikipedia.org/) contributors, under
   [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The app links every story to
   its source article.
+- Map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, displayed with
+  [osmdroid](https://github.com/osmdroid/osmdroid) (Apache 2.0).
 - Speech: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache 2.0) with
   [Piper](https://github.com/rhasspy/piper) voices (see each voice's model card for its license).
 

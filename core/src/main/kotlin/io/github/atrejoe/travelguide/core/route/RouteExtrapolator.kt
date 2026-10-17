@@ -20,8 +20,8 @@ class RouteExtrapolator {
         plannedRoute?.takeIf { it.size >= 2 }?.let { route ->
             followRoute(here, route, distance)?.let { return it }
         }
-        val heading = motion.headingDeg ?: return PredictedPath(listOf(here))
-        return PredictedPath(listOf(here, GeoMath.destination(here, heading, distance)))
+        val heading = motion.headingDeg ?: return PredictedPath(listOf(here), PathSource.NONE)
+        return PredictedPath(listOf(here, GeoMath.destination(here, heading, distance)), PathSource.DEAD_RECKONING)
     }
 
     /** The part of [route] from the point nearest to [here] onwards, cut at [distanceM]. */
@@ -37,12 +37,12 @@ class RouteExtrapolator {
             val leg = GeoMath.distance(previous, p)
             if (leg >= remaining) {
                 result += GeoMath.destination(previous, GeoMath.bearing(previous, p), remaining)
-                return PredictedPath(result)
+                return PredictedPath(result, PathSource.PLANNED_ROUTE)
             }
             result += p
             remaining -= leg
             previous = p
         }
-        return PredictedPath(result)
+        return PredictedPath(result, PathSource.PLANNED_ROUTE)
     }
 }

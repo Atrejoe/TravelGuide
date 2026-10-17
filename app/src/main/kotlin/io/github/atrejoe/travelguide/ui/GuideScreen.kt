@@ -104,60 +104,65 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
             )
         },
     ) { padding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val neural = VoiceCatalog.neural(settings.voiceId)
-            if (neural != null && neural.pkg.id !in installed) {
-                item {
-                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-                        Column(Modifier.padding(16.dp)) {
-                            Text("Narrator voice not downloaded", style = MaterialTheme.typography.titleMedium)
-                            Text(
-                                "${neural.name} (${neural.pkg.approxSizeMb} MB) runs fully on your phone. " +
-                                    "Until it is downloaded the guide uses the system voice.",
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                            TextButton(onClick = onOpenSettings) { Text("Choose & download voice") }
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (state.running && state.position != null) {
+                GuideMap(state)
+            }
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                val neural = VoiceCatalog.neural(settings.voiceId)
+                if (neural != null && neural.pkg.id !in installed) {
+                    item {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text("Narrator voice not downloaded", style = MaterialTheme.typography.titleMedium)
+                                Text(
+                                    "${neural.name} (${neural.pkg.approxSizeMb} MB) runs fully on your phone. " +
+                                        "Until it is downloaded the guide uses the system voice.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                                TextButton(onClick = onOpenSettings) { Text("Choose & download voice") }
+                            }
                         }
                     }
                 }
-            }
 
-            item { StatusCard(state) }
+                item { StatusCard(state, auto = settings.modeOverride == null) }
 
-            item {
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
-                    if (!state.running) {
-                        Button(onClick = start, modifier = Modifier.weight(1f)) { Text("Start guiding") }
-                    } else {
-                        Button(
-                            onClick = {
-                                GuideService.send(context, if (state.paused) GuideService.ACTION_RESUME else GuideService.ACTION_PAUSE)
-                            },
-                            modifier = Modifier.weight(1f),
-                        ) { Text(if (state.paused) "Resume" else "Pause") }
-                        OutlinedButton(onClick = { GuideService.send(context, GuideService.ACTION_STOP) }) { Text("Stop") }
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        if (!state.running) {
+                            Button(onClick = start, modifier = Modifier.weight(1f)) { Text("Start guiding") }
+                        } else {
+                            Button(
+                                onClick = {
+                                    GuideService.send(context, if (state.paused) GuideService.ACTION_RESUME else GuideService.ACTION_PAUSE)
+                                },
+                                modifier = Modifier.weight(1f),
+                            ) { Text(if (state.paused) "Resume" else "Pause") }
+                            OutlinedButton(onClick = { GuideService.send(context, GuideService.ACTION_STOP) }) { Text("Stop") }
+                        }
                     }
                 }
-            }
 
-            item {
-                ModeSelector(settings.modeOverride) { mode ->
-                    scope.launch { context.app.settings.update { it.copy(modeOverride = mode) } }
+                item {
+                    ModeSelector(settings.modeOverride, detected = state.mode.takeIf { state.running }) { mode ->
+                        scope.launch { context.app.settings.update { it.copy(modeOverride = mode) } }
+                    }
                 }
-            }
 
-            timeline(state)
+                timeline(state)
 
-            item {
-                Text(
-                    "Stories are based on Wikipedia articles, available under CC BY-SA 4.0.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                item {
+                    Text(
+                        "Stories are based on Wikipedia articles, available under CC BY-SA 4.0.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -276,7 +281,7 @@ private fun etaLabel(expectedAtMillis: Long?, now: Long): String {
 private fun clock(millis: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(millis))
 
 @Composable
-private fun StatusCard(state: GuideUiState) {
+private fun StatusCard(state: GuideUiState, auto: Boolean) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val headline = when {
@@ -287,7 +292,7 @@ private fun StatusCard(state: GuideUiState) {
             }
             Text(headline, style = MaterialTheme.typography.titleLarge)
             if (state.running) {
-                val mode = state.mode?.let(::modeLabel) ?: "Detecting…"
+                val mode = state.mode?.let { m -> modeLabel(m) + if (auto) " (detected)" else " (set by you)" } ?: "Detecting…"
                 val speed = state.speedKmh?.let { "${it.roundToInt()} km/h" } ?: "–"
                 Text("$mode · $speed · ${state.knownPlaces} places nearby", style = MaterialTheme.typography.bodyMedium)
             }
@@ -301,7 +306,7 @@ private fun StatusCard(state: GuideUiState) {
 }
 
 @Composable
-private fun ModeSelector(selected: TravelMode?, onSelect: (TravelMode?) -> Unit) {
+private fun ModeSelector(selected: TravelMode?, detected: TravelMode?, onSelect: (TravelMode?) -> Unit) {
     val options = listOf<TravelMode?>(null, TravelMode.WALKING, TravelMode.CYCLING, TravelMode.DRIVING, TravelMode.TRAIN, TravelMode.FLYING)
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
@@ -311,7 +316,11 @@ private fun ModeSelector(selected: TravelMode?, onSelect: (TravelMode?) -> Unit)
             FilterChip(
                 selected = selected == mode,
                 onClick = { onSelect(mode) },
-                label = { Text(mode?.let(::modeLabel) ?: "Auto") },
+                label = {
+                    // In automatic mode, show what was detected: "Auto · Cycling".
+                    val auto = if (selected == null && detected != null) "Auto · ${modeLabel(detected)}" else "Auto"
+                    Text(mode?.let(::modeLabel) ?: auto)
+                },
             )
         }
     }
