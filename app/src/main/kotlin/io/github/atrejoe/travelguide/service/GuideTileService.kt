@@ -1,5 +1,6 @@
 package io.github.atrejoe.travelguide.service
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -42,6 +43,8 @@ class GuideTileService : TileService() {
         tile.updateTile()
     }
 
+    // The Intent overload is only used below Android 14, where the PendingIntent one does not exist.
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     @Suppress("DEPRECATION")
     private fun openApp() {
         val intent = Intent(this, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
