@@ -44,6 +44,8 @@ data class GuideUiState(
     val history: List<StoryItem> = emptyList(),
     val upcoming: List<UpcomingItem> = emptyList(),
     val position: GeoPoint? = null,
+    /** True while the position follows a railway, which is how train travel is recognised. */
+    val onRail: Boolean = false,
     val headingDeg: Double? = null,
     /** The stretch we expect to travel next, and whether it is planned or guessed. */
     val route: List<GeoPoint> = emptyList(),

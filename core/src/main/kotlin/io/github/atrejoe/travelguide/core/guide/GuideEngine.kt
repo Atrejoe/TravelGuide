@@ -7,6 +7,9 @@ import io.github.atrejoe.travelguide.core.interest.Interest
 import io.github.atrejoe.travelguide.core.interest.InterestClassifier
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
+import io.github.atrejoe.travelguide.core.rail.RailDetector
+import io.github.atrejoe.travelguide.core.rail.RailNetwork
+import io.github.atrejoe.travelguide.core.rail.RailSource
 import io.github.atrejoe.travelguide.core.route.PredictedPath
 import io.github.atrejoe.travelguide.core.route.RouteExtrapolator
 import io.github.atrejoe.travelguide.core.story.ArticleParser
@@ -40,6 +43,8 @@ class GuideEngine(
     private val source: PoiSource,
     /** Full articles for richer stories; without it only the lead section is used. */
     private val articles: ArticleSource? = null,
+    /** Railway lines nearby, to recognise train travel; without it only speed is used. */
+    private val rails: RailSource? = null,
     random: Random = Random.Default,
     private val refreshIntervalMillis: Long = 15 * 60_000,
     private val forgetDistanceM: Double = 30_000.0,
@@ -59,7 +64,45 @@ class GuideEngine(
 
     val knownPlaces: Int get() = known.size
 
-    fun onLocation(fix: LocationFix): MotionState? = motion.onFix(fix)
+    private val railDetector = RailDetector()
+
+    /** The railway lines around us, when known. */
+    var railNetwork: RailNetwork? = null
+        private set
+
+    /** True while we appear to be travelling on a railway. */
+    val onRail: Boolean get() = railDetector.onRail
+
+    fun onLocation(fix: LocationFix): MotionState? {
+        val state = motion.onFix(fix) ?: return null
+        // Judged on this fix, applied from the next one: one fix of delay is fine for a mode.
+        motion.onRail = railDetector.update(fix, state.speedMps, state.headingDeg, railNetwork?.takeIf { it.covers(fix.point) })
+        return state
+    }
+
+    /**
+     * Fetches railway lines around us when we move fast enough to be on a train and the last
+     * fetch doesn't cover where we are. Failures are ignored: detection then falls back to speed.
+     */
+    private suspend fun refreshRailsIfNeeded(nowMillis: Long) {
+        val source = rails ?: return
+        val state = motion.state ?: return
+        if (state.speedMps < RAIL_FETCH_MIN_SPEED_MPS && !railDetector.onRail) return
+        val here = state.fix.point
+        val current = railNetwork
+        if (current != null && current.covers(here) && nowMillis - current.fetchedAtMillis < RAIL_MAX_AGE_MILLIS) return
+        if (nowMillis - lastRailAttemptMillis < RAIL_RETRY_MILLIS) return
+        lastRailAttemptMillis = nowMillis
+        try {
+            railNetwork = source.around(here, RAIL_RADIUS_M)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Overpass is busy now and then; try again a little later.
+        }
+    }
+
+    private var lastRailAttemptMillis = Long.MIN_VALUE / 2
 
     fun profile(): DetailProfile? = motion.state?.let { DetailProfile.forMode(it.mode) }
 
@@ -73,6 +116,7 @@ class GuideEngine(
      * since the last fetch. Returns true when a fetch happened.
      */
     suspend fun refreshIfNeeded(nowMillis: Long): Boolean {
+        refreshRailsIfNeeded(nowMillis)
         val state = motion.state ?: return false
         val profile = DetailProfile.forMode(state.mode)
         val path = extrapolator.predict(state, profile.lookaheadSeconds)
@@ -213,10 +257,17 @@ class GuideEngine(
         lastFetchMillis = 0
         lastFetchRadius = 0
         lastNarrationEnd = null
+        railNetwork = null
+        railDetector.reset()
+        motion.onRail = false
     }
 
     private companion object {
         const val MAX_COMPANIONS = 2
+        const val RAIL_RADIUS_M = 3_000
+        const val RAIL_FETCH_MIN_SPEED_MPS = 8.0
+        const val RAIL_MAX_AGE_MILLIS = 30 * 60_000L
+        const val RAIL_RETRY_MILLIS = 60_000L
     }
 
     private fun pointAlong(path: PredictedPath, distanceM: Double): GeoPoint {

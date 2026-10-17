@@ -26,6 +26,7 @@ import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
+import io.github.atrejoe.travelguide.core.rail.OverpassClient
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
@@ -67,8 +68,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     override fun onCreate() {
         super.onCreate()
-        val wikipedia = WikipediaClient(UrlConnectionFetcher(), lang = "en")
-        engine = GuideEngine(wikipedia, articles = wikipedia)
+        val fetcher = UrlConnectionFetcher()
+        val wikipedia = WikipediaClient(fetcher, lang = "en")
+        engine = GuideEngine(wikipedia, articles = wikipedia, rails = OverpassClient(fetcher))
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
         session = MediaSessionCompat(this, "TravelGuide").apply {
@@ -339,6 +341,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 mode = motion.mode,
                 speedKmh = motion.speedMps * 3.6,
                 position = motion.fix.point,
+                onRail = engine.onRail,
                 headingDeg = motion.headingDeg,
                 message = it.message?.takeUnless { m -> m.startsWith("Waiting for location") },
             )

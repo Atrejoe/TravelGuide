@@ -292,7 +292,13 @@ private fun StatusCard(state: GuideUiState, auto: Boolean) {
             }
             Text(headline, style = MaterialTheme.typography.titleLarge)
             if (state.running) {
-                val mode = state.mode?.let { m -> modeLabel(m) + if (auto) " (detected)" else " (set by you)" } ?: "Detecting…"
+                val mode = state.mode?.let { m ->
+                    modeLabel(m) + when {
+                        !auto -> " (set by you)"
+                        m == TravelMode.TRAIN && state.onRail -> " (detected: on the railway)"
+                        else -> " (detected)"
+                    }
+                } ?: "Detecting…"
                 val speed = state.speedKmh?.let { "${it.roundToInt()} km/h" } ?: "–"
                 Text("$mode · $speed · ${state.knownPlaces} places nearby", style = MaterialTheme.typography.bodyMedium)
             }
