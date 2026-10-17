@@ -53,7 +53,8 @@ Download the latest APK:
 - **Stable**: the [latest release](../../releases/latest).
 - **Development**: the [*preview* pre-release](../../releases/tag/preview), rebuilt from every
   app change on `main`.
-- **A pull request**: the APK artifact on that PR's *Android* workflow run.
+- **A pull request**: follow the "Test build ready" comment on the PR (the APK artifact of its
+  *Android* run).
 
 Enable "Install unknown apps" for your browser or file manager, open the APK, start the app and
 tap **Start guiding**. On first use, open **Settings → Narrator** and download the natural voices
