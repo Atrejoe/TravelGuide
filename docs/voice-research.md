@@ -31,7 +31,7 @@ to run, work offline, and optionally let users plug in a paid voice service with
 | Kitten TTS | Fair; expressive for its size | ~25 MB | Slow for its size | Several | Apache 2.0 |
 | Supertonic | Good, multilingual | Varies | Fast | Several | License unclear (check before use) |
 
-In CI (2 CPU threads) Kokoro synthesises at about 0.55× real time and Piper medium at 0.03×.
+In CI (2 CPU threads) Kokoro takes 0.5–1.1 s per second of audio, and Piper medium 0.03–0.05 s.
 Other speed figures are indicative: a Kokoro app built on sherpa-onnx reports about 20–40 s of
 generation per minute of audio on a Snapdragon 8 Gen 3, and 60–90 s on mid-range phones. The app
 synthesises the next sentence while the current one plays, which hides most of that.

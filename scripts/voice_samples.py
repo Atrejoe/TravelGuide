@@ -32,7 +32,8 @@ STORY = [
 
 
 def read_catalog():
-    source = CATALOG.read_text()
+    # Drop line comments so they cannot break the patterns below.
+    source = re.sub(r"//[^\n]*", "", CATALOG.read_text())
     packages = {
         name: (pkg_id, engine)
         for name, pkg_id, engine in re.findall(
@@ -50,8 +51,9 @@ def read_catalog():
         if pkg_ref:
             pkg_id, engine = packages[pkg_ref]
         voices.append(dict(id=vid, name=name, description=desc, pkg=pkg_id, engine=engine, sid=int(sid or 0)))
-    if not voices:
-        sys.exit("No voices found in VoiceCatalog.kt; update the parser in voice_samples.py")
+    declared = len(re.findall(r"\bNeuralVoice\(\s*\"", source))
+    if not voices or len(voices) != declared:
+        sys.exit(f"Parsed {len(voices)} of {declared} voices in VoiceCatalog.kt; update the parser in voice_samples.py")
     return voices
 
 
