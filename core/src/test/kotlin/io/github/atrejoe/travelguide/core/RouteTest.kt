@@ -55,6 +55,18 @@ class RouteTest {
     }
 
     @Test
+    fun `long straight route segments are followed from the middle`() {
+        // Simplified routes keep only the ends of a straight road: 20 km without a vertex.
+        val far = GeoMath.destination(start, 0.0, 20_000.0)
+        val extrapolator = RouteExtrapolator().apply { plannedRoute = listOf(start, far) }
+        val middle = GeoMath.destination(GeoMath.destination(start, 0.0, 10_000.0), 90.0, 50.0)
+        val motion = MotionState(LocationFix(middle, 0), speedMps = 10.0, headingDeg = 0.0, mode = TravelMode.DRIVING)
+        val path = extrapolator.predict(motion, lookaheadSeconds = 100)
+        assertEquals(PathSource.PLANNED_ROUTE, path.source)
+        assertEquals(1_000.0, path.lengthM, 10.0)
+    }
+
+    @Test
     fun `stale planned route falls back to dead reckoning`() {
         val far = GeoMath.destination(start, 90.0, 20_000.0)
         val extrapolator = RouteExtrapolator().apply { plannedRoute = listOf(far, GeoMath.destination(far, 0.0, 1_000.0)) }

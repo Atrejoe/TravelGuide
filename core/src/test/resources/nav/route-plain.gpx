@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<gpx version="1.0" creator="OsmAnd~ 4.8">
+  <rte>
+    <name>Naar Amersfoort</name>
+    <rtept lat="52.0907" lon="5.1214"><name>Start</name></rtept>
+    <rtept lat="52.1200" lon="5.2500"/>
+    <rtept lat="52.1552" lon="5.3872"><name>Finish</name></rtept>
+  </rte>
+</gpx>

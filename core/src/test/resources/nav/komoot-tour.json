@@ -1,0 +1,1 @@
+{"id":123456789,"type":"tour_planned","name":"Rund um die Zugspitze","source":"web","status":"public","sport":"hike","distance":4321.0,"duration":7200,"_links":{"coordinates":{"href":"https://api.komoot.de/v007/tours/123456789/coordinates"}}}
