@@ -99,13 +99,13 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val neural = VoiceCatalog.neural(settings.voiceId)
-            if (neural != null && neural.id !in installed) {
+            if (neural != null && neural.pkg.id !in installed) {
                 item {
                     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                         Column(Modifier.padding(16.dp)) {
                             Text("Narrator voice not downloaded", style = MaterialTheme.typography.titleMedium)
                             Text(
-                                "${neural.name} (${neural.approxSizeMb} MB) runs fully on your phone. " +
+                                "${neural.name} (${neural.pkg.approxSizeMb} MB) runs fully on your phone. " +
                                     "Until it is downloaded the guide uses the system voice.",
                                 style = MaterialTheme.typography.bodyMedium,
                             )
@@ -182,6 +182,10 @@ private fun StatusCard(state: GuideUiState) {
                 Text("$mode · $speed · ${state.knownPlaces} places nearby", style = MaterialTheme.typography.bodyMedium)
             }
             state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
+            if (state.running) {
+                state.voiceLabel?.let { Text("Voice: $it", style = MaterialTheme.typography.bodySmall) }
+                state.voiceWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
+            }
         }
     }
 }

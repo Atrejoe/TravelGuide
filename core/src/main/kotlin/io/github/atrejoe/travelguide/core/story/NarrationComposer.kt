@@ -27,19 +27,31 @@ data class Narration(
 }
 
 /**
- * Builds the spoken text from templates and the article lead. No language model involved: the
- * variety comes from a handful of phrasings and the text itself from Wikipedia.
+ * Builds the spoken story: an inviting opener that says where the place is, then the most
+ * interesting bits of its article (see [StoryWriter]), and now and then a closing remark.
+ * No language model involved: variety comes from phrasing pools and sentence selection.
  */
 class NarrationComposer(private val random: Random = Random.Default) {
+    private val writer = StoryWriter(random)
+    private var lastOpener: String? = null
 
-    fun compose(scored: ScoredPoi, motion: MotionState, profile: DetailProfile): Narration {
+    /**
+     * @param sections the full article when it could be fetched; otherwise the lead section from
+     * the geosearch result is used.
+     */
+    fun compose(
+        scored: ScoredPoi,
+        motion: MotionState,
+        profile: DetailProfile,
+        sections: List<ArticleSection>? = null,
+    ): Narration {
         val poi = scored.poi
         val relative = relativePosition(scored, motion)
-        val opener = opener(poi, relative, motion.mode)
-        val body = SentenceSplitter.split(TextCleaner.clean(poi.extract))
-            .filter { it.length > 2 }
-            .take(profile.maxSentences)
-        return Narration(poi, listOf(opener) + body, relative)
+        val material = sections?.takeIf { it.isNotEmpty() }
+            ?: listOf(ArticleSection("", SectionKind.INTRO, poi.extract))
+        val body = writer.write(poi, material, profile.maxSentences)
+        val closing = closing(relative, motion.mode)
+        return Narration(poi, listOf(opener(poi, relative, motion.mode)) + body + listOfNotNull(closing), relative)
     }
 
     fun relativePosition(scored: ScoredPoi, motion: MotionState): RelativePosition {
@@ -64,36 +76,70 @@ class NarrationComposer(private val random: Random = Random.Default) {
     private fun opener(poi: Poi, relative: RelativePosition, mode: TravelMode): String {
         val t = poi.title
         val options: List<String> = when (relative) {
-            RelativePosition.Here -> if (poi.type.isArea) {
-                if (mode == TravelMode.FLYING) {
+            RelativePosition.Here -> when {
+                poi.type.isArea && mode == TravelMode.FLYING ->
                     listOf("Below us now lies $t.", "We are flying over $t.")
-                } else {
-                    listOf("You are now in $t.", "Welcome to $t.", "We are passing through $t.")
-                }
-            } else {
-                listOf("You are right by $t.", "Right here is $t.", "Take a look around: this is $t.")
+                poi.type.isArea -> listOf(
+                    "Welcome to $t.",
+                    "We've just arrived in $t.",
+                    "You are now travelling through $t.",
+                    "And here we are, in $t.",
+                )
+                else -> listOf(
+                    "Take a look around: you are right next to $t.",
+                    "Right here is $t.",
+                    "Stop for a moment. This is $t.",
+                )
             }
             is RelativePosition.Ahead -> {
                 val d = distancePhrase(relative.distanceM)
-                listOf("Coming up ahead, $d away, is $t.", "Up ahead, about $d from here, lies $t.")
+                listOf(
+                    "Coming up ahead, about $d away, is $t.",
+                    "Keep your eyes on the road ahead: in about $d we reach $t.",
+                    "Just ahead, some $d from here, lies $t.",
+                )
             }
             is RelativePosition.Side -> {
                 val side = if (relative.left) "left" else "right"
                 val d = distancePhrase(relative.distanceM)
                 when (mode) {
-                    TravelMode.TRAIN, TravelMode.FLYING ->
-                        listOf("Look out of the $side-hand window: about $d away lies $t.")
-                    else -> listOf("On your $side, about $d away, is $t.", "To your $side, some $d off, lies $t.")
+                    TravelMode.TRAIN, TravelMode.FLYING -> listOf(
+                        "Look out of the $side-hand window. About $d away lies $t.",
+                        "If you have a $side-hand window seat, look out now: about $d away is $t.",
+                    )
+                    else -> listOf(
+                        "Look to your $side. About $d away is $t.",
+                        "Over on your $side, roughly $d away, lies $t.",
+                        "Off to the $side, about $d from here, you'll find $t.",
+                    )
                 }
             }
             is RelativePosition.Behind -> {
                 val d = distancePhrase(relative.distanceM)
-                listOf("Just behind us, about $d away, is $t.")
+                listOf("Just behind us, about $d away, is $t.", "We have just passed $t, about $d behind us.")
             }
             is RelativePosition.Compass -> {
                 val d = distancePhrase(relative.distanceM)
-                listOf("About $d to the ${relative.direction} is $t.", "Nearby, $d to the ${relative.direction}, lies $t.")
+                listOf(
+                    "About $d to the ${relative.direction} lies $t.",
+                    "Not far from here, $d to the ${relative.direction}, is $t.",
+                )
             }
+        }
+        // Avoid starting two stories in a row with the same words.
+        val fresh = options.filter { it != lastOpener }.ifEmpty { options }
+        return fresh[random.nextInt(fresh.size)].also { lastOpener = it }
+    }
+
+    private fun closing(relative: RelativePosition, mode: TravelMode): String? {
+        if (random.nextDouble() > 0.4) return null
+        val options = when {
+            relative is RelativePosition.Behind -> return null
+            mode == TravelMode.WALKING || mode == TravelMode.STATIONARY ->
+                listOf("Take a moment to look around.", "Worth a closer look, if you have the time.")
+            mode == TravelMode.CYCLING -> listOf("Worth a stop, if your legs agree.", "Something to look out for as you ride.")
+            relative is RelativePosition.Here -> listOf("Keep your eyes open as we pass through.")
+            else -> listOf("Keep an eye out as we pass.", "Something to remember for a future visit.")
         }
         return options[random.nextInt(options.size)]
     }

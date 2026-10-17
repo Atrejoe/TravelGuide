@@ -30,9 +30,14 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
 
   The mode is detected from your speed (with hysteresis against GPS glitches). You can also pick
   it yourself, because car and train speeds overlap.
-- **Soothing on-device voice.** Neural Piper voices run with
-  [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). They are free and work offline, and the
-  pitch is lowered slightly for a deep narrator tone. Any Android system voice works too.
+- **Soothing on-device voice.** Natural [Kokoro](https://huggingface.co/hexgrad/Kokoro-82M)
+  voices (default: George, a deep, warm British storyteller) and lighter Piper voices run with
+  [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx). They are free and work offline. Any
+  Android system voice works too. See the [voice research](docs/voice-research.md), and listen to
+  every voice on the [voice samples](../../releases/tag/voice-samples) page.
+- **Stories, not statistics.** The guide reads the whole article and tells the best bits: where
+  the name comes from, legends, history and culture. It skips population figures and
+  administration.
 - **Pauses when it should.** Phone and VoIP calls and navigation prompts (e.g. Google Maps
   saying "turn left") pause the guide, and it resumes the sentence afterwards. Music is ducked
   while the guide speaks.
@@ -48,10 +53,12 @@ Download the latest APK:
 - **Stable**: the [latest release](../../releases/latest).
 - **Development**: the [*preview* pre-release](../../releases/tag/preview), rebuilt from every
   app change on `main`.
-- **A pull request**: the APK artifact on that PR's *Android* workflow run.
+- **A pull request**: follow the "Test build ready" comment on the PR (the APK artifact of its
+  *Android* run).
 
 Enable "Install unknown apps" for your browser or file manager, open the APK, start the app and
-tap **Start guiding**. On first use, open **Settings → Narrator** and download a voice (~64 MB).
+tap **Start guiding**. On first use, open **Settings → Narrator** and download the natural voices
+(99 MB).
 
 ## How it works
 

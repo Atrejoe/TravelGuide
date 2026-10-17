@@ -25,6 +25,9 @@ data class GuideUiState(
     val current: StoryItem? = null,
     val history: List<StoryItem> = emptyList(),
     val message: String? = null,
+    /** The voice actually speaking, and why it differs from the chosen one, if it does. */
+    val voiceLabel: String? = null,
+    val voiceWarning: String? = null,
 )
 
 /** Process-wide guide state, written by [service.GuideService] and observed by UI and tile. */

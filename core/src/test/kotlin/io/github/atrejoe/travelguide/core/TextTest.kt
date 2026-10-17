@@ -24,6 +24,10 @@ class TextTest {
             ),
             SentenceSplitter.split(text),
         )
+        assertEquals(
+            listOf("It was granted city rights by Emperor Henry V.", "The Dom Tower is tall."),
+            SentenceSplitter.split("It was granted city rights by Emperor Henry V. The Dom Tower is tall."),
+        )
     }
 
     @Test

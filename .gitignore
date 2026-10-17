@@ -13,3 +13,5 @@ build/
 *.keystore
 *.jks
 /app/libs/*.version
+__pycache__/
+*.pyc

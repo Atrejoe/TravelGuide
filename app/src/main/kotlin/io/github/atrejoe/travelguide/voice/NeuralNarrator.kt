@@ -4,60 +4,115 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.media.PlaybackParams
 import android.util.Log
+import com.k2fsa.sherpa.onnx.GeneratedAudio
 import com.k2fsa.sherpa.onnx.OfflineTts
 import com.k2fsa.sherpa.onnx.OfflineTtsConfig
+import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
+import io.github.atrejoe.travelguide.core.voice.ModelFiles
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.util.concurrent.Executors
+import kotlin.coroutines.coroutineContext
+import kotlin.math.abs
 
 /**
- * On-device neural voice (Piper models run by sherpa-onnx). Free, offline and much more natural
- * than most built-in voices. Pitch is lowered on playback for a deeper, calmer narrator.
+ * On-device neural voice: Kokoro or Piper models run by sherpa-onnx. Free and offline.
+ *
+ * All synthesis runs on one dedicated thread, so the native engine is never used concurrently
+ * and is released only after any synthesis in flight. While a sentence plays, the next one is
+ * already being synthesised to avoid gaps on slower phones.
  */
 class NeuralNarrator(
-    private val model: InstalledModel,
+    private val voice: NeuralVoice,
+    private val files: ModelFiles,
     private val pitch: Float,
     private val rate: Float,
 ) : Narrator {
-    private val lock = Mutex()
-    @Volatile private var tts: OfflineTts? = null
+    override val label: String = "${voice.name} (on-device)"
+
+    private val synthExecutor = Executors.newSingleThreadExecutor { Thread(it, "tts-synth") }
+    private val scope = CoroutineScope(SupervisorJob() + synthExecutor.asCoroutineDispatcher())
+
+    /** Only touched on the synthesis thread. */
+    private var tts: OfflineTts? = null
+
+    /** Only touched from the caller's thread. */
+    private var ahead: Pair<String, Deferred<GeneratedAudio>>? = null
+    private var last: Pair<String, GeneratedAudio>? = null
 
     @Volatile private var stopped = false
     @Volatile private var released = false
     @Volatile private var track: AudioTrack? = null
 
-    private fun engine(): OfflineTts = tts ?: OfflineTts(
-        assetManager = null,
-        config = OfflineTtsConfig(
-            model = OfflineTtsModelConfig(
+    /** Loads the model, so failures surface before the first story and not halfway through it. */
+    suspend fun warmUp() {
+        scope.async { engine() }.await()
+    }
+
+    private fun engine(): OfflineTts = tts ?: OfflineTts(assetManager = null, config = config()).also { tts = it }
+
+    private fun config(): OfflineTtsConfig {
+        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val model = when (voice.pkg.engine) {
+            VoiceEngine.PIPER -> OfflineTtsModelConfig(
                 vits = OfflineTtsVitsModelConfig(
-                    model = model.model.absolutePath,
-                    tokens = model.tokens.absolutePath,
-                    dataDir = model.espeakData.absolutePath,
+                    model = files.model.absolutePath,
+                    tokens = files.tokens.absolutePath,
+                    dataDir = files.dataDir.absolutePath,
                 ),
-                numThreads = 2,
+                numThreads = threads,
                 debug = false,
                 provider = "cpu",
-            ),
-        ),
-    ).also { tts = it }
+            )
+            VoiceEngine.KOKORO -> OfflineTtsModelConfig(
+                kokoro = OfflineTtsKokoroModelConfig(
+                    model = files.model.absolutePath,
+                    voices = requireNotNull(files.voices) { "voices.bin missing" }.absolutePath,
+                    tokens = files.tokens.absolutePath,
+                    dataDir = files.dataDir.absolutePath,
+                ),
+                numThreads = threads,
+                debug = false,
+                provider = "cpu",
+            )
+        }
+        return OfflineTtsConfig(model = model)
+    }
 
-    override suspend fun speak(text: String): Boolean = lock.withLock {
+    private fun synthesize(text: String): Deferred<GeneratedAudio> =
+        scope.async { engine().generate(text = text, sid = voice.speakerId, speed = rate) }
+
+    override suspend fun speak(text: String, upcoming: String?): Boolean {
         if (released) return false
         stopped = false
         val audio = try {
-            withContext(Dispatchers.Default) { engine().generate(text = text, sid = 0, speed = rate) }
-        } catch (e: Exception) {
-            Log.e(TAG, "Speech synthesis failed", e)
+            val cached = last?.takeIf { it.first == text }?.second
+            if (cached != null) {
+                cached
+            } else {
+                val pending = ahead?.takeIf { it.first == text }?.second ?: synthesize(text)
+                // Queued behind the current sentence on the synthesis thread.
+                ahead = upcoming?.let { it to synthesize(it) }
+                pending.await().also { last = text to it }
+            }
+        } catch (t: Throwable) {
+            coroutineContext.ensureActive()
+            Log.e(TAG, "Speech synthesis failed", t)
             return false
         }
-        if (released) freeEngine()
+        if (upcoming != null && ahead?.first != upcoming) ahead = upcoming to synthesize(upcoming)
         if (stopped || released || audio.samples.isEmpty()) return false
-        withContext(Dispatchers.IO) { play(audio.samples, audio.sampleRate) }
+        return withContext(Dispatchers.IO) { play(audio.samples, audio.sampleRate) }
     }
 
     private suspend fun play(samples: FloatArray, sampleRate: Int): Boolean {
@@ -78,10 +133,14 @@ class NeuralNarrator(
             .build()
         track = audioTrack
         try {
-            try {
-                audioTrack.playbackParams = PlaybackParams().setPitch(pitch).setSpeed(1f)
-            } catch (e: IllegalArgumentException) {
-                Log.w(TAG, "Device does not support pitch $pitch", e)
+            // Pitch shifting is done by time-stretching, which adds a metallic edge; only use it
+            // when the user asked for a different pitch.
+            if (abs(pitch - 1f) > 0.01f) {
+                try {
+                    audioTrack.playbackParams = PlaybackParams().setPitch(pitch).setSpeed(1f)
+                } catch (e: IllegalArgumentException) {
+                    Log.w(TAG, "Device does not support pitch $pitch", e)
+                }
             }
             audioTrack.play()
             val chunk = sampleRate / 10
@@ -121,21 +180,18 @@ class NeuralNarrator(
     }
 
     override fun release() {
+        if (released) return
         released = true
         stop()
-        // Never free the native engine while it is synthesising; speak() frees it afterwards.
-        if (lock.tryLock()) {
-            try {
-                freeEngine()
-            } finally {
-                lock.unlock()
-            }
+        ahead = null
+        last = null
+        scope.cancel()
+        // Runs after any synthesis in flight: the executor is single-threaded.
+        synthExecutor.execute {
+            tts?.release()
+            tts = null
         }
-    }
-
-    private fun freeEngine() {
-        tts?.release()
-        tts = null
+        synthExecutor.shutdown()
     }
 
     private companion object {

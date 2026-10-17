@@ -1,6 +1,10 @@
 package io.github.atrejoe.travelguide.voice
 
 import android.content.Context
+import android.util.Log
+import io.github.atrejoe.travelguide.core.voice.ModelArchive
+import io.github.atrejoe.travelguide.core.voice.ModelFiles
+import io.github.atrejoe.travelguide.core.voice.ModelLayout
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -8,74 +12,80 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
-import org.apache.commons.compress.archivers.tar.TarArchiveInputStream
-import org.apache.commons.compress.compressors.bzip2.BZip2CompressorInputStream
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
+import kotlin.concurrent.thread
 import kotlin.coroutines.coroutineContext
 
-/** Files of an installed voice model, as sherpa-onnx needs them. */
-data class InstalledModel(val model: File, val tokens: File, val espeakData: File)
-
-/** Downloads, unpacks and removes on-device voice models. */
+/** Downloads, unpacks and removes on-device voice model packages. */
 class VoiceModelManager(context: Context) {
     private val root = File(context.filesDir, "voices")
     private val cache = context.cacheDir
 
     private val mutableProgress = MutableStateFlow<Map<String, Float>>(emptyMap())
 
-    /** Download progress per voice id (0..1, or -1 while unpacking / size unknown). */
+    /** Download progress per package id (0..1, or -1 while unpacking / size unknown). */
     val progress: StateFlow<Map<String, Float>> = mutableProgress.asStateFlow()
 
     private val mutableInstalled = MutableStateFlow(scanInstalled())
+
+    /** Ids of installed packages. */
     val installed: StateFlow<Set<String>> = mutableInstalled.asStateFlow()
 
-    fun isInstalled(voice: NeuralVoice): Boolean = File(dirFor(voice), MARKER).exists()
-
-    fun model(voice: NeuralVoice): InstalledModel? {
-        if (!isInstalled(voice)) return null
-        val files = dirFor(voice).walkTopDown()
-        val onnx = files.firstOrNull { it.isFile && it.name.endsWith(".onnx") } ?: return null
-        val tokens = files.firstOrNull { it.isFile && it.name == "tokens.txt" } ?: return null
-        val espeak = files.firstOrNull { it.isDirectory && it.name == "espeak-ng-data" } ?: return null
-        return InstalledModel(onnx, tokens, espeak)
+    init {
+        // Models from earlier versions of the catalog are no longer used; free their space.
+        thread(name = "voice-cleanup", isDaemon = true) {
+            val known = VoiceCatalog.packages.map { it.id }.toSet()
+            root.listFiles()?.filter { it.name !in known }?.forEach {
+                Log.i(TAG, "Removing unused voice model ${it.name}")
+                it.deleteRecursively()
+            }
+        }
     }
 
-    suspend fun download(voice: NeuralVoice) = withContext(Dispatchers.IO) {
-        val archive = File(cache, "${voice.id}.tar.bz2")
-        val target = dirFor(voice)
+    fun isInstalled(pkg: VoicePackage): Boolean = File(dirFor(pkg), MARKER).exists()
+
+    fun files(pkg: VoicePackage): ModelFiles? =
+        if (isInstalled(pkg)) ModelLayout.find(dirFor(pkg)) else null
+
+    suspend fun download(pkg: VoicePackage) = withContext(Dispatchers.IO) {
+        val archive = File(cache, "${pkg.id}.tar.bz2")
+        val target = dirFor(pkg)
         try {
-            setProgress(voice, 0f)
-            fetch(voice.archiveUrl, archive) { setProgress(voice, it) }
-            setProgress(voice, -1f)
+            setProgress(pkg, 0f)
+            fetch(pkg.archiveUrl, archive) { setProgress(pkg, it) }
+            setProgress(pkg, -1f)
             target.deleteRecursively()
-            unpack(archive, target)
-            File(target, MARKER).writeText(voice.archiveUrl)
+            val context = coroutineContext
+            archive.inputStream().use { ModelArchive.unpackTarBz2(it, target) { !context.isActive } }
+            if (ModelLayout.find(target) == null) throw IOException("The downloaded voice is incomplete")
+            File(target, MARKER).writeText(pkg.archiveUrl)
         } catch (e: Exception) {
             target.deleteRecursively()
             throw e
         } finally {
             archive.delete()
-            mutableProgress.update { it - voice.id }
+            mutableProgress.update { it - pkg.id }
             mutableInstalled.value = scanInstalled()
         }
     }
 
-    fun delete(voice: NeuralVoice) {
-        dirFor(voice).deleteRecursively()
+    fun delete(pkg: VoicePackage) {
+        dirFor(pkg).deleteRecursively()
         mutableInstalled.value = scanInstalled()
     }
 
-    private fun dirFor(voice: NeuralVoice) = File(root, voice.id)
+    private fun dirFor(pkg: VoicePackage) = File(root, pkg.id)
 
     private fun scanInstalled(): Set<String> =
-        VoiceCatalog.neuralVoices.filter { File(dirFor(it), MARKER).exists() }.map { it.id }.toSet()
+        VoiceCatalog.packages.filter { File(dirFor(it), MARKER).exists() }.map { it.id }.toSet()
 
-    private fun setProgress(voice: NeuralVoice, value: Float) =
-        mutableProgress.update { it + (voice.id to value) }
+    private fun setProgress(pkg: VoicePackage, value: Float) =
+        mutableProgress.update { it + (pkg.id to value) }
 
     private suspend fun fetch(url: String, dest: File, onProgress: (Float) -> Unit) {
         val connection = URL(url).openConnection() as HttpURLConnection
@@ -112,30 +122,8 @@ class VoiceModelManager(context: Context) {
         }
     }
 
-    /** Extracts the archive, dropping its top-level folder and refusing paths that escape [target]. */
-    private suspend fun unpack(archive: File, target: File) {
-        val canonicalTarget = target.canonicalFile
-        TarArchiveInputStream(BZip2CompressorInputStream(archive.inputStream().buffered())).use { tar ->
-            while (true) {
-                coroutineContext.ensureActive()
-                val entry = tar.nextEntry ?: break
-                val relative = entry.name.substringAfter('/', "")
-                if (relative.isEmpty()) continue
-                val out = File(canonicalTarget, relative).canonicalFile
-                if (!out.path.startsWith(canonicalTarget.path + File.separator)) {
-                    throw IOException("Refusing to unpack ${entry.name}")
-                }
-                if (entry.isDirectory) {
-                    out.mkdirs()
-                } else if (entry.isFile) {
-                    out.parentFile?.mkdirs()
-                    out.outputStream().use { tar.copyTo(it) }
-                }
-            }
-        }
-    }
-
     private companion object {
+        const val TAG = "VoiceModels"
         const val MARKER = ".installed"
     }
 }

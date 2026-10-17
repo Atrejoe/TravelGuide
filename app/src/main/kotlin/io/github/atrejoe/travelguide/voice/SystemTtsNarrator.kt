@@ -38,21 +38,36 @@ class SystemTtsNarrator(
         })
     }
 
+    override var label: String = "System voice"
+        private set
+
     private var configured = false
 
-    private fun configure() {
-        if (configured) return
+    /**
+     * Waits for the engine and applies the voice settings. Returns a warning when the requested
+     * voice cannot be used (for example because its data is not installed), in which case the
+     * engine's default voice for [locale] speaks instead.
+     */
+    suspend fun initialize(): String? {
+        if (!ready.await()) return "The phone's text-to-speech engine is not available."
+        if (configured) return null
         configured = true
         tts.setAudioAttributes(Narrators.audioAttributes)
         tts.setPitch(pitch)
         tts.setSpeechRate(rate)
-        val voice: Voice? = voiceName?.let { name -> tts.voices?.firstOrNull { it.name == name } }
-        if (voice != null) tts.voice = voice else tts.language = locale
+        val wanted: Voice? = voiceName?.let { name -> tts.voices?.firstOrNull { it.name == name } }
+        if (wanted != null && SystemVoices.isInstalled(wanted) && tts.setVoice(wanted) == TextToSpeech.SUCCESS) {
+            label = "System voice ${wanted.name}"
+            return null
+        }
+        tts.language = locale
+        label = "System voice (default)"
+        return voiceName?.let { "System voice $it is not installed on this phone; using the default voice." }
     }
 
-    override suspend fun speak(text: String): Boolean {
+    override suspend fun speak(text: String, upcoming: String?): Boolean {
         if (!ready.await()) return false
-        configure()
+        initialize()
         return suspendCancellableCoroutine { cont ->
             val id = UUID.randomUUID().toString()
             pending[id] = cont
@@ -86,6 +101,10 @@ class SystemTtsNarrator(
 data class SystemVoice(val name: String, val label: String)
 
 object SystemVoices {
+    /** Engines list voices whose data still has to be downloaded; those silently fall back. */
+    fun isInstalled(voice: Voice): Boolean =
+        TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features.orEmpty()
+
     /** Lists installed English voices, best quality first. */
     suspend fun load(context: Context): List<SystemVoice> {
         val ready = CompletableDeferred<Boolean>()
@@ -93,7 +112,7 @@ object SystemVoices {
         return try {
             if (!ready.await()) return emptyList()
             tts.voices.orEmpty()
-                .filter { it.locale.language == "en" }
+                .filter { it.locale.language == "en" && isInstalled(it) }
                 .sortedWith(compareBy<Voice>({ it.isNetworkConnectionRequired }, { -it.quality }, { it.name }))
                 .map { v ->
                     val where = if (v.isNetworkConnectionRequired) "online" else "offline"

@@ -1,0 +1,50 @@
+# Renders an audition MP3 for every on-device voice in the catalog, with the same models and
+# settings as the app, and publishes them on the rolling `voice-samples` pre-release. This also
+# proves that each model archive downloads and loads. Runs when the catalog changes, or on demand.
+name: Voice samples
+
+on:
+  pull_request:
+    paths:
+      - 'app/src/main/kotlin/io/github/atrejoe/travelguide/voice/VoiceCatalog.kt'
+      - 'scripts/voice_samples.py'
+      - '.github/workflows/voice-samples.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: voice-samples-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write # publish the voice-samples pre-release
+
+jobs:
+  samples:
+    name: Render voice samples
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install sherpa-onnx
+        run: pip install "sherpa-onnx>=1.12,<1.14" soundfile
+      - uses: actions/cache@v4
+        with:
+          path: models
+          key: voice-models-${{ hashFiles('app/src/main/kotlin/io/github/atrejoe/travelguide/voice/VoiceCatalog.kt') }}
+      - name: Render
+        run: python scripts/voice_samples.py models out
+      - name: Summary
+        if: always()
+        run: cat out/summary.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Publish
+        if: always() && hashFiles('out/*.mp3') != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          gh release delete voice-samples --yes --cleanup-tag || true
+          gh release create voice-samples out/*.mp3 --prerelease --target "$SHA" \
+            --title "Voice samples" --notes-file out/summary.md

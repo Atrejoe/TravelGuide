@@ -8,12 +8,15 @@ import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
 import io.github.atrejoe.travelguide.core.route.PredictedPath
 import io.github.atrejoe.travelguide.core.route.RouteExtrapolator
+import io.github.atrejoe.travelguide.core.story.ArticleParser
 import io.github.atrejoe.travelguide.core.story.DetailProfile
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.PoiScorer
+import io.github.atrejoe.travelguide.core.wiki.ArticleSource
 import io.github.atrejoe.travelguide.core.wiki.PoiSource
+import kotlinx.coroutines.CancellationException
 import kotlin.random.Random
 
 /**
@@ -24,6 +27,8 @@ import kotlin.random.Random
  */
 class GuideEngine(
     private val source: PoiSource,
+    /** Full articles for richer stories; without it only the lead section is used. */
+    private val articles: ArticleSource? = null,
     random: Random = Random.Default,
     private val refreshIntervalMillis: Long = 15 * 60_000,
     private val forgetDistanceM: Double = 30_000.0,
@@ -84,7 +89,7 @@ class GuideEngine(
      * The next story worth telling, or null when it is too soon after the last one or nothing
      * nearby is interesting enough. A returned story is marked as told.
      */
-    fun nextNarration(nowMillis: Long): Narration? {
+    suspend fun nextNarration(nowMillis: Long): Narration? {
         val state = motion.state ?: return null
         val profile = DetailProfile.forMode(state.mode)
         lastNarrationEnd?.let { if (nowMillis - it < profile.minGapSeconds * 1000L) return null }
@@ -100,7 +105,14 @@ class GuideEngine(
             ?: return null
 
         told += best.poi.pageId
-        return composer.compose(best, state, profile)
+        val sections = try {
+            articles?.article(best.poi)?.let(ArticleParser::parse)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null // The lead section from the search result is good enough.
+        }
+        return composer.compose(best, state, profile, sections)
     }
 
     /** Call when a story has finished playing so the next one waits for the configured gap. */
