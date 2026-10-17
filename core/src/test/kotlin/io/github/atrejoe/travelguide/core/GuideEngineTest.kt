@@ -49,13 +49,14 @@ class GuideEngineTest {
         assertEquals("Townsville", narration.poi.title)
         assertIs<RelativePosition.Side>(narration.relative)
         assertTrue((narration.relative as RelativePosition.Side).left)
-        assertTrue(narration.sentences.size in 2..5)
+        assertTrue(narration.sentences.size in 2..5, "sentences: ${narration.sentences}")
     }
 
     @Test
     fun `waits for the gap and never repeats a story`() = runTest {
+        // Far enough apart that walking past them gives three separate stories.
         val places = (1..3).map { i ->
-            poi(i.toLong(), "Place $i", GeoMath.destination(start, 0.0, 200.0 * i), PoiType.LANDMARK)
+            poi(i.toLong(), "Place $i", GeoMath.destination(start, 0.0, 600.0 * i - 300.0), PoiType.LANDMARK)
         }
         val engine = GuideEngine({ _, _ -> places }, random = Random(1))
         var now = engine.drive(speedMps = 1.4, seconds = 30)
@@ -84,5 +85,57 @@ class GuideEngineTest {
         assertTrue(engine.refreshIfNeeded(now))
         assertFalse(engine.refreshIfNeeded(now + 10_000))
         assertEquals(1, calls)
+    }
+
+    @Test
+    fun `places along the way are combined into one story`() = runTest {
+        val castle = poi(10, "Castle Rock", GeoMath.destination(start, 0.0, 2_000.0), PoiType.LANDMARK)
+            .copy(description = "Medieval castle", extract = "Castle Rock is a medieval castle built in 1250 by the counts of Holland. " + longText)
+        val mill = poi(11, "Old Mill", GeoMath.destination(start, 5.0, 2_400.0), PoiType.LANDMARK)
+            .copy(extract = "The Old Mill is the oldest windmill in the region, first mentioned in 1400.")
+        val linked = poi(12, "Abbey of Saint Bavo", GeoMath.destination(start, 60.0, 3_000.0), PoiType.LANDMARK)
+            .copy(extract = "The Abbey of Saint Bavo was founded by monks in 1102 and destroyed in a siege.")
+        val article = "Castle Rock was built in 1250. Its stones came from the Abbey of Saint Bavo after the siege."
+        val engine = GuideEngine(
+            source = { _, _ -> listOf(castle, mill, linked) },
+            articles = { p -> if (p.pageId == 10L) article else null },
+            random = Random(2),
+        )
+        val now = engine.drive(speedMps = 8.0, seconds = 30)
+        engine.refreshIfNeeded(now)
+
+        val narration = assertNotNull(engine.nextNarration(now))
+        assertEquals("Castle Rock", narration.poi.title)
+        assertEquals(setOf("Old Mill", "Abbey of Saint Bavo"), narration.companions.map { it.title }.toSet())
+        assertTrue(narration.sentences.any { "Which brings us to Abbey of Saint Bavo" in it || "continues at Abbey of Saint Bavo" in it })
+        // All three are told now, so nothing is left for later.
+        engine.onNarrationFinished(now)
+        assertNull(engine.nextNarration(now + 600_000))
+    }
+
+    @Test
+    fun `history beats an ordinary municipality`() = runTest {
+        val town = poi(20, "Plainville", GeoMath.destination(start, 0.0, 1_500.0), PoiType.CITY, population = 30_000)
+            .copy(description = "Municipality in Utrecht, Netherlands")
+        val fort = poi(21, "Fort Bakel", GeoMath.destination(start, 0.0, 1_700.0), PoiType.LANDMARK)
+            .copy(description = "19th-century fort", extract = "Fort Bakel is a fort built in 1870 as part of the Dutch Water Line. " + longText)
+        val engine = GuideEngine({ _, _ -> listOf(town, fort) }, random = Random(1))
+        val now = engine.drive(speedMps = 25.0, seconds = 30)
+        engine.refreshIfNeeded(now)
+        assertEquals("Fort Bakel", engine.nextNarration(now)?.poi?.title)
+    }
+
+    @Test
+    fun `upcoming stories are listed in the order we reach them`() = runTest {
+        val near = poi(30, "Near", GeoMath.destination(start, 0.0, 1_500.0), PoiType.LANDMARK)
+        val far = poi(31, "Far", GeoMath.destination(start, 0.0, 6_000.0), PoiType.LANDMARK)
+        val engine = GuideEngine({ _, _ -> listOf(far, near) }, random = Random(1))
+        val now = engine.drive(speedMps = 25.0, seconds = 30)
+        engine.refreshIfNeeded(now)
+
+        val upcoming = engine.upcoming()
+        assertEquals(listOf("Near", "Far"), upcoming.map { it.poi.title })
+        // 750 m driven; Near is 750 m further at 25 m/s.
+        assertEquals(30.0, upcoming.first().etaSeconds!!.toDouble(), 3.0)
     }
 }

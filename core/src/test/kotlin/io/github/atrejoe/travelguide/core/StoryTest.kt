@@ -38,7 +38,9 @@ class StoryTest {
         val story = StoryWriter(Random(3)).write(utrecht, ArticleParser.parse(article), maxSentences = 5)
         val text = story.joinToString(" ")
 
-        assertEquals("It is a city and municipality in the Netherlands.", story.first())
+        // Towns get no administrative identity line: the story opens with the origin of the name.
+        assertTrue("beyond the ford" in story.first() || story.size > 1 && "beyond the ford" in story[1], "story: $story")
+        assertFalse(story.any { it.startsWith("It is a city") })
         assertFalse("361,924" in text, "population figures are not story material")
         assertFalse("54%" in text)
         assertFalse("twinned" in text)
@@ -46,7 +48,7 @@ class StoryTest {
         val nameIndex = story.indexOfFirst { "beyond the ford" in it }
         val historyIndex = story.indexOfFirst { "1122" in it || "Roman fort" in it || "tornado" in it }
         assertTrue(historyIndex > nameIndex)
-        // Identity line + 4 article sentences + at most 2 short lead-ins.
+        // 5 article sentences + at most 2 short lead-ins.
         assertTrue(story.size in 5..7, "story: $story")
     }
 
@@ -57,6 +59,13 @@ class StoryTest {
         assertEquals("It is an archaeological site in Italy.", writer.identityLine(utrecht.copy(description = "Archaeological site in Italy")))
         assertEquals("It is a church in Utrecht, Netherlands.", writer.identityLine(utrecht.copy(description = "Church in Utrecht, Netherlands")))
         assertEquals(null, writer.identityLine(utrecht.copy(description = "Wikimedia disambiguation page")))
+    }
+
+    @Test
+    fun `a building still gets its identity line`() {
+        val tower = utrecht.copy(type = PoiType.LANDMARK, title = "Dom Tower", description = "Church tower in Utrecht")
+        val story = StoryWriter(Random(1)).write(tower, ArticleParser.parse("The Dom Tower is the tallest church tower in the Netherlands, built in 1382."), 3)
+        assertEquals("It is a church tower in Utrecht.", story.first())
     }
 
     @Test

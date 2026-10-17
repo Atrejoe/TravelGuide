@@ -22,6 +22,8 @@ data class Narration(
     val poi: Poi,
     val sentences: List<String>,
     val relative: RelativePosition,
+    /** Nearby places woven into this story. */
+    val companions: List<Poi> = emptyList(),
 ) {
     val text: String get() = sentences.joinToString(" ")
 }
@@ -44,14 +46,45 @@ class NarrationComposer(private val random: Random = Random.Default) {
         motion: MotionState,
         profile: DetailProfile,
         sections: List<ArticleSection>? = null,
+        companions: List<ScoredPoi> = emptyList(),
     ): Narration {
         val poi = scored.poi
         val relative = relativePosition(scored, motion)
         val material = sections?.takeIf { it.isNotEmpty() }
             ?: listOf(ArticleSection("", SectionKind.INTRO, poi.extract))
-        val body = writer.write(poi, material, profile.maxSentences)
+        // Leave room for the places woven in after the main story.
+        val budget = (profile.maxSentences - companions.size).coerceAtLeast(2)
+        val body = writer.write(poi, material, budget)
+
+        val articleText = material.joinToString(" ") { it.text }
+        val extra = companions.flatMap { companion ->
+            val mentioned = mentions(articleText, companion.poi.title)
+            listOf(transition(companion, relativePosition(companion, motion), mentioned)) +
+                writer.companion(companion.poi, if (profile.maxSentences >= 4) 2 else 1)
+        }
         val closing = closing(relative, motion.mode)
-        return Narration(poi, listOf(opener(poi, relative, motion.mode)) + body + listOfNotNull(closing), relative)
+        return Narration(
+            poi,
+            listOf(opener(poi, relative, motion.mode)) + body + extra + listOfNotNull(closing),
+            relative,
+            companions.map { it.poi },
+        )
+    }
+
+    /** Leads from the main story into a nearby place, preferably via a real connection. */
+    private fun transition(companion: ScoredPoi, relative: RelativePosition, mentioned: Boolean): String {
+        val t = companion.poi.title
+        val where = where(relative)
+        val options = if (mentioned) {
+            listOf("Which brings us to $t, $where.", "And that story continues at $t, $where.")
+        } else {
+            listOf(
+                "A little further along, $where, you'll find $t.",
+                "Not far from there, $where, lies $t.",
+                "And while we're here: $where is $t.",
+            )
+        }
+        return options[random.nextInt(options.size)]
     }
 
     fun relativePosition(scored: ScoredPoi, motion: MotionState): RelativePosition {
@@ -145,6 +178,35 @@ class NarrationComposer(private val random: Random = Random.Default) {
     }
 
     companion object {
+        /** True when [text] names [title] as a whole word. */
+        fun mentions(text: String, title: String): Boolean {
+            val name = title.substringBefore(" (").substringBefore(",").trim()
+            if (name.length < 4) return false
+            return Regex("\\b${Regex.escape(name)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
+        }
+
+        /** Spoken location, e.g. "on your left, about 800 metres away". */
+        fun where(relative: RelativePosition): String = when (relative) {
+            RelativePosition.Here -> "right here"
+            is RelativePosition.Ahead -> "straight ahead, about ${distancePhrase(relative.distanceM)} away"
+            is RelativePosition.Side ->
+                "on your ${if (relative.left) "left" else "right"}, about ${distancePhrase(relative.distanceM)} away"
+            is RelativePosition.Behind -> "just behind us"
+            is RelativePosition.Compass -> "${distancePhrase(relative.distanceM)} to the ${relative.direction}"
+        }
+
+        /** Short label for screens, e.g. "left · 800 m". */
+        fun label(relative: RelativePosition): String {
+            fun short(m: Double) = if (m < 1_000) "${((m / 100).roundToInt() * 100).coerceAtLeast(100)} m" else "${"%.1f".format(java.util.Locale.ROOT, m / 1000)} km"
+            return when (relative) {
+                RelativePosition.Here -> "here"
+                is RelativePosition.Ahead -> "ahead · ${short(relative.distanceM)}"
+                is RelativePosition.Side -> "${if (relative.left) "left" else "right"} · ${short(relative.distanceM)}"
+                is RelativePosition.Behind -> "behind · ${short(relative.distanceM)}"
+                is RelativePosition.Compass -> "${relative.direction} · ${short(relative.distanceM)}"
+            }
+        }
+
         fun distancePhrase(meters: Double): String = when {
             meters < 950 -> "${((meters / 100).roundToInt() * 100).coerceAtLeast(100)} metres"
             meters < 1_050 -> "a kilometre"

@@ -44,14 +44,26 @@ class PredictedPath(val points: List<GeoPoint>) {
             val segLen = hypot(dx, dy)
             if (segLen < 1e-6) continue
             val rawT = ((px - ax) * dx + (py - ay) * dy) / (segLen * segLen)
-            // Allow extending before the first segment so we can tell "behind" from "beside".
-            val t = if (i == 0) rawT.coerceAtMost(1.0) else rawT.coerceIn(0.0, 1.0)
+            // Extend before the first and beyond the last segment, so "behind" and "further
+            // ahead than we look" are measured along the route rather than as a sideways offset.
+            val last = i == xy.size - 2
+            val t = when {
+                i == 0 && last -> rawT
+                i == 0 -> rawT.coerceAtMost(1.0)
+                last -> rawT.coerceAtLeast(0.0)
+                else -> rawT.coerceIn(0.0, 1.0)
+            }
             val cx = ax + t * dx
             val cy = ay + t * dy
             val cross = hypot(px - cx, py - cy)
             val along = travelled + t * segLen
-            // Prefer the nearest segment; a point behind the start must not win over a close one.
-            val score = cross + if (along < 0) -along else 0.0
+            // Prefer the nearest segment; a point off either end must not win over a close one.
+            val overshoot = when {
+                along < 0 -> -along
+                last && t > 1.0 -> (t - 1.0) * segLen
+                else -> 0.0
+            }
+            val score = cross + overshoot
             if (score < bestScore) {
                 bestScore = score
                 best = PathPosition(along, cross)

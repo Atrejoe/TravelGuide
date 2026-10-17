@@ -30,6 +30,10 @@ class RouteTest {
         assertEquals(2_000.0, pos.alongM, 5.0)
         assertEquals(300.0, pos.crossM, 5.0)
 
+        val beyond = GeoMath.destination(start, 0.0, 8_000.0)
+        assertEquals(8_000.0, path.locate(beyond).alongM, 10.0)
+        assertEquals(0.0, path.locate(beyond).crossM, 5.0)
+
         val behind = GeoMath.destination(start, 180.0, 1_000.0)
         assertEquals(-1_000.0, path.locate(behind).alongM, 5.0)
         assertEquals(0.0, path.locate(behind).crossM, 5.0)

@@ -11,6 +11,17 @@ data class StoryItem(
     val text: String,
     val url: String,
     val timeMillis: Long,
+    /** Nearby places woven into the story. */
+    val also: List<String> = emptyList(),
+)
+
+/** A story we expect to tell, shown on the timeline. */
+data class UpcomingItem(
+    val title: String,
+    /** Where it is, e.g. "left · 800 m". */
+    val where: String,
+    /** When we expect to pass it, or null when not moving. */
+    val expectedAtMillis: Long?,
 )
 
 data class GuideUiState(
@@ -24,6 +35,7 @@ data class GuideUiState(
     val knownPlaces: Int = 0,
     val current: StoryItem? = null,
     val history: List<StoryItem> = emptyList(),
+    val upcoming: List<UpcomingItem> = emptyList(),
     val message: String? = null,
     /** The voice actually speaking, and why it differs from the chosen one, if it does. */
     val voiceLabel: String? = null,

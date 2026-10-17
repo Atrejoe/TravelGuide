@@ -36,8 +36,12 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
   Android system voice works too. See the [voice research](docs/voice-research.md), and listen to
   every voice on the [voice samples](../../releases/tag/voice-samples) page.
 - **Stories, not statistics.** The guide reads the whole article and tells the best bits: where
-  the name comes from, legends, history and culture. It skips population figures and
-  administration.
+  the name comes from, legends, history and culture. History comes first; plain municipalities
+  and population figures come last.
+- **Stories that connect.** Looking ahead along the route, it weaves nearby places, and places the
+  article mentions, into one story.
+- **A timeline of what's coming.** The screen shows upcoming stories with their expected time,
+  the current story, and earlier ones.
 - **Pauses when it should.** Phone and VoIP calls and navigation prompts (e.g. Google Maps
   saying "turn left") pause the guide, and it resumes the sentence afterwards. Music is ducked
   while the guide speaks.

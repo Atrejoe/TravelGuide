@@ -9,6 +9,27 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Timeline on the guide screen: upcoming stories with their expected time on top, then the
+  current story, then earlier ones, joined by a line on the left.
+- Stories combine places along the route: up to two nearby places, or places the article
+  mentions, are woven into one story ("Which brings us to …").
+
+### Changed
+
+- History first: historic places such as castles, forts, abbeys and battle sites are favoured.
+  Plain municipalities are de-emphasised, and town stories draw on their history instead of
+  administrative facts.
+- Places we reach soon take precedence over equally interesting ones further ahead.
+
+### Fixed
+
+- Places beyond the predicted route were measured as off to the side, which gave wrong arrival
+  times.
+
+## [0.2.0] - 2026-10-17
+
+### Added
+
 - Natural on-device voices from Kokoro (George, Lewis, Michael, Adam), sharing one 99 MB download,
   plus lighter Piper voices (Norman, Ryan, Alan).
 - More engaging stories: the guide reads the full article and picks the best anecdotes, such as
