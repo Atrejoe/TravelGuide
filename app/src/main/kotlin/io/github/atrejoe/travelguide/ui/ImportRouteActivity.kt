@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -129,6 +130,8 @@ private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onSt
         }
     }
 
+    val running = GuideStatus.state.collectAsState().value.running
+
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(24.dp), contentAlignment = Alignment.Center) {
             Card(Modifier.fillMaxWidth()) {
@@ -140,7 +143,6 @@ private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onSt
                             Text("Route imported", style = MaterialTheme.typography.titleLarge)
                             Text(done, style = MaterialTheme.typography.bodyLarge)
                             note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            val running = GuideStatus.state.value.running
                             Text(
                                 if (running) {
                                     "The guide now follows this route and tells you about places along it."
