@@ -20,11 +20,13 @@ import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.StoryItem
+import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
 import io.github.atrejoe.travelguide.core.story.Narration
+import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
 import io.github.atrejoe.travelguide.settings.AppSettings
@@ -139,7 +141,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         stopLocationUpdates()
         session.isActive = false
         engine.reset()
-        GuideStatus.update { it.copy(running = false, paused = false, speaking = false, pauseReason = null, message = null) }
+        GuideStatus.update {
+            it.copy(running = false, paused = false, speaking = false, pauseReason = null, message = null, upcoming = emptyList())
+        }
         GuideTileService.requestUpdate(this)
         ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         stopSelf()
@@ -188,15 +192,28 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 GuideStatus.update { it.copy(message = "Can't reach Wikipedia right now") }
                 continue
             }
+            publishUpcoming(now)
             val narration = engine.nextNarration(now) ?: continue
+            publishUpcoming(now)
             tell(narration)
             engine.onNarrationFinished(System.currentTimeMillis())
         }
     }
 
+    private fun publishUpcoming(now: Long) {
+        val items = engine.upcoming().map { story ->
+            UpcomingItem(
+                title = story.poi.title,
+                where = NarrationComposer.label(story.relative),
+                expectedAtMillis = story.etaSeconds?.let { now + it * 1000L },
+            )
+        }
+        GuideStatus.update { it.copy(upcoming = items) }
+    }
+
     private suspend fun tell(narration: Narration) {
         val poi = narration.poi
-        val item = StoryItem(poi.title, narration.text, poi.url, System.currentTimeMillis())
+        val item = StoryItem(poi.title, narration.text, poi.url, System.currentTimeMillis(), narration.companions.map { it.title })
         GuideStatus.update { it.copy(current = item, speaking = true, history = (listOf(item) + it.history).take(50)) }
         updateSession()
         abortStory = false

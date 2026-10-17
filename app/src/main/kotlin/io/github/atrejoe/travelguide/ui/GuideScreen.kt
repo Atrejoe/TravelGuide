@@ -8,13 +8,23 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
@@ -46,6 +56,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.GuideUiState
 import io.github.atrejoe.travelguide.StoryItem
+import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.service.GuideService
@@ -139,20 +150,7 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
                 }
             }
 
-            state.current?.let { current ->
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("Now telling", style = MaterialTheme.typography.labelLarge)
-                        StoryCard(current, expanded = true)
-                    }
-                }
-            }
-
-            val earlier = state.history.drop(if (state.current != null) 1 else 0)
-            if (earlier.isNotEmpty()) {
-                item { Text("Earlier", style = MaterialTheme.typography.labelLarge) }
-                items(earlier, key = { it.timeMillis }) { StoryCard(it, expanded = false) }
-            }
+            timeline(state)
 
             item {
                 Text(
@@ -164,6 +162,118 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
         }
     }
 }
+
+/**
+ * Upcoming stories (furthest first) above "now", earlier stories below, joined by a vertical line
+ * with the expected or actual time on the left.
+ */
+private fun LazyListScope.timeline(state: GuideUiState) {
+    val earlier = state.history.drop(if (state.current != null) 1 else 0)
+    val upcoming = state.upcoming.reversed()
+    if (upcoming.isEmpty() && state.current == null && earlier.isEmpty()) return
+    val now = System.currentTimeMillis()
+
+    item { Text("Timeline", style = MaterialTheme.typography.labelLarge) }
+    itemsIndexed(upcoming, key = { index, u -> "up:$index:${u.title}" }) { index, story ->
+        TimelineRow(etaLabel(story.expectedAtMillis, now), Marker.UPCOMING, first = index == 0, last = false) {
+            UpcomingCard(story)
+        }
+    }
+    item(key = "now") {
+        TimelineRow("Now", Marker.NOW, first = upcoming.isEmpty(), last = earlier.isEmpty()) {
+            val current = state.current
+            if (current != null && state.speaking) {
+                StoryCard(current, expanded = true)
+            } else {
+                Text(
+                    if (state.running) "Listening to the road ahead…" else "Start guiding to see what's coming up.",
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+            }
+        }
+    }
+    // Once a story has been told it moves below "now".
+    val finished = state.current?.takeIf { !state.speaking }
+    val past = listOfNotNull(finished) + earlier
+    itemsIndexed(past, key = { _, s -> "past:" + s.timeMillis }) { index, story ->
+        TimelineRow(clock(story.timeMillis), Marker.PAST, first = false, last = index == past.lastIndex) {
+            StoryCard(story, expanded = false)
+        }
+    }
+}
+
+private enum class Marker { UPCOMING, NOW, PAST }
+
+@Composable
+private fun TimelineRow(
+    label: String,
+    marker: Marker,
+    first: Boolean,
+    last: Boolean,
+    content: @Composable () -> Unit,
+) {
+    val line = MaterialTheme.colorScheme.outlineVariant
+    val dot = when (marker) {
+        Marker.UPCOMING -> MaterialTheme.colorScheme.secondary
+        Marker.NOW -> MaterialTheme.colorScheme.primary
+        Marker.PAST -> MaterialTheme.colorScheme.outline
+    }
+    Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+        Box(
+            Modifier
+                .width(76.dp)
+                .fillMaxHeight()
+                .drawBehind {
+                    val x = size.width - 10.dp.toPx()
+                    val dotY = 18.dp.toPx()
+                    // Reach into the list's 12 dp item spacing so the line looks continuous.
+                    val gap = 6.dp.toPx()
+                    drawLine(
+                        color = line,
+                        start = Offset(x, if (first) dotY else -gap),
+                        end = Offset(x, if (last) dotY else size.height + gap),
+                        strokeWidth = 2.dp.toPx(),
+                    )
+                    drawCircle(dot, radius = (if (marker == Marker.NOW) 7 else 5).dp.toPx(), center = Offset(x, dotY))
+                },
+        ) {
+            Text(
+                label,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 10.dp, end = 22.dp),
+                style = MaterialTheme.typography.labelMedium,
+                textAlign = TextAlign.End,
+                color = if (marker == Marker.NOW) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        Box(Modifier.weight(1f).padding(start = 4.dp)) { content() }
+    }
+}
+
+@Composable
+private fun UpcomingCard(story: UpcomingItem) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Text(story.title, style = MaterialTheme.typography.titleSmall)
+            Text(story.where, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+private fun etaLabel(expectedAtMillis: Long?, now: Long): String {
+    if (expectedAtMillis == null) return "nearby"
+    val seconds = (expectedAtMillis - now) / 1000
+    return when {
+        seconds <= 45 -> "soon"
+        seconds < 3_600 -> "in ${((seconds + 30) / 60).coerceAtLeast(1)} min"
+        else -> "later"
+    }
+}
+
+private fun clock(millis: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(millis))
 
 @Composable
 private fun StatusCard(state: GuideUiState) {
@@ -213,6 +323,9 @@ private fun StoryCard(story: StoryItem, expanded: Boolean) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(story.title, style = MaterialTheme.typography.titleMedium)
+            if (story.also.isNotEmpty()) {
+                Text("Also: " + story.also.joinToString(", "), style = MaterialTheme.typography.bodySmall)
+            }
             Text(
                 story.text,
                 style = MaterialTheme.typography.bodyMedium,
@@ -220,7 +333,7 @@ private fun StoryCard(story: StoryItem, expanded: Boolean) {
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                "${DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(story.timeMillis))} · Source: Wikipedia",
+"Source: Wikipedia",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable {
