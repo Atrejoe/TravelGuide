@@ -52,12 +52,12 @@ jobs:
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Cache sherpa-onnx
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             app/libs/sherpa-onnx.aar
@@ -87,7 +87,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         continue-on-error: true
         with:
           name: lint-report
@@ -103,7 +103,7 @@ jobs:
       - name: Upload APK artifact
         id: apk
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         # Artifact storage can be temporarily blocked by account quota; the build itself still counts.
         continue-on-error: true
         with:
