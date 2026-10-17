@@ -8,7 +8,6 @@ writes one MP3 per voice plus a summary with synthesis speed. Used by the voice-
 Usage: voice_samples.py <models-dir> <output-dir>
 """
 import re
-import subprocess
 import sys
 import tarfile
 import time
@@ -94,6 +93,11 @@ def engine_for(voice, root):
     return sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model=model_config))
 
 
+def write_mp3(path, samples, rate):
+    # libsndfile (bundled with the soundfile wheel) encodes MP3 itself; no ffmpeg needed.
+    sf.write(path, samples, samplerate=rate, format="MP3")
+
+
 def main():
     models, out = Path(sys.argv[1]), Path(sys.argv[2])
     models.mkdir(parents=True, exist_ok=True)
@@ -111,11 +115,8 @@ def main():
             rate = audio.sample_rate
             samples.extend(audio.samples)
             samples.extend([0.0] * int(rate * 0.25))  # the app's pause between sentences
-        wav = out / f"{voice['id']}.wav"
-        sf.write(wav, samples, samplerate=rate)
         mp3 = out / f"{voice['name']}-{voice['id']}.mp3"
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), "-b:a", "96k", str(mp3)], check=True)
-        wav.unlink()
+        write_mp3(mp3, samples, rate)
         rtf = spent / (len(samples) / rate)
         lines.append(f"| {voice['name']} | {voice['engine'].title()} | `{voice['pkg']}` | {voice['sid']} | {rtf:.2f} |")
         print(f"{voice['id']}: {mp3.name}, RTF {rtf:.2f}", flush=True)
@@ -128,10 +129,7 @@ def main():
             audio = tts.generate(f"This is speaker number {sid}.", sid=sid, speed=1.0)
             roll.extend(audio.samples)
             roll.extend([0.0] * int(audio.sample_rate * 0.4))
-        wav = out / "kokoro-speakers.wav"
-        sf.write(wav, roll, samplerate=audio.sample_rate)
-        subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), "-b:a", "64k", str(out / "kokoro-all-speakers.mp3")], check=True)
-        wav.unlink()
+        write_mp3(out / "kokoro-all-speakers.mp3", roll, audio.sample_rate)
         lines.append(f"\nKokoro package has {tts.num_speakers} speakers; `kokoro-all-speakers.mp3` lets you check the ids.")
     (out / "summary.md").write_text("\n".join(lines) + "\n")
 
