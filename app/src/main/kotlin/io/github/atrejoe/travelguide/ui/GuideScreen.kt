@@ -3,7 +3,6 @@ package io.github.atrejoe.travelguide.ui
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,6 +41,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.GuideUiState
@@ -220,7 +220,7 @@ private fun StoryCard(story: StoryItem, expanded: Boolean) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(story.url)))
+                    context.startActivity(Intent(Intent.ACTION_VIEW, story.url.toUri()))
                 },
             )
         }
