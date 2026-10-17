@@ -208,9 +208,12 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             item { HorizontalDivider() }
+            item { NavigationSettings() }
+
+            item { HorizontalDivider() }
             item {
                 Text(
-                    "Stories come from Wikipedia (CC BY-SA 4.0). Map © OpenStreetMap contributors (ODbL). Voices: Kokoro (Apache 2.0) and Piper models run " +
+                    "Stories come from Wikipedia (CC BY-SA 4.0). Map © OpenStreetMap contributors (ODbL). Routes for shared Google Maps links: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
                         "with sherpa-onnx (Apache 2.0). No AI service is used while guiding.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

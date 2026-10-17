@@ -31,6 +31,7 @@ import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
+import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.Narrator
@@ -123,6 +124,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         startLocationUpdates()
         guideJob = lifecycleScope.launch {
             launch { watchSettings() }
+            // Follow a route shared from a navigation app or imported from a file, when there is one.
+            launch {
+                RouteRepository.load(this@GuideService)
+                RouteRepository.route.collect { route ->
+                    engine.extrapolator.plannedRoute = route?.points
+                    publishUpcoming(System.currentTimeMillis())
+                }
+            }
             // Pick up a neural voice once its download finishes.
             launch { app.voiceModels.installed.collect { narratorDirty = true } }
             launch {
