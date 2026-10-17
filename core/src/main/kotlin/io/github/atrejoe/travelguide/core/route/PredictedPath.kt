@@ -13,11 +13,23 @@ data class PathPosition(
     val crossM: Double,
 )
 
+/** Where a predicted path comes from, which decides how much the user should trust it. */
+enum class PathSource {
+    /** A route from navigation software: precise. */
+    PLANNED_ROUTE,
+
+    /** Extended along the current heading: a guess. */
+    DEAD_RECKONING,
+
+    /** Not moving or no heading yet: only the current position is known. */
+    NONE,
+}
+
 /**
  * The route we expect the user to follow over the next few minutes, as a polyline starting at
  * the current position.
  */
-class PredictedPath(val points: List<GeoPoint>) {
+class PredictedPath(val points: List<GeoPoint>, val source: PathSource = PathSource.DEAD_RECKONING) {
     init {
         require(points.isNotEmpty()) { "A path needs at least one point" }
     }

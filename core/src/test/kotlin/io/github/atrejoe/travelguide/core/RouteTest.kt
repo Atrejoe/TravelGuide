@@ -5,6 +5,7 @@ import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.TravelMode
+import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.route.PredictedPath
 import io.github.atrejoe.travelguide.core.route.RouteExtrapolator
 import kotlin.test.Test
@@ -20,6 +21,7 @@ class RouteTest {
         val path = RouteExtrapolator().predict(motion, lookaheadSeconds = 300)
         assertEquals(6_000.0, path.lengthM, 10.0)
         assertTrue(path.end.lat > start.lat)
+        assertEquals(PathSource.DEAD_RECKONING, path.source)
     }
 
     @Test
@@ -47,6 +49,7 @@ class RouteTest {
         val motion = MotionState(LocationFix(start, 0), speedMps = 10.0, headingDeg = 0.0, mode = TravelMode.DRIVING)
         val path = extrapolator.predict(motion, lookaheadSeconds = 300)
         assertEquals(3_000.0, path.lengthM, 10.0)
+        assertEquals(PathSource.PLANNED_ROUTE, path.source)
         // The end lies east of the corner, not straight north.
         assertTrue(GeoMath.bearing(corner, path.end) in 85.0..95.0)
     }
@@ -58,5 +61,12 @@ class RouteTest {
         val motion = MotionState(LocationFix(start, 0), speedMps = 10.0, headingDeg = 180.0, mode = TravelMode.DRIVING)
         val path = extrapolator.predict(motion, lookaheadSeconds = 100)
         assertTrue(path.end.lat < start.lat)
+        assertEquals(PathSource.DEAD_RECKONING, path.source)
+    }
+
+    @Test
+    fun `without a heading only the position is known`() {
+        val motion = MotionState(LocationFix(start, 0), speedMps = 0.0, headingDeg = null, mode = TravelMode.STATIONARY)
+        assertEquals(PathSource.NONE, RouteExtrapolator().predict(motion, 60).source)
     }
 }
