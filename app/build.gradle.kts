@@ -50,7 +50,7 @@ android {
     }
 
     lint {
-        // Lint is slow; CI runs it only on demand.
+        // CI runs lintDebug on every app change; no need to repeat it for release builds.
         checkReleaseBuilds = false
     }
 }

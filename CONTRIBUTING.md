@@ -8,8 +8,7 @@
    `feat(core): weigh places by user interests`, `fix(app): resume after a call`.
    Use a scope of `core`, `app`, `ci` or `docs` where it helps.
 4. Add user-facing changes to `CHANGELOG.md` under **Unreleased**.
-5. Open a pull request. Keep it a **draft** while you are iterating: draft PRs skip the
-   (expensive) Android build. Mark it ready for review to get a downloadable APK.
+5. Open a pull request. App changes get a downloadable APK on the PR's *Android* workflow run.
 6. Squash-merge into `main` with a Conventional Commit title.
 
 ## Releases
@@ -20,15 +19,14 @@ Move the *Unreleased* entries under a new version heading in `CHANGELOG.md`, mer
 git tag v0.2.0 && git push origin v0.2.0
 ```
 
-The *Android APK* workflow builds the APK and attaches it to the GitHub release.
+The *Android* workflow builds the APK and attaches it to the GitHub release.
 
-## Keeping CI cheap
+## Keeping CI fast
 
 - Put logic in `core/` whenever possible. It runs on the plain JVM and is tested in about a
   minute without the Android SDK.
-- The Android build runs only for app changes on non-draft PRs, on manual dispatch, and on tags.
-- Don't add emulator or instrumented tests to PR CI. Prefer JVM tests (or screenshot tests
-  that run on the JVM).
+- The Android build and lint run only when app-related files change.
+- Prefer JVM tests (or screenshot tests that run on the JVM) over emulator tests.
 
 ## Repository settings (one-time, by a maintainer)
 

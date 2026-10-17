@@ -1,33 +1,47 @@
-# Builds the installable APK. Android builds are the expensive part of CI, so this only runs when
-# app code changes on a non-draft PR, on demand (Actions tab -> "Android APK" -> Run workflow),
-# or for a release tag.
-name: Android APK
+# Builds and lints the Android app. Actions minutes are free for public repositories, but Android
+# builds still take minutes, so this runs only when app-related files change.
+#
+# - Pull requests: the APK is attached to the run as an artifact (one per PR).
+# - Pushes to main / manual runs: the APK replaces the rolling `preview` pre-release.
+# - `v*` tags: the APK is attached to that release.
+name: Android
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'app/**'
       - 'core/src/main/**'
       - 'gradle/**'
       - '*.gradle.kts'
+      - 'gradle.properties'
       - 'sherpa-onnx.version'
+      - 'scripts/fetch-sherpa-onnx.sh'
+      - '.github/workflows/android.yml'
+  push:
+    branches: [main]
+    tags: ['v*']
+    # Path filters are not applied to tag pushes.
+    paths:
+      - 'app/**'
+      - 'core/src/main/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+      - 'gradle.properties'
+      - 'sherpa-onnx.version'
+      - 'scripts/fetch-sherpa-onnx.sh'
       - '.github/workflows/android.yml'
   workflow_dispatch:
-  push:
-    tags: ['v*']
 
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
-  contents: write # attach the APK to releases
+  contents: write # publish the preview pre-release and release assets
 
 jobs:
   apk:
-    name: Build debug APK
-    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    name: Build & lint APK
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -52,39 +66,57 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Version from tag or run number
+      - name: Version
         id: version
         run: |
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             echo "name=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_OUTPUT"
+          elif [[ -n "${{ github.event.pull_request.number }}" ]]; then
+            echo "name=0.1.0-pr${{ github.event.pull_request.number }}.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           else
             echo "name=0.1.0-dev.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Build
+      - name: Build and lint
         run: >
-          ./gradlew :app:assembleDebug :core:test
+          ./gradlew :app:assembleDebug :app:lintDebug :core:test
           -PversionCode=${{ github.run_number }}
           -PversionName=${{ steps.version.outputs.name }}
+
+      - name: Upload lint report
+        if: always()
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.html
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Rename APK
         run: |
           mkdir -p out
           cp app/build/outputs/apk/debug/app-debug.apk "out/travelguide-${{ steps.version.outputs.name }}.apk"
 
-      # APKs are published as release assets: unlike workflow artifacts they don't count
-      # towards the Actions storage quota.
+      - name: Upload APK artifact
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        # Artifact storage can be temporarily blocked by account quota; the build itself still counts.
+        continue-on-error: true
+        with:
+          name: travelguide-${{ steps.version.outputs.name }}
+          path: out/*.apk
+          retention-days: 14
+
       - name: Publish preview pre-release
-        if: "!startsWith(github.ref, 'refs/tags/v')"
+        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-          SOURCE: ${{ github.event.pull_request.html_url || github.ref_name }}
         run: |
           gh release delete preview --yes --cleanup-tag || true
-          gh release create preview out/*.apk --prerelease --target "$SHA" \
+          gh release create preview out/*.apk --prerelease --target "$GITHUB_SHA" \
             --title "Preview build ${{ steps.version.outputs.name }}" \
-            --notes "Latest development build from $SOURCE (commit $SHA). Not a stable release."
+            --notes "Latest development build of ${GITHUB_REF_NAME} (commit ${GITHUB_SHA}). Not a stable release."
 
       - name: Attach to release
         if: startsWith(github.ref, 'refs/tags/v')
