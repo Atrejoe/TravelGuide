@@ -25,6 +25,9 @@ All notable changes to this project are documented here. The format follows
   Plain municipalities are de-emphasised, and town stories draw on their history instead of
   administrative facts.
 - Places we reach soon take precedence over equally interesting ones further ahead.
+- The app now targets Android 17 (API 37) and is built with Android Gradle plugin 9.4 (built-in
+  Kotlin), Gradle 9.7 and Kotlin 2.4, with current AndroidX, Compose and kotlinx libraries.
+  Dependabot proposes dependency and GitHub Actions updates monthly.
 
 ### Fixed
 

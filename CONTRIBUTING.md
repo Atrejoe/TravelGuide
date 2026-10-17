@@ -28,6 +28,15 @@ The *Android* workflow builds the APK and attaches it to the GitHub release.
 - The Android build and lint run only when app-related files change.
 - Prefer JVM tests (or screenshot tests that run on the JVM) over emulator tests.
 
+## Dependency updates
+
+[Dependabot](.github/dependabot.yml) opens grouped pull requests once a month: one for the
+Android Gradle plugin, AndroidX and Compose, one for Kotlin and kotlinx, one for the other Gradle
+dependencies, and one for GitHub Actions. The *Android* workflow builds and lints each Gradle
+update. Before merging a Kotlin update, check that the Android Gradle plugin in use is supported
+by that Kotlin version ([compatibility table](https://kotlinlang.org/docs/gradle-configure-project.html#apply-the-plugin));
+the Compose compiler plugin always uses the `kotlin` version from `gradle/libs.versions.toml`.
+
 ## Repository settings (one-time, by a maintainer)
 
 These can't be set from code, so set them in the GitHub UI:

@@ -88,7 +88,8 @@ Wikipedia geosearch ─▶ PoiScorer (prominence × interest × geometry × mode
 
 ## Develop
 
-Requirements: JDK 17+, Android SDK (API 35) for the app.
+Requirements: JDK 17+ (Gradle 9 and AGP 9 need at least 17; CI uses 21), and for the app the
+Android SDK with platform API 37 and build tools 36.
 
 ```bash
 # Core logic only; needs no Android SDK
