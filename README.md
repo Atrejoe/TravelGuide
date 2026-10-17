@@ -45,8 +45,9 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
 
 Download the latest APK:
 
-- **Releases**: from the [Releases page](../../releases) (for tagged versions), or
-- **Any build**: from the Actions tab → *Android APK* → pick a run → *Artifacts*.
+- **Stable**: the [latest release](../../releases/latest).
+- **Development**: the [*preview* pre-release](../../releases/tag/preview), rebuilt from the
+  most recent PR or manual *Android APK* run.
 
 Enable "Install unknown apps" for your browser or file manager, open the APK, start the app and
 tap **Start guiding**. On first use, open **Settings → Narrator** and download a voice (~64 MB).
@@ -90,7 +91,8 @@ changelog, CI).
 
 - **CI** runs only the JVM core tests on each PR (about a minute, no Android SDK).
 - **Android APK** builds only when app code changes on a non-draft PR, on manual dispatch, or
-  for `v*` tags (attached to the GitHub release).
+  for `v*` tags. APKs are published as release assets (the rolling `preview` pre-release, or the
+  tagged release), which don't use the Actions artifact storage quota.
 
 ## Roadmap
 
