@@ -25,11 +25,17 @@ All notable changes to this project are documented here. The format follows
   Plain municipalities are de-emphasised, and town stories draw on their history instead of
   administrative facts.
 - Places we reach soon take precedence over equally interesting ones further ahead.
+- CI builds the release variant, signed with one stable key, and every build gets a higher
+  version code, so newer builds install over older ones (#15). Builds made before this change
+  have to be uninstalled once. Version names now start from `appVersion` in `gradle.properties`,
+  and tag releases use their `CHANGELOG.md` section as release notes.
 
 ### Fixed
 
 - Places beyond the predicted route were measured as off to the side, which gave wrong arrival
   times.
+- A newer test build couldn't be installed over an older one, because every CI build was signed
+  with a different random key. Testers had to uninstall and lose their voices and settings (#15).
 
 ## [0.2.0] - 2026-10-17
 
