@@ -1,0 +1,14 @@
+*.iml
+.gradle/
+.kotlin/
+/local.properties
+/.idea/
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx
+# Native TTS runtime is fetched by scripts/fetch-sherpa-onnx.sh
+/app/libs/*.aar
+*.keystore
+*.jks
