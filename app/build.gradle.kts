@@ -54,7 +54,7 @@ android {
         checkReleaseBuilds = false
         // Print findings in the build log so they are visible without downloading the report.
         textReport = true
-        textOutput = file("stdout")
+        textOutput = File("stdout")
     }
 }
 
