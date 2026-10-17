@@ -7,4 +7,6 @@
     <string name="action_pause">Pause</string>
     <string name="action_resume">Resume</string>
     <string name="action_stop">Stop</string>
+    <string name="import_route_label">Follow route in Travel Guide</string>
+    <string name="navigation_listener_label">Travel Guide navigation detection</string>
 </resources>

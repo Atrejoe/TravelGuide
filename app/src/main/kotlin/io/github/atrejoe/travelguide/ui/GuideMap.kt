@@ -62,7 +62,13 @@ private data class MapColors(val route: Int, val guess: Int, val you: Int, val s
  * coming up. Follows your position until you pan the map; the button re-centres it.
  */
 @Composable
-fun GuideMap(state: GuideUiState, modifier: Modifier = Modifier) {
+fun GuideMap(
+    state: GuideUiState,
+    modifier: Modifier = Modifier,
+    /** Where the planned route came from, e.g. "Komoot", for the legend. */
+    routeFrom: String? = null,
+) {
+    val plannedLabel = "Route from " + (routeFrom ?: "navigation")
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val scheme = MaterialTheme.colorScheme
@@ -97,7 +103,7 @@ fun GuideMap(state: GuideUiState, modifier: Modifier = Modifier) {
             AndroidView(
                 factory = { map },
                 modifier = Modifier.fillMaxWidth().height(240.dp),
-                update = { render(it, state, colors, density, follow) },
+                update = { render(it, state, colors, density, follow, plannedLabel) },
             )
             if (!follow) {
                 SmallFloatingActionButton(
@@ -106,7 +112,7 @@ fun GuideMap(state: GuideUiState, modifier: Modifier = Modifier) {
                 ) { Text("◎") }
             }
         }
-        MapLegend(state.routeSource, colors)
+        MapLegend(state.routeSource, colors, plannedLabel)
     }
 }
 
@@ -133,7 +139,7 @@ private fun createMap(context: Context, onUserPan: () -> Unit): MapView {
     }
 }
 
-private fun render(map: MapView, state: GuideUiState, colors: MapColors, density: Float, follow: Boolean) {
+private fun render(map: MapView, state: GuideUiState, colors: MapColors, density: Float, follow: Boolean, plannedLabel: String) {
     map.overlays.clear()
     // Required attribution for OpenStreetMap data.
     map.overlays += CopyrightOverlay(map.context)
@@ -144,7 +150,7 @@ private fun render(map: MapView, state: GuideUiState, colors: MapColors, density
         map.overlays += Polyline(map).apply {
             setPoints(state.route.map { it.osm() })
             title = when {
-                planned -> "Route from navigation"
+                planned -> plannedLabel
                 railway -> "Following the railway"
                 else -> "Estimated direction"
             }
@@ -194,14 +200,14 @@ private fun CorePoint.osm() = OsmPoint(lat, lon)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MapLegend(source: PathSource, colors: MapColors) {
+private fun MapLegend(source: PathSource, colors: MapColors, plannedLabel: String) {
     val style = MaterialTheme.typography.labelSmall
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         when (source) {
-            PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { Text("Route from navigation", style = style) }
+            PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { Text(plannedLabel, style = style) }
             PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { Text("Following the railway", style = style) }
             PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { Text("Direction guessed from your movement", style = style) }
             PathSource.NONE -> Text("Direction not known yet", style = style)
