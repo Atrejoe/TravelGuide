@@ -8,6 +8,7 @@ import io.github.atrejoe.travelguide.core.interest.InterestClassifier
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
 import io.github.atrejoe.travelguide.core.rail.RailDetector
+import io.github.atrejoe.travelguide.core.rail.RailGraph
 import io.github.atrejoe.travelguide.core.rail.RailNetwork
 import io.github.atrejoe.travelguide.core.rail.RailSource
 import io.github.atrejoe.travelguide.core.route.PredictedPath
@@ -94,7 +95,7 @@ class GuideEngine(
         if (nowMillis - lastRailAttemptMillis < RAIL_RETRY_MILLIS) return
         lastRailAttemptMillis = nowMillis
         try {
-            railNetwork = source.around(here, RAIL_RADIUS_M)
+            railNetwork = source.around(here, RAIL_RADIUS_M).also { extrapolator.railGraph = RailGraph(it) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -258,6 +259,7 @@ class GuideEngine(
         lastFetchRadius = 0
         lastNarrationEnd = null
         railNetwork = null
+        extrapolator.railGraph = null
         railDetector.reset()
         motion.onRail = false
     }

@@ -15,6 +15,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- By train, the route forecast follows the railway through bends and junctions instead of a
+  straight line, so upcoming places, their side and arrival times match the track (#19). The map
+  shows it as "Following the railway".
 - Map at the top of the guide screen showing where you are, the places in the current story and
   the upcoming ones. The road ahead is drawn as a solid line when it comes from navigation, and
   as a dashed line labelled "guessed" when it is estimated from your movement.
