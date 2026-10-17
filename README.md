@@ -67,6 +67,10 @@ Enable "Install unknown apps" for your browser or file manager, open the APK, st
 tap **Start guiding**. On first use, open **Settings → Narrator** and download the natural voices
 (99 MB).
 
+Newer builds (releases, preview and pull-request builds alike) install over the old version and
+keep your voices and settings. Builds from before stable signing ([#15](../../issues/15)) can't be
+updated: uninstall such an older build once, then install the new one.
+
 ## How it works
 
 ```
