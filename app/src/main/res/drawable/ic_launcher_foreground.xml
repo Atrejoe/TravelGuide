@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A compass needle over a sound wave. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#F2E8CF"
+        android:pathData="M54,28 L62,54 L54,80 L46,54 Z" />
+    <path
+        android:fillColor="#E07A5F"
+        android:pathData="M54,28 L62,54 L46,54 Z" />
+    <path
+        android:strokeColor="#F2E8CF"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:pathData="M34,46 Q30,54 34,62 M26,40 Q19,54 26,68 M74,46 Q78,54 74,62 M82,40 Q89,54 82,68" />
+</vector>

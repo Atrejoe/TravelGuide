@@ -12,3 +12,4 @@ build/
 /app/libs/*.aar
 *.keystore
 *.jks
+/app/libs/*.version
