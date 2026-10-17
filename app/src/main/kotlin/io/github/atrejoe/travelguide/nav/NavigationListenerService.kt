@@ -46,8 +46,7 @@ class NavigationListenerService : NotificationListenerService() {
         super.onListenerDisconnected()
     }
 
-    override fun onNotificationPosted(sbn: StatusBarNotification?) {
-        sbn ?: return
+    override fun onNotificationPosted(sbn: StatusBarNotification) {
         try {
             handle(sbn)
         } catch (e: RuntimeException) {
@@ -57,8 +56,7 @@ class NavigationListenerService : NotificationListenerService() {
         publish()
     }
 
-    override fun onNotificationRemoved(sbn: StatusBarNotification?) {
-        sbn ?: return
+    override fun onNotificationRemoved(sbn: StatusBarNotification) {
         val removed = active.remove(sbn.key) ?: return
         publish()
         scheduleEndCheck(removed.app.origin)
