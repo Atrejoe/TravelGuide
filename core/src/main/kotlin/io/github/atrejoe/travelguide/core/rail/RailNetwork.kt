@@ -6,8 +6,13 @@ import io.github.atrejoe.travelguide.core.geo.LocalProjection
 import kotlin.math.atan2
 import kotlin.math.hypot
 
-/** An OpenStreetMap way: its node ids and their coordinates, in order. */
-data class OsmWay(val id: Long, val nodeIds: List<Long>, val points: List<GeoPoint>)
+/** An OpenStreetMap way: its node ids and their coordinates, in order, and its tags. */
+data class OsmWay(
+    val id: Long,
+    val nodeIds: List<Long>,
+    val points: List<GeoPoint>,
+    val tags: Map<String, String> = emptyMap(),
+)
 
 /** Where the nearest track is and which way it runs. */
 data class TrackMatch(val distanceM: Double, val bearingDeg: Double, val way: OsmWay, val segmentIndex: Int)
