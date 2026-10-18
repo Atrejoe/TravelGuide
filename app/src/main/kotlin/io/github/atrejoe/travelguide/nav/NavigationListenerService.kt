@@ -18,10 +18,12 @@ import kotlinx.coroutines.launch
 
 /**
  * Optional: watches the notifications of known navigation apps (Google Maps, Komoot, Garmin,
- * OsmAnd, Waze) to show "navigating with …" and the next instruction, and to drop a shared route
- * when navigation in that app ends. Notifications of other apps are ignored without being read.
+ * OsmAnd, Waze) to show "navigating with …" and the next instruction, to let the guide follow that
+ * instruction live along the road, and to drop a shared route when navigation in that app ends.
+ * Notifications of other apps are ignored without being read.
  *
- * Notifications don't contain the route itself; the route comes from sharing it with the app.
+ * Notifications don't contain the route itself, only the next turn; sharing the route gives the
+ * whole of it.
  */
 class NavigationListenerService : NotificationListenerService() {
 
@@ -81,6 +83,7 @@ class NavigationListenerService : NotificationListenerService() {
             title = extras?.getCharSequence(Notification.EXTRA_TITLE),
             text = extras?.getCharSequence(Notification.EXTRA_TEXT),
             subText = extras?.getCharSequence(Notification.EXTRA_SUB_TEXT),
+            receivedAtMillis = System.currentTimeMillis(),
         )
         if (status != null) {
             active[sbn.key] = status

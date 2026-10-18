@@ -3,16 +3,26 @@ package io.github.atrejoe.travelguide.core.nav
 /** A navigation app whose turn-by-turn notification we recognise. */
 data class NavigationApp(val name: String, val origin: RouteOrigin)
 
-/** What a navigation app's notification tells us: who is navigating and the next instruction. */
-data class NavigationStatus(val app: NavigationApp, val instruction: String?) {
+/**
+ * What a navigation app's notification tells us: who is navigating, the next instruction as shown
+ * and, as far as it can be read, the next [maneuver].
+ */
+data class NavigationStatus(
+    val app: NavigationApp,
+    val instruction: String?,
+    val maneuver: Maneuver? = null,
+    /** When the notification was last posted or updated. */
+    val receivedAtMillis: Long = 0,
+) {
     /** "Google Maps: Turn left onto Main Street · 200 m". */
     fun label(): String = app.name + (instruction?.let { ": $it" } ?: ": navigating")
 }
 
 /**
  * Recognises turn-by-turn notifications from known navigation apps. Notifications don't contain
- * the route itself, only the next instruction, so this is used to show who is navigating and to
- * notice when navigation ends.
+ * the route itself, only the next instruction, which is read into a [Maneuver] so the forecast can
+ * follow the road through the next turn. Also used to show who is navigating and to notice when
+ * navigation ends.
  */
 object NavigationNotifications {
 
@@ -45,10 +55,11 @@ object NavigationNotifications {
         title: CharSequence?,
         text: CharSequence?,
         subText: CharSequence? = null,
+        receivedAtMillis: Long = 0,
     ): NavigationStatus? {
         val app = apps[packageName] ?: return null
         if (!ongoing && category != CATEGORY_NAVIGATION) return null
-        return NavigationStatus(app, instruction(title, text, subText))
+        return NavigationStatus(app, instruction(title, text, subText), ManeuverParser.parse(title, text, subText), receivedAtMillis)
     }
 
     /** Joins the title and text into one short line, e.g. "Turn left onto Main St · 200 m". */

@@ -5,10 +5,17 @@ guessing the way ahead from your heading. The map draws the route as a solid lin
 status card says where it came from ("Route: Komoot tour 'Langs de Vecht' · 42 km").
 
 None of the big navigation apps publishes the route you are navigating through a public API.
-Travel Guide therefore uses two free mechanisms:
+Travel Guide therefore uses free mechanisms:
 
-1. **Sharing** a route or a route file with Travel Guide (the main path).
-2. **Optional notification access** to see which app is navigating and when it stops.
+1. **Following the navigation app live** (optional notification access): the next instruction
+   ("in 300 m turn left onto …") is read from the app's notification and the forecast follows the
+   road through that turn. Nothing to share or import. See
+   [Following navigation live](#following-navigation-live).
+2. **Sharing** a route or a route file with Travel Guide, which gives the whole route. It takes
+   precedence over the live instructions and is the fallback without notification access.
+
+Without either, the forecast follows the road you're on when driving or cycling, and otherwise
+guesses straight on from your heading.
 
 No API keys or paid services are involved. All parsing happens in the `core` module
 (`core/src/main/kotlin/.../core/nav/`), which has unit tests with recorded responses.
@@ -94,13 +101,10 @@ With notification access, Travel Guide watches the notifications of these apps o
 | Waze | `com.waze` |
 
 When one of them shows an ongoing navigation notification, the status card shows
-"Navigating with Google Maps: 200 m · Turn left onto …". When that notification has been gone
-for 15 seconds, and the current route came from the same app, the route is dropped and the guide
-goes back to guessing the way ahead.
-
-**Limits.** Notifications contain the next instruction, not the route geometry, so they can't
-replace sharing the route. Apps may change their notifications at any time; unexpected content
-is ignored.
+"Navigating with Google Maps: 200 m · Turn left onto …", and the forecast follows its directions
+(see [Following navigation live](#following-navigation-live)). When that notification has been
+gone for 15 seconds, and the current route came from the same app, the route is dropped and the
+guide goes back to following the road or guessing the way ahead.
 
 **Privacy.** Notification access is optional and off until you enable it in
 **Settings → Navigation → Enable navigation notifications**. Notifications from other apps are
@@ -108,11 +112,65 @@ skipped without reading their content, and nothing is stored or sent anywhere. O
 later, apps installed from an APK may need **App info → ⋮ → Allow restricted settings** before
 the switch can be turned on.
 
+## Following navigation live
+
+With notification access, the forecast follows the navigation app's directions while you drive,
+cycle or walk, without sharing a route. The map draws it as a nearly solid line labelled
+"Following Google Maps directions", and the status card says the same.
+
+1. **Reading the instruction** (`core/.../nav/Maneuver.kt`). From the notification's title and
+   text (not the sub-text, which holds the trip summary) the guide reads:
+   - the distance to the maneuver: `300 m`, `1.2 km`, `1,2 km`, `0.5 mi`, `500 ft`, `100 yd`;
+   - the turn, from keywords in English, Dutch and German: left/right, slight, sharp, keep
+     left/right, straight on, U-turn, motorway exit, roundabout with its exit number ("take the
+     2nd exit", "neem de 2e afslag", "die 3. Ausfahrt"). Examples: "Turn left", "Sla linksaf",
+     "Houd rechts aan", "Flauwe bocht naar links", "Links abbiegen", "Links halten";
+   - the signposted place: "toward(s) X", "richting X", "Richtung X".
+
+   Street names are **not** read from the grammar. The whole instruction is compared with the
+   `name`, `ref` ("A2" also matches "A 2", but not "A20") and `destination` tags of the roads
+   nearby, which works in any language.
+2. **Roads** (`core/.../road/`). Roads come from OpenStreetMap through the Overpass API, with their
+   name, number, one-way and destination tags. Main roads (motorway to secondary) are fetched in
+   a 5 km radius. Side streets (tertiary, residential…) are fetched only where turns matter: while
+   navigating below about 70 km/h, or by bike (plus cycleways), and only in a 1 km radius. Roads
+   are fetched again only after moving away from that area or after 30 minutes. Requests are at
+   least 45 seconds apart, and after a failure the wait doubles up to 15 minutes.
+3. **Following the road and the turn** (`RoadGraph`). The guide finds the road you're on: within
+   25 m, running within 35° of your heading, and open in that direction. It follows that road to
+   the maneuver distance, counted down from where the instruction came in, with a margin of
+   ±20% (at least 40 m). At the junction there it takes the branch the instruction names. If no
+   branch is named, it takes the branch in the instruction's direction, the slip road for an
+   exit, or the counted (or named) exit of a roundabout. Beyond the turn it keeps following the
+   road. If the turn can't be placed on a junction, the forecast stops where the turn is.
+4. **Towards a place** (optional, conservative). When the instruction names a place ("towards
+   Utrecht"), the guide looks it up with Nominatim (within about 100 km, once per name, at most
+   one request per second) and routes there with OSRM, at most once a minute. That route is used
+   only while you're within 40 m of it and it passes through the next turn the same way the road
+   path does.
+5. **When it stops.** The live instruction is dropped when the app's navigation notification
+   goes away, or after 2 minutes without an update.
+
+**Order of preference** for the forecast: a shared or imported route, then live navigation, then
+the railway (by train), then the road you're on (driving or cycling; drawn dashed, "Following the
+road"), and finally straight on from your heading.
+
+**Limits.** Notifications only tell the next turn, so the forecast beyond that turn follows the
+road (or the route towards the signposted place). Apps word and update their notifications in
+their own way and may change them at any time; text that isn't understood is ignored and the
+forecast falls back to following the road. Which roundabout exit to take is only known when the
+instruction gives its number or the exit road's name. Roads missing from OpenStreetMap, or a GPS
+position more than 25 m from the road, also mean falling back to a guess.
+
 ## Network use
 
 Importing contacts only the services needed for that link: Komoot's API for Komoot tours,
 Nominatim and OSRM for Google Maps links, and Google's short-link server to resolve
 `maps.app.goo.gl` links. Files are processed on the phone.
+
+Following the road uses the Overpass API (see above for how often). Following navigation live
+adds, only for instructions that name a place, one Nominatim lookup per place name and an OSRM
+route at most once a minute.
 
 ## Ideas for later
 

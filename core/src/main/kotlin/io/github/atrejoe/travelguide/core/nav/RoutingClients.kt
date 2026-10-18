@@ -40,8 +40,9 @@ class NominatimClient(
     private val baseUrl: String = "https://nominatim.openstreetmap.org",
     private val clock: () -> Long = System::currentTimeMillis,
 ) {
-    suspend fun search(query: String): GeocodedPlace? {
-        val url = searchUrl(query)
+    /** Finds [query]; with [near], only within about [nearKm] kilometres of that point. */
+    suspend fun search(query: String, near: GeoPoint? = null, nearKm: Double = 100.0): GeocodedPlace? {
+        val url = searchUrl(query, near, nearKm)
         val body = throttle.withLock {
             val wait = lastRequestMillis + MIN_INTERVAL_MILLIS - clock()
             if (wait > 0) delay(wait)
@@ -54,8 +55,18 @@ class NominatimClient(
         return parse(body)
     }
 
-    fun searchUrl(query: String): String =
-        "$baseUrl/search?format=jsonv2&limit=1&q=" + URLEncoder.encode(query, "UTF-8")
+    fun searchUrl(query: String, near: GeoPoint? = null, nearKm: Double = 100.0): String {
+        val url = "$baseUrl/search?format=jsonv2&limit=1&q=" + URLEncoder.encode(query, "UTF-8")
+        near ?: return url
+        val dLat = nearKm / 111.0
+        val dLon = dLat / kotlin.math.cos(Math.toRadians(near.lat)).coerceAtLeast(0.1)
+        val box = String.format(
+            Locale.ROOT, "%.4f,%.4f,%.4f,%.4f",
+            (near.lon - dLon).coerceAtLeast(-180.0), (near.lat + dLat).coerceAtMost(90.0),
+            (near.lon + dLon).coerceAtMost(180.0), (near.lat - dLat).coerceAtLeast(-90.0),
+        )
+        return "$url&viewbox=$box&bounded=1"
+    }
 
     fun parse(body: String): GeocodedPlace? {
         val first = lenientJson.parseToJsonElement(body).let { it as? JsonArray }?.firstOrNull() as? JsonObject ?: return null

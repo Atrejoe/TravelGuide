@@ -77,7 +77,8 @@ fun NavigationSettings() {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text("Navigation", style = MaterialTheme.typography.titleLarge)
         Text(
-            "Share a route with Travel Guide and the stories follow it instead of guessing the way ahead.",
+            "Let the guide follow your navigation app live (notification access, below), or share a route " +
+                "with Travel Guide, and the stories follow it instead of guessing the way ahead.",
             style = MaterialTheme.typography.bodyMedium,
         )
         val small = MaterialTheme.typography.bodySmall
@@ -106,10 +107,11 @@ fun NavigationSettings() {
 
         Text("Navigation notifications (optional)", style = MaterialTheme.typography.titleMedium)
         Text(
-            "With notification access, Travel Guide shows when Google Maps, Komoot, Garmin, OsmAnd or Waze " +
-                "is navigating, and goes back to guessing when that navigation ends. It only looks at those " +
-                "apps' notifications and never stores or sends them anywhere. Notifications don't contain " +
-                "the route itself, so sharing the route is still needed.",
+            "With notification access, the guide follows Google Maps, Komoot, Garmin, OsmAnd or Waze live: " +
+                "it reads the next instruction (\"in 300 m turn left onto …\") and follows the road through " +
+                "that turn, without sharing anything. It only looks at those apps' notifications and never " +
+                "stores or sends them anywhere. Notifications only tell the next turn, so a shared route " +
+                "still looks further ahead.",
             style = small,
         )
         Text(
