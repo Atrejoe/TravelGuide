@@ -140,14 +140,24 @@ private fun render(map: MapView, state: GuideUiState, colors: MapColors, density
 
     if (state.route.size >= 2) {
         val planned = state.routeSource == PathSource.PLANNED_ROUTE
+        val railway = state.routeSource == PathSource.RAILWAY
         map.overlays += Polyline(map).apply {
             setPoints(state.route.map { it.osm() })
-            title = if (planned) "Route from navigation" else "Estimated direction"
+            title = when {
+                planned -> "Route from navigation"
+                railway -> "Following the railway"
+                else -> "Estimated direction"
+            }
             outlinePaint.apply {
-                color = if (planned) colors.route else colors.guess
-                strokeWidth = (if (planned) 6f else 4f) * density
+                // The railway forecast is well founded, so it's drawn bolder than a pure guess.
+                color = if (planned || railway) colors.route else colors.guess
+                strokeWidth = (if (planned) 6f else if (railway) 5f else 4f) * density
                 strokeCap = Paint.Cap.ROUND
-                pathEffect = if (planned) null else DashPathEffect(floatArrayOf(10f * density, 8f * density), 0f)
+                pathEffect = when {
+                    planned -> null
+                    railway -> DashPathEffect(floatArrayOf(18f * density, 6f * density), 0f)
+                    else -> DashPathEffect(floatArrayOf(10f * density, 8f * density), 0f)
+                }
             }
         }
     }
@@ -192,6 +202,7 @@ private fun MapLegend(source: PathSource, colors: MapColors) {
     ) {
         when (source) {
             PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { Text("Route from navigation", style = style) }
+            PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { Text("Following the railway", style = style) }
             PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { Text("Direction guessed from your movement", style = style) }
             PathSource.NONE -> Text("Direction not known yet", style = style)
         }

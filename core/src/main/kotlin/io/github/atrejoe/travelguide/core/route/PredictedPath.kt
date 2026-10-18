@@ -18,6 +18,9 @@ enum class PathSource {
     /** A route from navigation software: precise. */
     PLANNED_ROUTE,
 
+    /** Following the railway we are on: a well-founded guess. */
+    RAILWAY,
+
     /** Extended along the current heading: a guess. */
     DEAD_RECKONING,
 
