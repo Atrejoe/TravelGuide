@@ -63,6 +63,13 @@ private val SAMPLE = listOf(
         "the battles they survived, and the people who shaped them.",
 )
 
+/** How fast a voice renders on this phone, measured during the preview. */
+private fun speedInfo(label: String, factor: Double): String {
+    val seconds = String.format(Locale.ROOT, "%.1f", factor)
+    val verdict = if (factor > 1.1) "too slow for this phone, so expect pauses between sentences" else "fast enough"
+    return "$label renders 1 second of speech in $seconds s: $verdict."
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
@@ -193,8 +200,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 val choice = Narrators.create(context, settings, models)
                                 previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
                                 try {
-                                    SAMPLE.forEachIndexed { i, sentence ->
-                                        choice.narrator.speak(sentence, upcoming = SAMPLE.getOrNull(i + 1))
+                                    val pieces = Narrators.pieces(choice.narrator, SAMPLE)
+                                    choice.narrator.prepare(pieces.map { it.text })
+                                    for (piece in pieces) {
+                                        if (!choice.narrator.speak(piece.text)) break
+                                    }
+                                    choice.narrator.realTimeFactor?.let { factor ->
+                                        previewInfo = speedInfo(choice.narrator.label, factor)
                                     }
                                 } finally {
                                     choice.narrator.release()

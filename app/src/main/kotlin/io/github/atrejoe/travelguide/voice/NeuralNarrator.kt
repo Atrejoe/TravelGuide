@@ -29,8 +29,8 @@ import kotlin.math.abs
  * On-device neural voice: Kokoro or Piper models run by sherpa-onnx. Free and offline.
  *
  * All synthesis runs on one dedicated thread, so the native engine is never used concurrently
- * and is released only after any synthesis in flight. While a sentence plays, the next one is
- * already being synthesised to avoid gaps on slower phones.
+ * and is released only after any synthesis in flight. A whole story is rendered ahead with
+ * [prepare], in order, so the next piece is usually ready before the current one has played.
  */
 class NeuralNarrator(
     private val voice: NeuralVoice,
@@ -39,6 +39,10 @@ class NeuralNarrator(
     private val rate: Float,
 ) : Narrator {
     override val label: String = "${voice.name} (on-device)"
+    override val rendersOnDevice: Boolean = true
+
+    @Volatile private var measuredFactor: Double? = null
+    override val realTimeFactor: Double? get() = measuredFactor
 
     private val synthExecutor = Executors.newSingleThreadExecutor { Thread(it, "tts-synth") }
     private val scope = CoroutineScope(SupervisorJob() + synthExecutor.asCoroutineDispatcher())
@@ -46,17 +50,22 @@ class NeuralNarrator(
     /** Only touched on the synthesis thread. */
     private var tts: OfflineTts? = null
 
-    /** Only touched from the caller's thread. */
-    private var ahead: Pair<String, Deferred<GeneratedAudio>>? = null
+    /** Audio rendered or being rendered, in speaking order. Only touched from the caller's thread. */
+    private val queued = LinkedHashMap<String, Deferred<GeneratedAudio>>()
+
+    /** The piece spoken last, kept to repeat it after a pause. Only touched from the caller's thread. */
     private var last: Pair<String, GeneratedAudio>? = null
 
     @Volatile private var stopped = false
     @Volatile private var released = false
     @Volatile private var track: AudioTrack? = null
 
-    /** Loads the model, so failures surface before the first story and not halfway through it. */
+    /**
+     * Loads the model, so failures surface before the first story and not halfway through it, and
+     * renders a throwaway word: the first run of a model is much slower than the ones after it.
+     */
     suspend fun warmUp() {
-        scope.async { engine() }.await()
+        scope.async { engine().generate(text = "Hello.", sid = voice.speakerId, speed = rate) }.await()
     }
 
     private fun engine(): OfflineTts = tts ?: OfflineTts(assetManager = null, config = config()).also { tts = it }
@@ -89,28 +98,40 @@ class NeuralNarrator(
         return OfflineTtsConfig(model = model)
     }
 
-    private fun synthesize(text: String): Deferred<GeneratedAudio> =
-        scope.async { engine().generate(text = text, sid = voice.speakerId, speed = rate) }
+    private fun synthesize(text: String): Deferred<GeneratedAudio> = scope.async {
+        val started = System.nanoTime()
+        engine().generate(text = text, sid = voice.speakerId, speed = rate).also { audio ->
+            if (audio.samples.isNotEmpty()) {
+                val factor = (System.nanoTime() - started) / 1e9 / (audio.samples.size.toDouble() / audio.sampleRate)
+                measuredFactor = measuredFactor?.let { it * 0.7 + factor * 0.3 } ?: factor
+            }
+        }
+    }
 
-    override suspend fun speak(text: String, upcoming: String?): Boolean {
+    override fun prepare(texts: List<String>) {
+        val wanted = texts.toSet()
+        val iterator = queued.entries.iterator()
+        while (iterator.hasNext()) {
+            val (text, job) = iterator.next()
+            if (text !in wanted) {
+                job.cancel() // Skipped if it hasn't started; a running one finishes unused.
+                iterator.remove()
+            }
+        }
+        for (text in texts) if (text !in queued) queued[text] = synthesize(text)
+    }
+
+    override suspend fun speak(text: String): Boolean {
         if (released) return false
         stopped = false
         val audio = try {
-            val cached = last?.takeIf { it.first == text }?.second
-            if (cached != null) {
-                cached
-            } else {
-                val pending = ahead?.takeIf { it.first == text }?.second ?: synthesize(text)
-                // Queued behind the current sentence on the synthesis thread.
-                ahead = upcoming?.let { it to synthesize(it) }
-                pending.await().also { last = text to it }
-            }
+            last?.takeIf { it.first == text }?.second
+                ?: (queued.remove(text) ?: synthesize(text)).await().also { last = text to it }
         } catch (t: Throwable) {
             coroutineContext.ensureActive()
             Log.e(TAG, "Speech synthesis failed", t)
             return false
         }
-        if (upcoming != null && ahead?.first != upcoming) ahead = upcoming to synthesize(upcoming)
         if (stopped || released || audio.samples.isEmpty()) return false
         return withContext(Dispatchers.IO) { play(audio.samples, audio.sampleRate) }
     }
@@ -183,7 +204,7 @@ class NeuralNarrator(
         if (released) return
         released = true
         stop()
-        ahead = null
+        queued.clear()
         last = null
         scope.cancel()
         // Runs after any synthesis in flight: the executor is single-threaded.

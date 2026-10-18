@@ -12,6 +12,11 @@ All notable changes to this project are documented here. The format follows
 - Train travel is recognised from the railway you're on, not only from speed. Trains below
   145 km/h used to be shown as a car (#18). Railway lines come from OpenStreetMap (Overpass API),
   fetched only when moving fast and after moving a few kilometres.
+- Shorter wait before a story and fewer pauses between sentences with on-device voices (#26).
+  Articles of the next stories are fetched ahead of time, the voice is warmed up when it loads,
+  and the whole story is rendered in the background as soon as it starts, with long sentences cut
+  at commas so the first words come sooner. When a voice is too slow for the phone, the guide
+  screen says so, and the voice preview in Settings shows how fast it renders.
 
 ### Added
 

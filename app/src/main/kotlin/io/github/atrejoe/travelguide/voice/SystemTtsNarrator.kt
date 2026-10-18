@@ -65,7 +65,7 @@ class SystemTtsNarrator(
         return voiceName?.let { "System voice $it is not installed on this phone; using the default voice." }
     }
 
-    override suspend fun speak(text: String, upcoming: String?): Boolean {
+    override suspend fun speak(text: String): Boolean {
         if (!ready.await()) return false
         initialize()
         return suspendCancellableCoroutine { cont ->

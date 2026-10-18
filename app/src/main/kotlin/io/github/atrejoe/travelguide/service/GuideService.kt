@@ -234,7 +234,12 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 continue
             }
             publishUpcoming(now)
-            val narration = engine.nextNarration(now) ?: continue
+            val narration = engine.nextNarration(now)
+            if (narration == null) {
+                // Between stories: fetch what the next one needs, so it starts without delay.
+                engine.prefetchArticles()
+                continue
+            }
             publishUpcoming(now)
             tell(narration)
             engine.onNarrationFinished(System.currentTimeMillis())
@@ -270,27 +275,50 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         GuideStatus.update { it.copy(current = item, speaking = true, history = (listOf(item) + it.history).take(50)) }
         updateSession()
         abortStory = false
+        val first = currentNarrator()
+        val pieces = Narrators.pieces(first, narration.sentences)
+        // Start rendering the whole story right away, also while waiting for audio focus.
+        first.prepare(pieces.map { it.text })
+        var prepared: Narrator? = first
         try {
             var index = 0
-            while (index < narration.sentences.size && !abortStory) {
+            while (index < pieces.size && !abortStory) {
                 awaitUnpaused()
                 if (!focus.request()) {
                     delay(1_000)
                     continue
                 }
-                val completed = currentNarrator().speak(
-                    narration.sentences[index],
-                    upcoming = narration.sentences.getOrNull(index + 1),
-                )
-                // Interrupted by a pause: say the sentence again after resuming.
+                val narrator = currentNarrator()
+                // Render the rest of the story ahead; again if the voice was changed meanwhile.
+                if (narrator !== prepared) {
+                    narrator.prepare(pieces.drop(index).map { it.text })
+                    prepared = narrator
+                }
+                val completed = narrator.speak(pieces[index].text)
+                // Interrupted by a pause: say the piece again after resuming.
                 if (completed || !isPaused()) index++
                 // A short breath between sentences sounds more like a person telling a story.
-                if (completed && index < narration.sentences.size) delay(SENTENCE_PAUSE_MILLIS)
+                if (completed && index < pieces.size && pieces[index - 1].endsSentence) delay(SENTENCE_PAUSE_MILLIS)
             }
         } finally {
+            prepared?.prepare(emptyList())
             focus.abandon()
             GuideStatus.update { it.copy(speaking = false) }
             updateSession()
+            warnIfVoiceTooSlow()
+        }
+    }
+
+    /** Tells the user when the chosen voice renders slower than it speaks on this phone. */
+    private fun warnIfVoiceTooSlow() {
+        val narrator = narrator ?: return
+        val factor = narrator.realTimeFactor ?: return
+        if (factor <= SLOW_VOICE_FACTOR) return
+        GuideStatus.update {
+            if (it.voiceWarning != null) it else it.copy(
+                voiceWarning = "${narrator.label} renders slower than it speaks on this phone, so there are pauses " +
+                    "between sentences. Piper voices (Settings) render several times faster than Kokoro ones.",
+            )
         }
     }
 
@@ -417,6 +445,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         private const val TAG = "GuideService"
         private const val TICK_MILLIS = 3_000L
         private const val SENTENCE_PAUSE_MILLIS = 250L
+        private const val SLOW_VOICE_FACTOR = 1.1
 
         const val ACTION_START = "io.github.atrejoe.travelguide.START"
         const val ACTION_PAUSE = "io.github.atrejoe.travelguide.PAUSE"
