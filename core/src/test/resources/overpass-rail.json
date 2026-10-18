@@ -1,0 +1,12 @@
+{
+  "version": 0.6,
+  "elements": [
+    {"type": "way", "id": 101, "nodes": [1, 2, 3],
+     "geometry": [{"lat": 52.000, "lon": 5.000}, {"lat": 52.010, "lon": 5.000}, {"lat": 52.020, "lon": 5.000}],
+     "tags": {"railway": "rail", "name": "Example Line"}},
+    {"type": "way", "id": 202, "nodes": [10, 11],
+     "geometry": [{"lat": 52.000, "lon": 5.003}, {"lat": 52.020, "lon": 5.003}],
+     "tags": {"highway": "primary"}},
+    {"type": "node", "id": 1, "lat": 52.0, "lon": 5.0}
+  ]
+}

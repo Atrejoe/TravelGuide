@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Train travel is recognised from the railway you're on, not only from speed. Trains below
+  145 km/h used to be shown as a car (#18). Railway lines come from OpenStreetMap (Overpass API),
+  fetched only when moving fast and after moving a few kilometres.
+
 ### Added
 
 - Map at the top of the guide screen showing where you are, the places in the current story and

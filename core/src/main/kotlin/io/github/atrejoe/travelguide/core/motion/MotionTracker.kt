@@ -32,6 +32,12 @@ class MotionTracker(
     /** Manual override; null means automatic detection. */
     var modeOverride: TravelMode? = null
 
+    /**
+     * Set when the position follows a railway (see `RailDetector`). Speed alone can't tell a
+     * train from a car, so this decides; it also keeps "train" during station stops.
+     */
+    var onRail: Boolean = false
+
     var state: MotionState? = null
         private set
 
@@ -45,7 +51,12 @@ class MotionTracker(
         }
 
         val speed = estimateSpeed()
-        updateMode(TravelMode.fromSpeed(speed), fix.timeMillis)
+        val observed = when {
+            onRail && speed >= RAIL_MIN_SPEED_MPS -> TravelMode.TRAIN
+            onRail && mode == TravelMode.TRAIN -> TravelMode.TRAIN // waiting at a station
+            else -> TravelMode.fromSpeed(speed)
+        }
+        updateMode(observed, fix.timeMillis)
         val heading = estimateHeading(speed)
         if (heading != null) lastHeading = heading
         // Keep the last known heading briefly when stopping (traffic lights, stations).
@@ -96,5 +107,10 @@ class MotionTracker(
             mode = observed
             candidateMode = null
         }
+    }
+
+    private companion object {
+        /** Faster than walking along a platform. */
+        const val RAIL_MIN_SPEED_MPS = 4.0
     }
 }
