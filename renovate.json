@@ -1,0 +1,52 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Monthly, grouped dependency updates. The Android workflow builds and lints every Gradle update.",
+  "extends": ["config:recommended", ":semanticCommits", "schedule:monthly"],
+  "timezone": "Europe/Amsterdam",
+  "labels": ["dependencies"],
+  "prConcurrentLimit": 5,
+  "rebaseWhen": "behind-base-branch",
+  "packageRules": [
+    {
+      "description": "Android Gradle plugin, AndroidX and Compose.",
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["/^androidx\\./", "/^com\\.android\\./"],
+      "groupName": "AndroidX"
+    },
+    {
+      "description": "Kotlin, its Gradle plugins (incl. the Compose compiler) and kotlinx. The Kotlin version must stay supported by the Android Gradle plugin; see the KGP compatibility table.",
+      "matchManagers": ["gradle"],
+      "matchPackageNames": ["/^org\\.jetbrains\\.kotlin/"],
+      "groupName": "Kotlin"
+    },
+    {
+      "description": "Remaining Gradle libraries and the Gradle wrapper.",
+      "matchManagers": ["gradle", "gradle-wrapper"],
+      "matchPackageNames": ["!/^androidx\\./", "!/^com\\.android\\./", "!/^org\\.jetbrains\\.kotlin/"],
+      "groupName": "other Gradle dependencies"
+    },
+    {
+      "description": "All GitHub Actions in one pull request.",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "gradle/actions v6 moved caching into a closed-source component that requires accepting extra terms of use; stay on v5 until that is a deliberate decision.",
+      "matchManagers": ["github-actions"],
+      "matchPackageNames": ["gradle/actions{/,}**"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
+    }
+  ],
+  "customManagers": [
+    {
+      "description": "The on-device text-to-speech runtime, fetched by scripts/fetch-sherpa-onnx.sh.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^sherpa-onnx\\.version$/"],
+      "matchStrings": ["^(?<currentValue>\\S+)\\s*$"],
+      "depNameTemplate": "k2-fsa/sherpa-onnx",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^v(?<version>.+)$"
+    }
+  ]
+}

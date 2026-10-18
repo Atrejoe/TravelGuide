@@ -9,7 +9,9 @@
    Use a scope of `core`, `app`, `ci` or `docs` where it helps.
 4. Add user-facing changes to `CHANGELOG.md` under **Unreleased**.
 5. Open a pull request. App changes get a downloadable APK on the PR's *Android* workflow run.
-6. Squash-merge into `main` with a Conventional Commit title.
+6. Keep the branch current by rebasing it onto `main` (`git rebase origin/main`, then
+   `git push --force-with-lease`) whenever `main` moves, rather than merging `main` into it.
+7. Squash-merge into `main` with a Conventional Commit title.
 
 ## Releases
 
@@ -84,12 +86,18 @@ a keystore or password; `*.jks` and `*.keystore` are git-ignored.
 
 ## Dependency updates
 
-[Dependabot](.github/dependabot.yml) opens grouped pull requests once a month: one for the
-Android Gradle plugin, AndroidX and Compose, one for Kotlin and kotlinx, one for the other Gradle
-dependencies, and one for GitHub Actions. The *Android* workflow builds and lints each Gradle
-update. Before merging a Kotlin update, check that the Android Gradle plugin in use is supported
+[Renovate](renovate.json) opens grouped pull requests once a month: one for the Android Gradle
+plugin, AndroidX and Compose, one for Kotlin and kotlinx, one for the other Gradle dependencies
+and the Gradle wrapper, one for GitHub Actions, and one for the sherpa-onnx text-to-speech runtime
+(`sherpa-onnx.version`). Its *Dependency Dashboard* issue lists pending updates and lets you
+trigger one early. The *Android* workflow builds and lints each Gradle and sherpa-onnx update.
+Before merging a Kotlin update, check that the Android Gradle plugin in use is supported
 by that Kotlin version ([compatibility table](https://kotlinlang.org/docs/gradle-configure-project.html#apply-the-plugin));
 the Compose compiler plugin always uses the `kotlin` version from `gradle/libs.versions.toml`.
+
+Renovate runs as a GitHub App: a maintainer installs [Renovate](https://github.com/apps/renovate)
+once for this repository (free for public repositories). Validate changes to `renovate.json` with
+`npx --package renovate -- renovate-config-validator --strict`.
 
 ## Repository settings (one-time, by a maintainer)
 
