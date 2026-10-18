@@ -18,6 +18,10 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
 - **Looks ahead.** It predicts where you will be in the next few minutes. With a planned route
   it follows that route; otherwise it extends your current heading. It tells you about what is
   *coming up* rather than what you just passed, and says on which side it is.
+- **Follows your route.** Share directions from Google Maps, a Komoot tour, or a GPX/FIT file
+  (e.g. a Garmin course export) with the app, and the stories follow that route. With optional
+  notification access it also shows when Google Maps, Komoot, Garmin, OsmAnd or Waze is
+  navigating. See [following routes](#following-a-route-from-a-navigation-app).
 - **Adapts to how you travel.** The speed decides the detail level:
 
   | Mode | Looks for | Search radius | Look-ahead | Story length |
@@ -71,6 +75,22 @@ Newer builds (releases, preview and pull-request builds alike) install over the 
 keep your voices and settings. Builds from before stable signing ([#15](../../issues/15)) can't be
 updated: uninstall such an older build once, then install the new one.
 
+## Following a route from a navigation app
+
+Share the route with **Follow route in Travel Guide** in the share sheet, then tap **Start
+guiding** (sharing while the guide runs works too):
+
+- **Google Maps**: plan directions, then **⋮ → Share directions**. Google offers no route data,
+  so the route is recomputed with OpenStreetMap (OSRM) and may differ slightly.
+- **Komoot**: share the tour link. For a private tour, export it as GPX in Komoot and share the
+  file. Komoot tours are read through an unofficial endpoint that may change.
+- **Garmin Connect / Explore**: course links need a login, so export the course as GPX (or FIT)
+  and share the file, or import it in **Settings → Navigation → Import GPX file**.
+- **Any other app** (OsmAnd, Strava, route planners): share or open a GPX file.
+
+The status card and the map legend show where the route came from. See
+[docs/navigation.md](docs/navigation.md) for details, limits and privacy.
+
 ## How it works
 
 ```
@@ -87,8 +107,8 @@ Wikipedia geosearch ─▶ PoiScorer (prominence × interest × geometry × mode
 
 | Module | Contents |
 |---|---|
-| `core/` | Pure Kotlin, no Android: geo math, motion detection, route prediction, scoring, Wikipedia client, narration text. Fast JVM unit tests. |
-| `app/` | Android app (Kotlin, Jetpack Compose): foreground service, location, audio focus, media session, notification, Quick Settings tile, voice download and playback. |
+| `core/` | Pure Kotlin, no Android: geo math, motion detection, route prediction, scoring, Wikipedia client, narration text, route import (GPX/FIT, Google Maps/Komoot/Garmin links, OSRM, Nominatim). Fast JVM unit tests. |
+| `app/` | Android app (Kotlin, Jetpack Compose): foreground service, location, audio focus, media session, notification, Quick Settings tile, voice download and playback, route sharing and navigation notifications. |
 
 ## Develop
 
@@ -116,7 +136,7 @@ changelog, CI).
 ## Roadmap
 
 Planned features are tracked as [issues](../../issues), such as voice choice and
-Dutch narration, interest selection, navigation-app routes, start suggestions, optional BYO-key
+Dutch narration, interest selection, start suggestions, optional BYO-key
 LLM storytelling and climate facts.
 
 ## Credits
@@ -126,6 +146,8 @@ LLM storytelling and climate facts.
   its source article.
 - Map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, displayed with
   [osmdroid](https://github.com/osmdroid/osmdroid) (Apache 2.0).
+- Routing for shared Google Maps links: [OSRM](https://project-osrm.org/) on the FOSSGIS servers
+  (routing.openstreetmap.de) and [Nominatim](https://nominatim.org/), with OpenStreetMap data.
 - Speech: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache 2.0) with
   [Piper](https://github.com/rhasspy/piper) voices (see each voice's model card for its license).
 

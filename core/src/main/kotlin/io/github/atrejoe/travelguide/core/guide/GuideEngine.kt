@@ -7,10 +7,17 @@ import io.github.atrejoe.travelguide.core.interest.Interest
 import io.github.atrejoe.travelguide.core.interest.InterestClassifier
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
+import io.github.atrejoe.travelguide.core.motion.TravelMode
+import io.github.atrejoe.travelguide.core.nav.Maneuver
+import io.github.atrejoe.travelguide.core.nav.TowardRouting
 import io.github.atrejoe.travelguide.core.rail.RailDetector
 import io.github.atrejoe.travelguide.core.rail.RailGraph
 import io.github.atrejoe.travelguide.core.rail.RailNetwork
 import io.github.atrejoe.travelguide.core.rail.RailSource
+import io.github.atrejoe.travelguide.core.road.RoadGraph
+import io.github.atrejoe.travelguide.core.road.RoadNetwork
+import io.github.atrejoe.travelguide.core.road.RoadSource
+import io.github.atrejoe.travelguide.core.route.LiveNavigation
 import io.github.atrejoe.travelguide.core.route.PredictedPath
 import io.github.atrejoe.travelguide.core.route.RouteExtrapolator
 import io.github.atrejoe.travelguide.core.story.ArticleParser
@@ -46,6 +53,10 @@ class GuideEngine(
     private val articles: ArticleSource? = null,
     /** Railway lines nearby, to recognise train travel; without it only speed is used. */
     private val rails: RailSource? = null,
+    /** Roads nearby, to follow the road and navigation instructions; without it we guess straight on. */
+    private val roads: RoadSource? = null,
+    /** Routes towards signposted places of navigation instructions; optional. */
+    private val toward: TowardRouting? = null,
     random: Random = Random.Default,
     private val refreshIntervalMillis: Long = 15 * 60_000,
     private val forgetDistanceM: Double = 30_000.0,
@@ -76,6 +87,8 @@ class GuideEngine(
 
     fun onLocation(fix: LocationFix): MotionState? {
         val state = motion.onFix(fix) ?: return null
+        // An instruction that came in before our first position counts from here.
+        extrapolator.navigation?.takeIf { it.origin == null }?.let { extrapolator.navigation = it.copy(origin = fix.point) }
         // Judged on this fix, applied from the next one: one fix of delay is fine for a mode.
         motion.onRail = railDetector.update(fix, state.speedMps, state.headingDeg, railNetwork?.takeIf { it.covers(fix.point) })
         return state
@@ -105,6 +118,110 @@ class GuideEngine(
 
     private var lastRailAttemptMillis = Long.MIN_VALUE / 2
 
+    /** The roads around us, when known. */
+    var roadNetwork: RoadNetwork? = null
+        private set
+
+    private var lastRoadAttemptMillis = Long.MIN_VALUE / 2
+    private var roadFailures = 0
+    private var navigationAtMillis = 0L
+    private var lastTowardAttemptMillis = Long.MIN_VALUE / 2
+    private var towardName: String? = null
+
+    /** True while a navigation app's instruction steers the forecast. */
+    val navigating: Boolean get() = extrapolator.navigation != null
+
+    /**
+     * The latest instruction of a navigation app, or null when navigation ended. Its distance is
+     * taken to count from where we are now. An instruction not updated for a while is dropped
+     * (see [refreshIfNeeded]).
+     */
+    fun onNavigation(maneuver: Maneuver?, nowMillis: Long) {
+        if (maneuver == null || !maneuver.isUseful) {
+            extrapolator.navigation = null
+            towardName = null
+            return
+        }
+        navigationAtMillis = nowMillis
+        // Keep a route towards the signposted place while the instructions still point there, or
+        // while they don't mention a place at all (e.g. "Continue for 5 km").
+        val keep = extrapolator.navigation?.towardRoute?.takeIf { maneuver.toward == null || sameName(maneuver.toward, towardName) }
+        if (keep == null) towardName = null
+        extrapolator.navigation = LiveNavigation(maneuver, motion.state?.fix?.point, keep)
+    }
+
+    private fun sameName(a: String?, b: String?) = a != null && b != null && a.equals(b, ignoreCase = true)
+
+    private fun expireNavigation(nowMillis: Long) {
+        if (extrapolator.navigation != null && nowMillis - navigationAtMillis > NAVIGATION_MAX_AGE_MILLIS) {
+            extrapolator.navigation = null
+            towardName = null
+        }
+    }
+
+    /**
+     * Fetches the roads around us when driving, cycling or navigating, and the last fetch doesn't
+     * cover where we are. Minor roads are only fetched where turns matter: while navigating at
+     * city speeds, or by bike. Failures back off up to [ROAD_MAX_BACKOFF_MILLIS].
+     */
+    private suspend fun refreshRoadsIfNeeded(nowMillis: Long) {
+        val source = roads ?: return
+        val state = motion.state ?: return
+        val navigating = extrapolator.navigation != null
+        val roadMode = state.mode == TravelMode.DRIVING || state.mode == TravelMode.CYCLING
+        if (!roadMode && !(navigating && state.mode == TravelMode.WALKING)) return
+        val cycling = state.mode == TravelMode.CYCLING
+        val minor = cycling || (navigating && state.speedMps < MINOR_ROADS_MAX_SPEED_MPS)
+        val here = state.fix.point
+        val current = roadNetwork
+        val fresh = current != null && current.covers(here) && nowMillis - current.fetchedAtMillis < ROAD_MAX_AGE_MILLIS &&
+            (current.hasMinorRoads || !minor) && (current.cycleways || !cycling)
+        if (fresh) return
+        val backoff = minOf(ROAD_RETRY_MILLIS shl (roadFailures - 1).coerceIn(0, 5), ROAD_MAX_BACKOFF_MILLIS)
+        if (nowMillis - lastRoadAttemptMillis < backoff) return
+        lastRoadAttemptMillis = nowMillis
+        try {
+            val network = source.roads(here, ROAD_MAJOR_RADIUS_M, if (minor) ROAD_MINOR_RADIUS_M else 0, cycleways = cycling)
+            roadNetwork = network
+            extrapolator.roadGraph = RoadGraph(network)
+            roadFailures = 0
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            roadFailures++
+        }
+    }
+
+    /**
+     * Computes a route towards the place a navigation instruction points to ("towards Utrecht"),
+     * at most once a minute, and only when we're not already on such a route.
+     */
+    private suspend fun refreshTowardIfNeeded(nowMillis: Long) {
+        val router = toward ?: return
+        val nav = extrapolator.navigation ?: return
+        val state = motion.state ?: return
+        val name = nav.maneuver.toward ?: return
+        if (state.mode == TravelMode.TRAIN || state.mode == TravelMode.FLYING) return
+        val here = state.fix.point
+        val route = nav.towardRoute
+        val onRoute = route != null && sameName(name, towardName) && PredictedPath(route).locate(here).crossM < TOWARD_OFF_ROUTE_M
+        if (onRoute) return
+        if (nowMillis - lastTowardAttemptMillis < TOWARD_RETRY_MILLIS) return
+        lastTowardAttemptMillis = nowMillis
+        val computed = try {
+            router.route(here, name, state.mode)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            null
+        }
+        // The instruction may have changed meanwhile.
+        val latest = extrapolator.navigation ?: return
+        if (!sameName(latest.maneuver.toward, name)) return
+        towardName = name
+        extrapolator.navigation = latest.copy(towardRoute = computed)
+    }
+
     fun profile(): DetailProfile? = motion.state?.let { DetailProfile.forMode(it.mode) }
 
     fun predictedPath(): PredictedPath? {
@@ -117,7 +234,10 @@ class GuideEngine(
      * since the last fetch. Returns true when a fetch happened.
      */
     suspend fun refreshIfNeeded(nowMillis: Long): Boolean {
+        expireNavigation(nowMillis)
         refreshRailsIfNeeded(nowMillis)
+        refreshRoadsIfNeeded(nowMillis)
+        refreshTowardIfNeeded(nowMillis)
         val state = motion.state ?: return false
         val profile = DetailProfile.forMode(state.mode)
         val path = extrapolator.predict(state, profile.lookaheadSeconds)
@@ -260,6 +380,13 @@ class GuideEngine(
         lastNarrationEnd = null
         railNetwork = null
         extrapolator.railGraph = null
+        roadNetwork = null
+        extrapolator.roadGraph = null
+        extrapolator.navigation = null
+        towardName = null
+        roadFailures = 0
+        lastRoadAttemptMillis = Long.MIN_VALUE / 2
+        lastTowardAttemptMillis = Long.MIN_VALUE / 2
         railDetector.reset()
         motion.onRail = false
     }
@@ -270,6 +397,22 @@ class GuideEngine(
         const val RAIL_FETCH_MIN_SPEED_MPS = 8.0
         const val RAIL_MAX_AGE_MILLIS = 30 * 60_000L
         const val RAIL_RETRY_MILLIS = 60_000L
+
+        const val ROAD_MAJOR_RADIUS_M = 5_000
+        const val ROAD_MINOR_RADIUS_M = 1_000
+
+        /** Above about 70 km/h side streets don't matter for the next turns. */
+        const val MINOR_ROADS_MAX_SPEED_MPS = 20.0
+        const val ROAD_MAX_AGE_MILLIS = 30 * 60_000L
+
+        /** Also the least time between two road fetches, to go easy on Overpass. */
+        const val ROAD_RETRY_MILLIS = 45_000L
+        const val ROAD_MAX_BACKOFF_MILLIS = 15 * 60_000L
+
+        /** A navigation instruction not updated for this long is considered stale. */
+        const val NAVIGATION_MAX_AGE_MILLIS = 2 * 60_000L
+        const val TOWARD_RETRY_MILLIS = 60_000L
+        const val TOWARD_OFF_ROUTE_M = 60.0
     }
 
     private fun pointAlong(path: PredictedPath, distanceM: Double): GeoPoint {

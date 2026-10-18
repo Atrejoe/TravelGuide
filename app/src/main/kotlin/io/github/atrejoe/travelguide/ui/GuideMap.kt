@@ -57,12 +57,25 @@ import io.github.atrejoe.travelguide.core.geo.GeoPoint as CorePoint
 private data class MapColors(val route: Int, val guess: Int, val you: Int, val story: Int, val upcoming: Int)
 
 /**
- * OpenStreetMap view of where you are, the stretch ahead (solid when it comes from navigation,
- * dashed when it is guessed from your movement), the places of the current story and the ones
- * coming up. Follows your position until you pan the map; the button re-centres it.
+ * OpenStreetMap view of where you are, the stretch ahead (solid when it comes from a route, nearly
+ * solid when it follows a navigation app's directions, dashed when it follows the road or the
+ * railway, and thin and dashed when it is guessed from your movement), the places of the current
+ * story and the ones coming up. Follows your position until you pan the map; the button
+ * re-centres it.
  */
 @Composable
-fun GuideMap(state: GuideUiState, modifier: Modifier = Modifier) {
+fun GuideMap(
+    state: GuideUiState,
+    modifier: Modifier = Modifier,
+    /** Where the planned route came from, e.g. "Komoot", for the legend. */
+    routeFrom: String? = null,
+    /** The navigation app whose directions are followed live, e.g. "Google Maps". */
+    navigatingWith: String? = null,
+) {
+    val labels = RouteLabels(
+        planned = "Route from " + (routeFrom ?: "navigation"),
+        navigation = "Following " + (navigatingWith ?: "navigation") + " directions",
+    )
     val context = LocalContext.current
     val density = LocalDensity.current.density
     val scheme = MaterialTheme.colorScheme
@@ -97,7 +110,7 @@ fun GuideMap(state: GuideUiState, modifier: Modifier = Modifier) {
             AndroidView(
                 factory = { map },
                 modifier = Modifier.fillMaxWidth().height(240.dp),
-                update = { render(it, state, colors, density, follow) },
+                update = { render(it, state, colors, density, follow, labels) },
             )
             if (!follow) {
                 SmallFloatingActionButton(
@@ -106,7 +119,7 @@ fun GuideMap(state: GuideUiState, modifier: Modifier = Modifier) {
                 ) { Text("◎") }
             }
         }
-        MapLegend(state.routeSource, colors)
+        MapLegend(state.routeSource, colors, labels)
     }
 }
 
@@ -133,31 +146,43 @@ private fun createMap(context: Context, onUserPan: () -> Unit): MapView {
     }
 }
 
-private fun render(map: MapView, state: GuideUiState, colors: MapColors, density: Float, follow: Boolean) {
+/** Legend and map labels for routes whose name depends on where they came from. */
+private data class RouteLabels(val planned: String, val navigation: String)
+
+/** How the stretch ahead is drawn: the better founded, the bolder and the less dashed. */
+private data class LineStyle(val guessed: Boolean, val widthDp: Float, val dashDp: Pair<Float, Float>?)
+
+private fun lineStyle(source: PathSource): LineStyle = when (source) {
+    PathSource.PLANNED_ROUTE -> LineStyle(guessed = false, widthDp = 6f, dashDp = null)
+    PathSource.NAVIGATION -> LineStyle(guessed = false, widthDp = 6f, dashDp = 24f to 4f)
+    PathSource.RAILWAY -> LineStyle(guessed = false, widthDp = 5f, dashDp = 18f to 6f)
+    PathSource.ROAD -> LineStyle(guessed = false, widthDp = 4.5f, dashDp = 12f to 7f)
+    PathSource.DEAD_RECKONING, PathSource.NONE -> LineStyle(guessed = true, widthDp = 4f, dashDp = 10f to 8f)
+}
+
+private fun routeTitle(source: PathSource, labels: RouteLabels): String = when (source) {
+    PathSource.PLANNED_ROUTE -> labels.planned
+    PathSource.NAVIGATION -> labels.navigation
+    PathSource.RAILWAY -> "Following the railway"
+    PathSource.ROAD -> "Following the road"
+    PathSource.DEAD_RECKONING, PathSource.NONE -> "Estimated direction"
+}
+
+private fun render(map: MapView, state: GuideUiState, colors: MapColors, density: Float, follow: Boolean, labels: RouteLabels) {
     map.overlays.clear()
     // Required attribution for OpenStreetMap data.
     map.overlays += CopyrightOverlay(map.context)
 
     if (state.route.size >= 2) {
-        val planned = state.routeSource == PathSource.PLANNED_ROUTE
-        val railway = state.routeSource == PathSource.RAILWAY
+        val style = lineStyle(state.routeSource)
         map.overlays += Polyline(map).apply {
             setPoints(state.route.map { it.osm() })
-            title = when {
-                planned -> "Route from navigation"
-                railway -> "Following the railway"
-                else -> "Estimated direction"
-            }
+            title = routeTitle(state.routeSource, labels)
             outlinePaint.apply {
-                // The railway forecast is well founded, so it's drawn bolder than a pure guess.
-                color = if (planned || railway) colors.route else colors.guess
-                strokeWidth = (if (planned) 6f else if (railway) 5f else 4f) * density
+                color = if (style.guessed) colors.guess else colors.route
+                strokeWidth = style.widthDp * density
                 strokeCap = Paint.Cap.ROUND
-                pathEffect = when {
-                    planned -> null
-                    railway -> DashPathEffect(floatArrayOf(18f * density, 6f * density), 0f)
-                    else -> DashPathEffect(floatArrayOf(10f * density, 8f * density), 0f)
-                }
+                pathEffect = style.dashDp?.let { (on, off) -> DashPathEffect(floatArrayOf(on * density, off * density), 0f) }
             }
         }
     }
@@ -194,15 +219,17 @@ private fun CorePoint.osm() = OsmPoint(lat, lon)
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun MapLegend(source: PathSource, colors: MapColors) {
+private fun MapLegend(source: PathSource, colors: MapColors, labels: RouteLabels) {
     val style = MaterialTheme.typography.labelSmall
     FlowRow(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         when (source) {
-            PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { Text("Route from navigation", style = style) }
+            PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { Text(labels.planned, style = style) }
+            PathSource.NAVIGATION -> LegendLine(Color(colors.route), dashed = false) { Text(labels.navigation, style = style) }
             PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { Text("Following the railway", style = style) }
+            PathSource.ROAD -> LegendLine(Color(colors.route), dashed = true) { Text("Following the road", style = style) }
             PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { Text("Direction guessed from your movement", style = style) }
             PathSource.NONE -> Text("Direction not known yet", style = style)
         }

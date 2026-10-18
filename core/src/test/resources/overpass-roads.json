@@ -1,0 +1,27 @@
+{
+  "version": 0.6,
+  "elements": [
+    {"type": "way", "id": 1, "nodes": [1, 2, 3],
+     "geometry": [{"lat": 52.0000, "lon": 5.0000}, {"lat": 52.0030, "lon": 5.0000}, {"lat": 52.0060, "lon": 5.0000}],
+     "tags": {"highway": "residential", "name": "Hoofdstraat", "surface": "asphalt"}},
+    {"type": "way", "id": 2, "nodes": [2, 20, 21],
+     "geometry": [{"lat": 52.0030, "lon": 5.0000}, {"lat": 52.0030, "lon": 4.9970}, {"lat": 52.0030, "lon": 4.9930}],
+     "tags": {"highway": "residential", "name": "Kerkstraat"}},
+    {"type": "way", "id": 3, "nodes": [2, 30, 31],
+     "geometry": [{"lat": 52.0030, "lon": 5.0000}, {"lat": 52.0030, "lon": 5.0040}, {"lat": 52.0030, "lon": 5.0080}],
+     "tags": {"highway": "residential", "name": "Molenweg"}},
+    {"type": "way", "id": 4, "nodes": [3, 40, 41],
+     "geometry": [{"lat": 52.0060, "lon": 5.0000}, {"lat": 52.0090, "lon": 5.0000}, {"lat": 52.0150, "lon": 5.0000}],
+     "tags": {"highway": "primary", "name": "Provincialeweg", "ref": "N201"}},
+    {"type": "way", "id": 5, "nodes": [3, 50],
+     "geometry": [{"lat": 52.0060, "lon": 5.0000}, {"lat": 52.0060, "lon": 5.0050}],
+     "tags": {"highway": "tertiary", "name": "Dorpsweg"}},
+    {"type": "way", "id": 6, "nodes": [60, 61],
+     "geometry": [{"lat": 52.0045, "lon": 5.0003}, {"lat": 52.0010, "lon": 5.0003}],
+     "tags": {"highway": "residential", "name": "Eenrichtingstraat", "oneway": "yes"}},
+    {"type": "way", "id": 7, "nodes": [40, 70],
+     "geometry": [{"lat": 52.0090, "lon": 5.0000}, {"lat": 52.0110, "lon": 5.0020}],
+     "tags": {"highway": "primary_link", "destination": "Utrecht;Zeist", "oneway": "yes"}},
+    {"type": "node", "id": 1, "lat": 52.0, "lon": 5.0}
+  ]
+}

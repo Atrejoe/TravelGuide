@@ -15,6 +15,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Follow routes from navigation apps ([#5](../../issues/5)): share Google Maps directions, a Komoot
+  tour link or a GPX/FIT file (e.g. a Garmin course export) with the app, or import a file in
+  Settings → Navigation. Stories and the map then follow that route; the status card and the map
+  legend say where it came from. Google Maps routes are recomputed with OSRM (and Nominatim for
+  place names) because Google offers no route data; Komoot tours use an unofficial endpoint.
+- Optional navigation notification access: shows when Google Maps, Komoot, Garmin, OsmAnd or Waze
+  is navigating, with the next instruction, and drops a shared route when that navigation ends.
+- Follow the navigation app live, without sharing a route or importing a file
+  ([#28](../../issues/28)). With notification access, the next instruction ("in 300 m turn left
+  onto …", also in Dutch and German) is read and the forecast follows the road through that
+  turn. The road is matched by its OpenStreetMap name or number, so it works in any language.
+  "Towards …" places may be routed to with OSRM. The map shows it as "Following Google Maps
+  directions".
+- When driving or cycling, the forecast follows the road you're on instead of a straight line
+  ("Following the road"). Roads come from OpenStreetMap (Overpass API); side streets are only
+  fetched while navigating or cycling, in a small radius.
 - By train, the route forecast follows the railway through bends and junctions instead of a
   straight line, so upcoming places, their side and arrival times match the track (#19). The map
   shows it as "Following the railway".
@@ -43,6 +59,8 @@ All notable changes to this project are documented here. The format follows
   and tag releases use their `CHANGELOG.md` section as release notes.
 
 ### Fixed
+
+- A planned route with long straight segments counted as "off route" between its points.
 
 - Places beyond the predicted route were measured as off to the side, which gave wrong arrival
   times.

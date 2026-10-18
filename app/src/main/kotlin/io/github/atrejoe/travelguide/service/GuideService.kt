@@ -26,20 +26,28 @@ import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
+import io.github.atrejoe.travelguide.core.nav.NominatimClient
+import io.github.atrejoe.travelguide.core.nav.OsrmClient
+import io.github.atrejoe.travelguide.core.nav.TowardRouter
 import io.github.atrejoe.travelguide.core.rail.OverpassClient
+import io.github.atrejoe.travelguide.core.road.RoadSource
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
+import io.github.atrejoe.travelguide.nav.NavigationState
+import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
@@ -70,7 +78,17 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         super.onCreate()
         val fetcher = UrlConnectionFetcher()
         val wikipedia = WikipediaClient(fetcher, lang = "en")
-        engine = GuideEngine(wikipedia, articles = wikipedia, rails = OverpassClient(fetcher))
+        val overpass = OverpassClient(fetcher)
+        engine = GuideEngine(
+            wikipedia,
+            articles = wikipedia,
+            rails = overpass,
+            // Road networks can be large: parse them off the main thread.
+            roads = RoadSource { center, major, minor, cycleways ->
+                withContext(Dispatchers.Default) { overpass.roads(center, major, minor, cycleways) }
+            },
+            toward = TowardRouter(NominatimClient(fetcher), OsrmClient(fetcher)),
+        )
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
         session = MediaSessionCompat(this, "TravelGuide").apply {
@@ -123,6 +141,22 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         startLocationUpdates()
         guideJob = lifecycleScope.launch {
             launch { watchSettings() }
+            // Follow a route shared from a navigation app or imported from a file, when there is one.
+            launch {
+                RouteRepository.load(this@GuideService)
+                RouteRepository.route.collect { route ->
+                    engine.extrapolator.plannedRoute = route?.points
+                    publishUpcoming(System.currentTimeMillis())
+                }
+            }
+            // Follow a navigation app live through its turn-by-turn notifications (when allowed).
+            launch {
+                NavigationState.status.collect { status ->
+                    val now = System.currentTimeMillis()
+                    engine.onNavigation(status?.maneuver, status?.receivedAtMillis?.takeIf { it > 0 } ?: now)
+                    publishUpcoming(now)
+                }
+            }
             // Pick up a neural voice once its download finishes.
             launch { app.voiceModels.installed.collect { narratorDirty = true } }
             launch {

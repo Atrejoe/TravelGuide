@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide
 
 import android.app.Application
+import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.settings.SettingsRepository
 import io.github.atrejoe.travelguide.voice.VoiceModelManager
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -13,12 +14,13 @@ class TravelGuideApp : Application() {
     lateinit var voiceModels: VoiceModelManager
         private set
 
-    @OptIn(DelicateCoroutinesApi::class) // App-lifetime, one-off settings upgrade.
+    @OptIn(DelicateCoroutinesApi::class) // App-lifetime, one-off settings upgrade and route restore.
     override fun onCreate() {
         super.onCreate()
         settings = SettingsRepository(this)
         voiceModels = VoiceModelManager(this)
         GlobalScope.launch { settings.migrate() }
+        GlobalScope.launch { RouteRepository.load(this@TravelGuideApp) }
     }
 }
 

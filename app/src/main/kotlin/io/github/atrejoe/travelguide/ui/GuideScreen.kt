@@ -59,6 +59,11 @@ import io.github.atrejoe.travelguide.StoryItem
 import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.motion.TravelMode
+import io.github.atrejoe.travelguide.core.nav.ImportedRoute
+import io.github.atrejoe.travelguide.core.nav.NavigationStatus
+import io.github.atrejoe.travelguide.core.route.PathSource
+import io.github.atrejoe.travelguide.nav.NavigationState
+import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.service.GuideService
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
@@ -75,6 +80,8 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
     val state by GuideStatus.state.collectAsStateWithLifecycle()
     val settings by context.app.settings.settings.collectAsState(initial = AppSettings())
     val installed by context.app.voiceModels.installed.collectAsStateWithLifecycle()
+    val route by RouteRepository.route.collectAsStateWithLifecycle()
+    val navigation by NavigationState.status.collectAsStateWithLifecycle()
 
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -106,7 +113,7 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (state.running && state.position != null) {
-                GuideMap(state)
+                GuideMap(state, routeFrom = route?.origin?.label, navigatingWith = navigation?.app?.name)
             }
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -130,7 +137,15 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
                     }
                 }
 
-                item { StatusCard(state, auto = settings.modeOverride == null) }
+                item {
+                    StatusCard(
+                        state,
+                        auto = settings.modeOverride == null,
+                        route = route,
+                        navigation = navigation,
+                        onClearRoute = { scope.launch { RouteRepository.clear(context) } },
+                    )
+                }
 
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -281,7 +296,13 @@ private fun etaLabel(expectedAtMillis: Long?, now: Long): String {
 private fun clock(millis: Long): String = DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(millis))
 
 @Composable
-private fun StatusCard(state: GuideUiState, auto: Boolean) {
+private fun StatusCard(
+    state: GuideUiState,
+    auto: Boolean,
+    route: ImportedRoute?,
+    navigation: NavigationStatus?,
+    onClearRoute: () -> Unit,
+) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val headline = when {
@@ -303,11 +324,54 @@ private fun StatusCard(state: GuideUiState, auto: Boolean) {
                 Text("$mode · $speed · ${state.knownPlaces} places nearby", style = MaterialTheme.typography.bodyMedium)
             }
             state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
+            RouteLine(state, route, navigation, onClearRoute)
             if (state.running) {
                 state.voiceLabel?.let { Text("Voice: $it", style = MaterialTheme.typography.bodySmall) }
                 state.voiceWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             }
         }
+    }
+}
+
+/** Which route the guide follows, and which navigation app is active, if any. */
+@Composable
+private fun RouteLine(state: GuideUiState, route: ImportedRoute?, navigation: NavigationStatus?, onClearRoute: () -> Unit) {
+    navigation?.let {
+        Text("Navigating with ${it.label()}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+    }
+    if (state.running) {
+        val forecast = when (state.routeSource) {
+            PathSource.NAVIGATION -> "Following ${navigation?.app?.name ?: "navigation"} directions"
+            PathSource.ROAD -> "Following the road"
+            else -> null
+        }
+        forecast?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+    }
+    if (route == null) {
+        if (!state.running) {
+            Text(
+                "Tip: with notification access the guide follows Google Maps, Komoot, OsmAnd or Waze directions. " +
+                    "You can also share a route or a GPX file with Travel Guide.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        return
+    }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text("Route: ${route.summary()}", style = MaterialTheme.typography.bodyMedium)
+            val offRoute = state.running && state.position != null &&
+                state.routeSource != PathSource.PLANNED_ROUTE && state.routeSource != PathSource.NONE
+            if (offRoute) {
+                Text(
+                    "You're more than 1 km from the route, so the guide looks ahead without it.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                )
+            }
+        }
+        TextButton(onClick = onClearRoute) { Text("Clear") }
     }
 }
 
