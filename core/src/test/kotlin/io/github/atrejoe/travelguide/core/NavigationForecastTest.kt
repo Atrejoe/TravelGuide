@@ -15,6 +15,7 @@ import io.github.atrejoe.travelguide.core.route.LiveNavigation
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.route.RouteExtrapolator
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.yield
 import java.io.IOException
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -101,7 +102,7 @@ class NavigationForecastTest {
     @Test
     fun `the engine fetches roads, follows navigation and forgets it when stale`() = runTest {
         val requests = mutableListOf<Int>()
-        val roads = RoadSource { center, _, minor, _ -> requests += minor; network(center, minor) }
+        val roads = RoadSource { center, _, minor, _ -> yield(); requests += minor; network(center, minor) }
         var towardCalls = 0
         val engine = GuideEngine(
             { _, _ -> emptyList() },
