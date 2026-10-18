@@ -113,7 +113,7 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (state.running && state.position != null) {
-                GuideMap(state, routeFrom = route?.origin?.label)
+                GuideMap(state, routeFrom = route?.origin?.label, navigatingWith = navigation?.app?.name)
             }
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -339,10 +339,19 @@ private fun RouteLine(state: GuideUiState, route: ImportedRoute?, navigation: Na
     navigation?.let {
         Text("Navigating with ${it.label()}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
+    if (state.running) {
+        val forecast = when (state.routeSource) {
+            PathSource.NAVIGATION -> "Following ${navigation?.app?.name ?: "navigation"} directions"
+            PathSource.ROAD -> "Following the road"
+            else -> null
+        }
+        forecast?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
+    }
     if (route == null) {
         if (!state.running) {
             Text(
-                "Tip: share a route from Google Maps, Komoot or a GPX file with Travel Guide to follow it.",
+                "Tip: with notification access the guide follows Google Maps, Komoot, OsmAnd or Waze directions. " +
+                    "You can also share a route or a GPX file with Travel Guide.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -352,10 +361,11 @@ private fun RouteLine(state: GuideUiState, route: ImportedRoute?, navigation: Na
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
             Text("Route: ${route.summary()}", style = MaterialTheme.typography.bodyMedium)
-            val offRoute = state.running && state.position != null && state.routeSource == PathSource.DEAD_RECKONING
+            val offRoute = state.running && state.position != null &&
+                state.routeSource != PathSource.PLANNED_ROUTE && state.routeSource != PathSource.NONE
             if (offRoute) {
                 Text(
-                    "You're more than 1 km from the route, so the guide is guessing the way ahead.",
+                    "You're more than 1 km from the route, so the guide looks ahead without it.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
