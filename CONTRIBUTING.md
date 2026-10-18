@@ -9,7 +9,9 @@
    Use a scope of `core`, `app`, `ci` or `docs` where it helps.
 4. Add user-facing changes to `CHANGELOG.md` under **Unreleased**.
 5. Open a pull request. App changes get a downloadable APK on the PR's *Android* workflow run.
-6. Squash-merge into `main` with a Conventional Commit title.
+6. Keep the branch current by rebasing it onto `main` (`git rebase origin/main`, then
+   `git push --force-with-lease`) whenever `main` moves, rather than merging `main` into it.
+7. Squash-merge into `main` with a Conventional Commit title.
 
 ## Releases
 
