@@ -1,8 +1,8 @@
-import org.jetbrains.kotlin.gradle.dsl.JvmTarget
-
+// AGP 9 compiles Kotlin itself (built-in Kotlin), so the kotlin-android plugin is not applied.
+// The Compose compiler plugin also brings the Kotlin Gradle plugin at the catalog's `kotlin`
+// version, which takes precedence over the older one AGP depends on.
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
 }
 
@@ -36,12 +36,12 @@ if (!hasStableSigning) {
 
 android {
     namespace = "io.github.atrejoe.travelguide"
-    compileSdk = 35
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.atrejoe.travelguide"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 37
         // CI passes a time-based versionCode (minutes since 2026-01-01 UTC) so it only ever goes up:
         // Android refuses to install a lower versionCode over a higher one.
         versionCode = (findProperty("versionCode") as String?)?.toIntOrNull() ?: 1
@@ -80,6 +80,7 @@ android {
         }
     }
 
+    // Built-in Kotlin takes its JVM target from targetCompatibility.
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -100,12 +101,6 @@ android {
         // Print findings in the build log so they are visible without downloading the report.
         textReport = true
         textOutput = File("stdout")
-    }
-}
-
-kotlin {
-    compilerOptions {
-        jvmTarget.set(JvmTarget.JVM_17)
     }
 }
 

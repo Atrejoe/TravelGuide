@@ -47,8 +47,7 @@ class GuideEngineTest {
 
         val narration = assertNotNull(engine.nextNarration(now))
         assertEquals("Townsville", narration.poi.title)
-        assertIs<RelativePosition.Side>(narration.relative)
-        assertTrue((narration.relative as RelativePosition.Side).left)
+        assertTrue(assertIs<RelativePosition.Side>(narration.relative).left)
         assertTrue(narration.sentences.size in 2..5, "sentences: ${narration.sentences}")
     }
 

@@ -30,7 +30,7 @@ jobs:
           python-version: '3.12'
       - name: Install sherpa-onnx
         run: pip install "sherpa-onnx>=1.12,<1.14" soundfile
-      - uses: actions/cache@v4
+      - uses: actions/cache@v6
         with:
           path: models
           key: voice-models-${{ hashFiles('app/src/main/kotlin/io/github/atrejoe/travelguide/voice/VoiceCatalog.kt') }}
