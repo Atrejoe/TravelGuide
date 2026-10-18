@@ -449,6 +449,7 @@ class GuideEngine(
         const val NAVIGATION_MAX_AGE_MILLIS = 2 * 60_000L
         const val TOWARD_RETRY_MILLIS = 60_000L
         const val TOWARD_OFF_ROUTE_M = 60.0
+
         const val PREFETCH_COUNT = 2
         const val ARTICLE_CACHE_SIZE = 20
     }

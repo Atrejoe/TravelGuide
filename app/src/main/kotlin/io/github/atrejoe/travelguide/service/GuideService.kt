@@ -198,8 +198,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     private suspend fun watchSettings() {
         app.settings.settings.distinctUntilChanged().collect { s ->
-            if (s.voiceId != settings.voiceId || s.pitch != settings.pitch || s.rate != settings.rate) {
+            if (s.voiceId != settings.voiceId) {
                 narratorDirty = true
+            } else if (s.pitch != settings.pitch || s.rate != settings.rate) {
+                narrator?.adjust(s.pitch, s.rate)
             }
             settings = s
             engine.motion.modeOverride = s.modeOverride

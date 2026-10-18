@@ -33,6 +33,9 @@ interface Narrator {
      */
     suspend fun speak(text: String): Boolean
 
+    /** Applies new pitch and rate to what is rendered from now on, without reloading the voice. */
+    fun adjust(pitch: Float, rate: Float)
+
     /** Interrupts the sentence currently being spoken. */
     fun stop()
 

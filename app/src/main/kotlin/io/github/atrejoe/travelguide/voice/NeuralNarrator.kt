@@ -35,11 +35,14 @@ import kotlin.math.abs
 class NeuralNarrator(
     private val voice: NeuralVoice,
     private val files: ModelFiles,
-    private val pitch: Float,
-    private val rate: Float,
+    pitch: Float,
+    rate: Float,
 ) : Narrator {
     override val label: String = "${voice.name} (on-device)"
     override val rendersOnDevice: Boolean = true
+
+    @Volatile private var pitch: Float = pitch
+    @Volatile private var rate: Float = rate
 
     @Volatile private var measuredFactor: Double? = null
     override val realTimeFactor: Double? get() = measuredFactor
@@ -106,6 +109,12 @@ class NeuralNarrator(
                 measuredFactor = measuredFactor?.let { it * 0.7 + factor * 0.3 } ?: factor
             }
         }
+    }
+
+    /** Pieces already rendered keep the old rate; there are only a few of them. */
+    override fun adjust(pitch: Float, rate: Float) {
+        this.pitch = pitch
+        this.rate = rate
     }
 
     override fun prepare(texts: List<String>) {

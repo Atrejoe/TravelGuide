@@ -16,8 +16,8 @@ import kotlin.coroutines.resume
 class SystemTtsNarrator(
     context: Context,
     private val voiceName: String?,
-    private val pitch: Float,
-    private val rate: Float,
+    private var pitch: Float,
+    private var rate: Float,
     private val locale: Locale,
 ) : Narrator {
     private val ready = CompletableDeferred<Boolean>()
@@ -63,6 +63,15 @@ class SystemTtsNarrator(
         tts.language = locale
         label = "System voice (default)"
         return voiceName?.let { "System voice $it is not installed on this phone; using the default voice." }
+    }
+
+    override fun adjust(pitch: Float, rate: Float) {
+        this.pitch = pitch
+        this.rate = rate
+        if (configured) {
+            tts.setPitch(pitch)
+            tts.setSpeechRate(rate)
+        }
     }
 
     override suspend fun speak(text: String): Boolean {
