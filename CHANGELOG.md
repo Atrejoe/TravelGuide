@@ -36,7 +36,7 @@ All notable changes to this project are documented here. The format follows
 - Places we reach soon take precedence over equally interesting ones further ahead.
 - The app now targets Android 17 (API 37) and is built with Android Gradle plugin 9.4 (built-in
   Kotlin), Gradle 9.7 and Kotlin 2.4, with current AndroidX, Compose and kotlinx libraries.
-  Dependabot proposes dependency and GitHub Actions updates monthly.
+  Renovate proposes grouped dependency, GitHub Actions and sherpa-onnx updates monthly.
 - CI builds the release variant, signed with one stable key, and every build gets a higher
   version code, so newer builds install over older ones (#15). Builds made before this change
   have to be uninstalled once. Version names now start from `appVersion` in `gradle.properties`,
