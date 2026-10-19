@@ -1,0 +1,91 @@
+{
+  "version": 0.6,
+  "generator": "Overpass API",
+  "elements": [
+    {
+      "type": "way",
+      "id": 24601,
+      "center": { "lat": 52.0912, "lon": 5.1199 },
+      "tags": {
+        "amenity": "townhall",
+        "building": "yes",
+        "name": "Stadhuis",
+        "wikidata": "Q2601",
+        "heritage": "2",
+        "ref:rce": "36184"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1001,
+      "lat": 52.0905,
+      "lon": 5.1215,
+      "tags": {
+        "amenity": "place_of_worship",
+        "religion": "christian",
+        "denomination": "roman_catholic",
+        "name": "Sint-Catharinakerk",
+        "start_date": "C15",
+        "architect": "Pieter de Swart"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1002,
+      "lat": 52.0907,
+      "lon": 5.1205,
+      "tags": {
+        "historic": "memorial",
+        "memorial": "stolperstein",
+        "name": "Hier woonde Anna de Vries"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1003,
+      "lat": 52.0908,
+      "lon": 5.1203,
+      "tags": { "amenity": "cafe", "name": "Cafe Ledig Erf" }
+    },
+    {
+      "type": "way",
+      "id": 1004,
+      "center": { "lat": 52.0901, "lon": 5.1209 },
+      "tags": {
+        "amenity": "cafe",
+        "building": "yes",
+        "name": "Het Hoogt",
+        "heritage": "2",
+        "heritage:operator": "rce",
+        "start_date": "1650"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1005,
+      "lat": 52.0915,
+      "lon": 5.1185,
+      "tags": { "tourism": "museum", "name": "Klein Museum" }
+    },
+    {
+      "type": "way",
+      "id": 1006,
+      "center": { "lat": 52.0908, "lon": 5.1213 },
+      "tags": {
+        "man_made": "tower",
+        "tower:type": "bell_tower",
+        "name": "Domtoren",
+        "wikidata": "Q1404",
+        "wikipedia": "en:Dom Tower of Utrecht",
+        "heritage": "2"
+      }
+    },
+    {
+      "type": "node",
+      "id": 1007,
+      "lat": 52.0918,
+      "lon": 5.1222,
+      "tags": { "shop": "clothes", "name": "Mode" }
+    }
+  ]
+}

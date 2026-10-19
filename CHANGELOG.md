@@ -30,6 +30,16 @@ All notable changes to this project are documented here. The format follows
 - Screenshots in the README, rendered on the JVM after every merge; changed ones are pushed to a
   branch with a one-click PR link, so pull requests never wait for them (#36). GitHub Actions are
   pinned to commit SHAs, kept current by Renovate.
+- On foot, the guide also tells about the town you enter and the buildings and institutions you
+  walk past ([#35](../../issues/35)): town hall, churches, museums, libraries, universities,
+  courthouses, theatres, stations, castles, mills, monuments and listed buildings, including ones
+  without a Wikipedia article. They come from OpenStreetMap (Overpass API) and Wikidata: when a
+  place was built or founded, by which architect, in which style, whether it is a listed monument
+  (such as a Rijksmonument), whom it is named after and who uses it today. These facts become a
+  short spoken story. A town gets its history-first Wikipedia story once per visit (found with
+  Nominatim). A place that a Wikipedia article already covers is told only once. Places are only
+  fetched while walking, within 500 m, again after moving on, with back-off on errors. You can
+  switch this off in Settings → Stories. All sources are free and need no API key.
 - A small play button on every story in the timeline plays it again (#31). A story being told is
   interrupted and carries on afterwards from where it was cut off; the button on the current story
   starts it over. Then the guide goes on as usual.

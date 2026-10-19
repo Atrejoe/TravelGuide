@@ -10,6 +10,8 @@ import io.github.atrejoe.travelguide.core.motion.MotionTracker
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.core.nav.Maneuver
 import io.github.atrejoe.travelguide.core.nav.TowardRouting
+import io.github.atrejoe.travelguide.core.places.PlaceSource
+import io.github.atrejoe.travelguide.core.places.TownSource
 import io.github.atrejoe.travelguide.core.rail.RailDetector
 import io.github.atrejoe.travelguide.core.rail.RailGraph
 import io.github.atrejoe.travelguide.core.rail.RailNetwork
@@ -58,6 +60,10 @@ class GuideEngine(
     private val roads: RoadSource? = null,
     /** Routes towards signposted places of navigation instructions; optional. */
     private val toward: TowardRouting? = null,
+    /** Buildings and institutions (OpenStreetMap, Wikidata) to tell about while walking; optional. */
+    private val places: PlaceSource? = null,
+    /** The town we are walking in, to tell its story once per visit; optional. */
+    private val towns: TownSource? = null,
     random: Random = Random.Default,
     private val refreshIntervalMillis: Long = 15 * 60_000,
     private val forgetDistanceM: Double = 30_000.0,
@@ -68,8 +74,14 @@ class GuideEngine(
 
     var interestWeights: Map<Interest, Double> = InterestClassifier.defaultWeights
 
+    /** Whether to tell about buildings, institutions and the town itself while walking. */
+    var walkingPlaces: Boolean = true
+
     private val known = LinkedHashMap<Long, Poi>()
     private val told = HashSet<Long>()
+
+    /** Wikidata items told about, so a place found by two sources is told only once. */
+    private val toldItems = HashSet<String>()
     private var lastFetchCenter: GeoPoint? = null
     private var lastFetchMillis: Long = 0
     private var lastFetchRadius: Int = 0
@@ -242,7 +254,9 @@ class GuideEngine(
         refreshRailsIfNeeded(nowMillis)
         refreshRoadsIfNeeded(nowMillis)
         refreshTowardIfNeeded(nowMillis)
-        val state = motion.state ?: return false
+        refreshTownIfNeeded(nowMillis)
+        val placesFetched = refreshPlacesIfNeeded(nowMillis)
+        val state = motion.state ?: return placesFetched
         val profile = DetailProfile.forMode(state.mode)
         val path = extrapolator.predict(state, profile.lookaheadSeconds)
         // Search around the middle of the predicted stretch so both near and upcoming places are covered.
@@ -253,16 +267,125 @@ class GuideEngine(
             GeoMath.distance(previous, center) > lastFetchRadius * 0.5 ||
             profile.searchRadiusM > lastFetchRadius * 2 ||
             nowMillis - lastFetchMillis > refreshIntervalMillis
-        if (!due) return false
+        if (!due) return placesFetched
 
-        val places = source.nearby(center, profile.searchRadiusM)
+        val articles = source.nearby(center, profile.searchRadiusM)
         lastFetchCenter = center
         lastFetchMillis = nowMillis
         lastFetchRadius = profile.searchRadiusM
-        places.forEach { known[it.pageId] = it }
+        articles.forEach { known[it.pageId] = it }
         val here = state.fix.point
         known.values.removeAll { GeoMath.distance(here, it.point) > forgetDistanceM }
+        dropDuplicates()
         return true
+    }
+
+    private var lastPlacesCenter: GeoPoint? = null
+    private var lastPlacesMillis = 0L
+    private var lastPlacesAttemptMillis = Long.MIN_VALUE / 2
+    private var placesFailures = 0
+
+    /**
+     * Fetches the buildings and institutions around us while walking, when we have moved away
+     * from the last fetch. Failures back off up to [PLACES_MAX_BACKOFF_MILLIS]: Overpass and
+     * Wikidata are shared, free services.
+     */
+    private suspend fun refreshPlacesIfNeeded(nowMillis: Long): Boolean {
+        val source = places ?: return false
+        val state = motion.state ?: return false
+        if (!walkingPlaces || state.mode != TravelMode.WALKING) return false
+        val path = extrapolator.predict(state, DetailProfile.forMode(state.mode).lookaheadSeconds)
+        val center = pointAlong(path, minOf(path.lengthM / 2, PLACES_AHEAD_M))
+        val previous = lastPlacesCenter
+        val fresh = previous != null && GeoMath.distance(previous, center) < PLACES_RADIUS_M * 0.5 &&
+            nowMillis - lastPlacesMillis < PLACES_MAX_AGE_MILLIS
+        if (fresh) return false
+        val backoff = minOf(PLACES_RETRY_MILLIS shl (placesFailures - 1).coerceIn(0, 5), PLACES_MAX_BACKOFF_MILLIS)
+        if (nowMillis - lastPlacesAttemptMillis < backoff) return false
+        lastPlacesAttemptMillis = nowMillis
+        val found = try {
+            source.places(center, PLACES_RADIUS_M)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            placesFailures++
+            return false
+        }
+        placesFailures = 0
+        lastPlacesCenter = center
+        lastPlacesMillis = nowMillis
+        found.forEach { known[it.pageId] = it }
+        // Buildings we walked away from are of no use any more.
+        val here = state.fix.point
+        known.values.removeAll { !it.isWikipediaPage && GeoMath.distance(here, it.point) > PLACES_FORGET_M }
+        dropDuplicates()
+        return true
+    }
+
+    /**
+     * Forgets buildings found on OpenStreetMap that a Wikipedia article already covers: same
+     * Wikidata item, same article, or the same name close by. The article tells the better story.
+     */
+    private fun dropDuplicates() {
+        val articles = known.values.filter { it.isWikipediaPage }
+        if (articles.isEmpty()) return
+        val items = articles.mapNotNullTo(HashSet()) { it.wikidataId }
+        val titles = articles.mapTo(HashSet()) { it.title.lowercase() }
+        known.values.removeAll { p ->
+            !p.isWikipediaPage && (
+                (p.wikidataId != null && p.wikidataId in items) ||
+                    p.wikiTitle?.lowercase() in titles ||
+                    articles.any { a -> sameName(baseName(a.title), baseName(p.title)) && GeoMath.distance(a.point, p.point) < SAME_PLACE_M }
+                )
+        }
+    }
+
+    /** "Dom Tower of Utrecht (tower)" and "The Waag, Amsterdam" without their additions. */
+    private fun baseName(title: String) = title.substringBefore(" (").substringBefore(", ").removePrefix("The ").trim()
+
+    private var lastTownPoint: GeoPoint? = null
+    private var lastTownAttemptMillis = Long.MIN_VALUE / 2
+    private var townFailures = 0
+    private var pendingTown: Poi? = null
+
+    /** The town we are walking in, when known. */
+    var currentTown: Poi? = null
+        private set
+
+    /**
+     * Looks up which town we are walking in, after moving [TOWN_RECHECK_M] since the last look.
+     * A town we haven't told about yet is told next (see [nextNarration]).
+     */
+    private suspend fun refreshTownIfNeeded(nowMillis: Long) {
+        val source = towns ?: return
+        val state = motion.state ?: return
+        if (!walkingPlaces || state.mode != TravelMode.WALKING) return
+        val here = state.fix.point
+        val last = lastTownPoint
+        if (last != null && GeoMath.distance(last, here) < TOWN_RECHECK_M) return
+        val backoff = minOf(TOWN_RETRY_MILLIS shl (townFailures - 1).coerceIn(0, 5), PLACES_MAX_BACKOFF_MILLIS)
+        if (nowMillis - lastTownAttemptMillis < backoff) return
+        lastTownAttemptMillis = nowMillis
+        val town = try {
+            source.town(here)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            townFailures++
+            return
+        }
+        townFailures = 0
+        lastTownPoint = here
+        if (town == null || town.pageId == currentTown?.pageId) return
+        currentTown = town
+        if (!isTold(town)) pendingTown = town
+    }
+
+    private fun isTold(poi: Poi) = poi.pageId in told || (poi.wikidataId != null && poi.wikidataId in toldItems)
+
+    private fun markTold(poi: Poi) {
+        told += poi.pageId
+        poi.wikidataId?.let { toldItems += it }
     }
 
     /**
@@ -278,17 +401,32 @@ class GuideEngine(
         val profile = DetailProfile.forMode(state.mode)
         lastNarrationEnd?.let { if (nowMillis - it < profile.minGapSeconds * 1000L) return null }
 
+        // Just walked into a town: welcome the listener with its story first.
+        pendingTown?.let { town ->
+            pendingTown = null
+            if (!isTold(town)) return tellTown(town, state, profile)
+        }
+
         val ranked = rank(state, profile, profile.minScore)
         val best = ranked.maxByOrNull { priority(it, profile) } ?: return null
-        told += best.scored.poi.pageId
+        markTold(best.scored.poi)
 
         // The lead section from the search result is good enough when the article can't be had.
         val poi = best.scored.poi
         val sections = if (poi.pageId in articleCache) articleCache[poi.pageId] else fetchArticle(poi)
         val articleText = sections?.joinToString(" ") { it.text } ?: best.scored.poi.extract
         val companions = companions(best, rank(state, profile, minScore = 0.0), articleText, state, profile)
-        told += companions.map { it.poi.pageId }
+        companions.forEach { markTold(it.poi) }
         return composer.compose(best.scored, state, profile, sections, companions)
+    }
+
+    /** The story of the town we are in, history first; we are in it, wherever its centre is. */
+    private suspend fun tellTown(town: Poi, state: MotionState, profile: DetailProfile): Narration {
+        markTold(town)
+        val sections = if (town.pageId in articleCache) articleCache[town.pageId] else fetchArticle(town)
+        val path = extrapolator.predict(state, profile.lookaheadSeconds)
+        val scored = ScoredPoi(town, 1.0, path.locate(town.point), GeoMath.distance(state.fix.point, town.point))
+        return composer.compose(scored, state, profile, sections, relative = RelativePosition.Here)
     }
 
     /**
@@ -302,7 +440,7 @@ class GuideEngine(
         val next = rank(state, profile, profile.minScore)
             .sortedByDescending { priority(it, profile) }
             .take(count)
-            .firstOrNull { it.scored.poi.pageId !in articleCache }
+            .firstOrNull { it.scored.poi.hasArticle && it.scored.poi.pageId !in articleCache }
             ?: return
         fetchArticle(next.scored.poi)
     }
@@ -310,6 +448,7 @@ class GuideEngine(
     /** The parsed article, cached; null when unavailable. Network errors are not cached. */
     private suspend fun fetchArticle(poi: Poi): List<ArticleSection>? {
         val source = articles ?: return null
+        if (!poi.hasArticle) return null
         val sections = try {
             source.article(poi)?.let(ArticleParser::parse)
         } catch (e: CancellationException) {
@@ -348,9 +487,11 @@ class GuideEngine(
         val moving = state.speedMps > 0.5 && path.points.size > 1
         return known.values
             .asSequence()
-            .filter { it.pageId !in told && it.extract.isNotBlank() }
+            .filter { it.hasStory && !isTold(it) }
             .mapNotNull { scorer.score(it, path) }
             .filter { it.score >= minScore }
+            // A building without an article is only worth telling while you can see it.
+            .filter { it.poi.isWikipediaPage || it.position.crossM <= PLACES_IN_SIGHT_M }
             .map { scored ->
                 val eta = if (moving) (scored.position.alongM.coerceAtLeast(0.0) / state.speedMps).toInt() else null
                 Ranked(scored, eta)
@@ -409,6 +550,16 @@ class GuideEngine(
     fun reset() {
         known.clear()
         told.clear()
+        toldItems.clear()
+        lastPlacesCenter = null
+        lastPlacesMillis = 0
+        lastPlacesAttemptMillis = Long.MIN_VALUE / 2
+        placesFailures = 0
+        lastTownPoint = null
+        lastTownAttemptMillis = Long.MIN_VALUE / 2
+        townFailures = 0
+        pendingTown = null
+        currentTown = null
         lastFetchCenter = null
         lastFetchMillis = 0
         lastFetchRadius = 0
@@ -449,6 +600,22 @@ class GuideEngine(
         const val NAVIGATION_MAX_AGE_MILLIS = 2 * 60_000L
         const val TOWARD_RETRY_MILLIS = 60_000L
         const val TOWARD_OFF_ROUTE_M = 60.0
+
+        /** Buildings within this radius around a point a little ahead of us. */
+        const val PLACES_RADIUS_M = 500
+        const val PLACES_AHEAD_M = 150.0
+        const val PLACES_MAX_AGE_MILLIS = 30 * 60_000L
+
+        /** Also the least time between two fetches of buildings. */
+        const val PLACES_RETRY_MILLIS = 45_000L
+        const val PLACES_MAX_BACKOFF_MILLIS = 15 * 60_000L
+        const val PLACES_FORGET_M = 3_000.0
+        const val PLACES_IN_SIGHT_M = 200.0
+        const val SAME_PLACE_M = 200.0
+
+        /** Look up the town again after walking this far (Nominatim allows one request per second). */
+        const val TOWN_RECHECK_M = 400.0
+        const val TOWN_RETRY_MILLIS = 60_000L
 
         const val PREFETCH_COUNT = 2
         const val ARTICLE_CACHE_SIZE = 20

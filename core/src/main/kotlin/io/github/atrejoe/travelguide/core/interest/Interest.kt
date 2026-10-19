@@ -60,6 +60,10 @@ object InterestClassifier {
             PoiType.BUILDING, PoiType.LANDMARK -> found += Interest.ARCHITECTURE
             else -> Unit
         }
+        poi.facts?.let { facts ->
+            if (facts.historic) found += Interest.HISTORY
+            if (facts.architects.isNotEmpty() || facts.styles.isNotEmpty()) found += Interest.ARCHITECTURE
+        }
         return found
     }
 

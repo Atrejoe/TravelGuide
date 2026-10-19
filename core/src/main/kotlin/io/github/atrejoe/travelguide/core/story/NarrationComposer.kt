@@ -37,9 +37,13 @@ class NarrationComposer(private val random: Random = Random.Default) {
     private val writer = StoryWriter(random)
     private var lastOpener: String? = null
 
+    private val placeWriter = PlaceStoryWriter(random)
+
     /**
      * @param sections the full article when it could be fetched; otherwise the lead section from
-     * the geosearch result is used.
+     * the geosearch result is used, or for a place without an article, its facts.
+     * @param relative where the place is, when known better than from its position (e.g. the town
+     * we are walking in).
      */
     fun compose(
         scored: ScoredPoi,
@@ -47,20 +51,27 @@ class NarrationComposer(private val random: Random = Random.Default) {
         profile: DetailProfile,
         sections: List<ArticleSection>? = null,
         companions: List<ScoredPoi> = emptyList(),
+        relative: RelativePosition? = null,
     ): Narration {
         val poi = scored.poi
-        val relative = relativePosition(scored, motion)
+        val relative = relative ?: relativePosition(scored, motion)
         val material = sections?.takeIf { it.isNotEmpty() }
             ?: listOf(ArticleSection("", SectionKind.INTRO, poi.extract))
         // Leave room for the places woven in after the main story.
         val budget = (profile.maxSentences - companions.size).coerceAtLeast(2)
-        val body = writer.write(poi, material, budget)
+        val fromFacts = sections.isNullOrEmpty() && poi.extract.isBlank() && poi.facts != null
+        val body = if (fromFacts) placeWriter.write(poi, budget) else writer.write(poi, material, budget)
 
         val articleText = material.joinToString(" ") { it.text }
         val extra = companions.flatMap { companion ->
             val mentioned = mentions(articleText, companion.poi.title)
-            listOf(transition(companion, relativePosition(companion, motion), mentioned)) +
-                writer.companion(companion.poi, if (profile.maxSentences >= 4) 2 else 1)
+            val count = if (profile.maxSentences >= 4) 2 else 1
+            val about = if (companion.poi.extract.isBlank() && companion.poi.facts != null) {
+                placeWriter.write(companion.poi, count)
+            } else {
+                writer.companion(companion.poi, count)
+            }
+            listOf(transition(companion, relativePosition(companion, motion), mentioned)) + about
         }
         val closing = closing(relative, motion.mode)
         return Narration(

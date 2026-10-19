@@ -49,6 +49,8 @@ class PoiScorer(
         }
 
         fun prominence(poi: Poi): Double {
+            // A building known from OpenStreetMap: what it is and how much we know about it.
+            if (poi.extract.isBlank()) poi.facts?.let { return it.prominence(poi.hasArticle) }
             var p = poi.type.prominence
             poi.population?.takeIf { it > 0 }?.let { pop ->
                 // 1k people -> x0.8, 100k -> x1.2, 1M+ -> x1.4

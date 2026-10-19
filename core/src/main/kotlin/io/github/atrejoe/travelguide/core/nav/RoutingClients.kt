@@ -30,6 +30,17 @@ fun interface LinkResolver {
 /** A place found by name. */
 data class GeocodedPlace(val point: GeoPoint, val displayName: String?)
 
+/** The settlement a point lies in, from reverse geocoding. */
+data class ReverseGeocodedPlace(
+    val name: String?,
+    /** Wikidata item, e.g. "Q803". */
+    val wikidata: String?,
+    /** Wikipedia link as OpenStreetMap stores it, e.g. "nl:Utrecht (stad)". */
+    val wikipedia: String?,
+    /** What Nominatim calls it: "city", "town", "village", "municipality" and so on. */
+    val type: String?,
+)
+
 /**
  * Looks up place names with OpenStreetMap's Nominatim. Its usage policy asks for a descriptive
  * User-Agent (sent by the [HttpFetcher]) and at most one request per second, which is enforced
@@ -42,17 +53,42 @@ class NominatimClient(
 ) {
     /** Finds [query]; with [near], only within about [nearKm] kilometres of that point. */
     suspend fun search(query: String, near: GeoPoint? = null, nearKm: Double = 100.0): GeocodedPlace? {
-        val url = searchUrl(query, near, nearKm)
-        val body = throttle.withLock {
-            val wait = lastRequestMillis + MIN_INTERVAL_MILLIS - clock()
-            if (wait > 0) delay(wait)
-            try {
-                http.get(url)
-            } finally {
-                lastRequestMillis = clock()
-            }
+        return parse(throttled(searchUrl(query, near, nearKm)))
+    }
+
+    /**
+     * The town, city or village at [point] (Nominatim's zoom level 10), with its Wikidata and
+     * Wikipedia links; null when there is none, or only a larger area such as a province.
+     */
+    suspend fun reverse(point: GeoPoint): ReverseGeocodedPlace? = parseReverse(throttled(reverseUrl(point)))
+
+    private suspend fun throttled(url: String): String = throttle.withLock {
+        val wait = lastRequestMillis + MIN_INTERVAL_MILLIS - clock()
+        if (wait > 0) delay(wait)
+        try {
+            http.get(url)
+        } finally {
+            lastRequestMillis = clock()
         }
-        return parse(body)
+    }
+
+    fun reverseUrl(point: GeoPoint): String = String.format(
+        Locale.ROOT, "%s/reverse?format=jsonv2&zoom=10&extratags=1&accept-language=en&lat=%.6f&lon=%.6f",
+        baseUrl, point.lat, point.lon,
+    )
+
+    fun parseReverse(body: String): ReverseGeocodedPlace? {
+        val root = lenientJson.parseToJsonElement(body) as? JsonObject ?: return null
+        if ("error" in root) return null
+        val type = (root["addresstype"] ?: root["type"])?.jsonPrimitive?.contentOrNull
+        if (type in LARGER_AREAS) return null
+        val extra = root["extratags"] as? JsonObject
+        return ReverseGeocodedPlace(
+            name = root["name"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() },
+            wikidata = extra?.get("wikidata")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() },
+            wikipedia = extra?.get("wikipedia")?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() },
+            type = type,
+        )
     }
 
     fun searchUrl(query: String, near: GeoPoint? = null, nearKm: Double = 100.0): String {
@@ -78,6 +114,7 @@ class NominatimClient(
 
     private companion object {
         const val MIN_INTERVAL_MILLIS = 1_100L
+        val LARGER_AREAS = setOf("state", "province", "region", "county", "country", "state_district", "continent")
         val throttle = Mutex()
 
         @Volatile

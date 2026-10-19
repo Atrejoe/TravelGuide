@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -27,6 +28,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -245,12 +247,35 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             item { HorizontalDivider() }
+            item { Text("Stories", style = MaterialTheme.typography.titleLarge) }
+            item {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(
+                        value = settings.walkingPlaces,
+                        onValueChange = { on -> scope.launch { repo.update { it.copy(walkingPlaces = on) } } },
+                        role = Role.Switch,
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Buildings and institutions while walking", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "On foot, also tell about the town you enter and the town hall, churches, museums and " +
+                                "listed buildings you pass, from OpenStreetMap and Wikidata.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Switch(checked = settings.walkingPlaces, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
+
+            item { HorizontalDivider() }
             item { NavigationSettings() }
 
             item { HorizontalDivider() }
             item {
                 Text(
-                    "Stories come from Wikipedia (CC BY-SA 4.0). Map © OpenStreetMap contributors (ODbL). Roads and railways: Overpass API. Routing: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
+                    "Stories come from Wikipedia (CC BY-SA 4.0), and for buildings from OpenStreetMap (ODbL) and Wikidata (CC0). Map © OpenStreetMap contributors (ODbL). Roads, railways and buildings: Overpass API. Routing: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
                         "with sherpa-onnx (Apache 2.0). No AI service is used while guiding.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

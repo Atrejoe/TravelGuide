@@ -1,11 +1,13 @@
 package io.github.atrejoe.travelguide.core
 
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
+import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.PoiType
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class WikipediaClientTest {
@@ -30,6 +32,21 @@ class WikipediaClientTest {
         assertEquals(PoiType.LANDMARK, tower.type)
         assertEquals(100.0, tower.dimM)
         assertEquals("https://en.wikipedia.org/wiki/Dom_Tower_of_Utrecht", tower.url)
+    }
+
+    @Test
+    fun `asks for Wikidata ids and fetches articles of other sources by title`() = runTest {
+        val requested = mutableListOf<String>()
+        val client = WikipediaClient({ url -> requested += url; """{"query":{"pages":[{"pageid":1,"title":"Waag","extract":"The Waag is old."}]}}""" })
+        assertTrue("ppprop=wikibase_item" in client.nearbyUrl(GeoPoint(52.0, 5.0), 500))
+        val parsed = client.parse("""{"query":{"pages":[{"pageid":5,"title":"Dom","coordinates":[{"lat":52.0,"lon":5.0}],"pageprops":{"wikibase_item":"Q1404"}}]}}""")
+        assertEquals("Q1404", parsed.single().wikidataId)
+
+        val fromOsm = Poi(-9, "Waag", GeoPoint(52.0, 5.0), wikiTitle = "Waag (Amsterdam)")
+        assertEquals("The Waag is old.", client.article(fromOsm))
+        assertTrue("titles=Waag+%28Amsterdam%29" in requested.single(), requested.single())
+        assertNull(client.article(fromOsm.copy(wikiTitle = null)))
+        assertEquals(1, requested.size)
     }
 
     @Test
