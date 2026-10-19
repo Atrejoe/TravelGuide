@@ -114,7 +114,8 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
         },
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
-            if (state.running && state.position != null) {
+            // Shown as soon as guiding starts, so the screen doesn't jump when the first fix arrives.
+            if (state.running) {
                 GuideMap(state, routeFrom = route?.origin?.label, navigatingWith = navigation?.app?.name)
             }
             LazyColumn(

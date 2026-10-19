@@ -9,6 +9,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The map no longer jumps in size when guiding starts, and route lines and dots stay inside it
+  (#33). The map's space is reserved as soon as guiding starts, the legend keeps a fixed height,
+  and the map opens on your position instead of sliding there.
 - Train travel is recognised from the railway you're on, not only from speed. Trains below
   145 km/h used to be shown as a car (#18). Railway lines come from OpenStreetMap (Overpass API),
   fetched only when moving fast and after moving a few kilometres.

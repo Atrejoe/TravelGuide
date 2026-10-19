@@ -7,11 +7,10 @@ import android.graphics.Paint
 import android.graphics.drawable.GradientDrawable
 import android.view.MotionEvent
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -29,12 +28,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -53,6 +54,8 @@ import org.osmdroid.views.overlay.Polyline
 import java.io.File
 import org.osmdroid.util.GeoPoint as OsmPoint
 import io.github.atrejoe.travelguide.core.geo.GeoPoint as CorePoint
+
+private val MAP_HEIGHT = 240.dp
 
 private data class MapColors(val route: Int, val guess: Int, val you: Int, val story: Int, val upcoming: Int)
 
@@ -106,12 +109,19 @@ fun GuideMap(
     }
 
     Column(modifier) {
-        Box(Modifier.fillMaxWidth().height(240.dp)) {
+        // A fixed size, clipped: the map view would otherwise draw lines and dots past its edges.
+        Box(Modifier.fillMaxWidth().height(MAP_HEIGHT).clipToBounds()) {
             AndroidView(
                 factory = { map },
-                modifier = Modifier.fillMaxWidth().height(240.dp),
+                modifier = Modifier.fillMaxWidth().height(MAP_HEIGHT).clipToBounds(),
                 update = { render(it, state, colors, density, follow, labels) },
             )
+            if (state.position == null) {
+                // Same size as the map, which has nothing to show yet.
+                Box(Modifier.matchParentSize().background(scheme.surfaceVariant), contentAlignment = Alignment.Center) {
+                    Text("Waiting for your location…", style = MaterialTheme.typography.bodyMedium)
+                }
+            }
             if (!follow) {
                 SmallFloatingActionButton(
                     onClick = { follow = true },
@@ -195,7 +205,13 @@ private fun render(map: MapView, state: GuideUiState, colors: MapColors, density
     }
     state.position?.let { here ->
         map.overlays += dot(map, here, colors.you, 14, density, "You", null)
-        if (follow) map.controller.animateTo(here.osm())
+        if (map.tag != CENTERED) {
+            // Jump to the first position instead of sliding there from the middle of the ocean.
+            map.controller.setCenter(here.osm())
+            map.tag = CENTERED
+        } else if (follow) {
+            map.controller.animateTo(here.osm())
+        }
     }
     map.invalidate()
 }
@@ -217,27 +233,37 @@ private fun dot(map: MapView, point: CorePoint, color: Int, sizeDp: Int, density
 
 private fun CorePoint.osm() = OsmPoint(lat, lon)
 
-@OptIn(ExperimentalLayoutApi::class)
+/** Marks a map view that has been centred on the first position. */
+private const val CENTERED = "centered"
+
+/** Two rows of fixed height, so a changing route label doesn't make the screen jump. */
 @Composable
 private fun MapLegend(source: PathSource, colors: MapColors, labels: RouteLabels) {
-    val style = MaterialTheme.typography.labelSmall
-    FlowRow(
+    Column(
         Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        when (source) {
-            PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { Text(labels.planned, style = style) }
-            PathSource.NAVIGATION -> LegendLine(Color(colors.route), dashed = false) { Text(labels.navigation, style = style) }
-            PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { Text("Following the railway", style = style) }
-            PathSource.ROAD -> LegendLine(Color(colors.route), dashed = true) { Text("Following the road", style = style) }
-            PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { Text("Direction guessed from your movement", style = style) }
-            PathSource.NONE -> Text("Direction not known yet", style = style)
+        Box(Modifier.height(16.dp), contentAlignment = Alignment.CenterStart) {
+            when (source) {
+                PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { LegendLabel(labels.planned) }
+                PathSource.NAVIGATION -> LegendLine(Color(colors.route), dashed = false) { LegendLabel(labels.navigation) }
+                PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { LegendLabel("Following the railway") }
+                PathSource.ROAD -> LegendLine(Color(colors.route), dashed = true) { LegendLabel("Following the road") }
+                PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { LegendLabel("Direction guessed from your movement") }
+                PathSource.NONE -> LegendLabel("Direction not known yet")
+            }
         }
-        LegendDot(Color(colors.you)) { Text("You", style = style) }
-        LegendDot(Color(colors.story)) { Text("Current story", style = style) }
-        LegendDot(Color(colors.upcoming)) { Text("Coming up", style = style) }
+        Row(Modifier.height(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            LegendDot(Color(colors.you)) { LegendLabel("You") }
+            LegendDot(Color(colors.story)) { LegendLabel("Current story") }
+            LegendDot(Color(colors.upcoming)) { LegendLabel("Coming up") }
+        }
     }
 }
+
+@Composable
+private fun LegendLabel(text: String) =
+    Text(text, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
 
 @Composable
 private fun LegendLine(color: Color, dashed: Boolean, label: @Composable () -> Unit) {
