@@ -105,8 +105,9 @@ repository settings, once: **Settings → General → Allow auto-merge** and **S
 General → Allow GitHub Actions to create and approve pull requests**. Without them the workflow
 leaves the branch and a warning, and the PR can be opened or merged by hand.
 
-To look at them locally (needs the Android SDK): `./gradlew :app:recordRoborazziDebug`. A manual
-run of the *Android* workflow also uploads them as an artifact. Add a screen by adding a test to
+To look at them locally (needs the Android SDK): `./gradlew :app:recordRoborazziDebug`. To see
+how a branch looks, run the *Android* workflow manually on it: the screenshots are uploaded as an
+artifact and pushed to the `bot/screenshots-preview` branch. Add a screen by adding a test to
 `ScreenshotTest` and the image to the README.
 
 ## Dependency updates

@@ -286,8 +286,20 @@ jobs:
             app/build/outputs/roborazzi
           retention-days: 14
 
+      # A manual run on any branch shows how its screens look, without touching main or the PR.
+      - name: Share them for review (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/screenshots-preview
+          git add docs/screenshots
+          git commit --allow-empty -m "docs: screenshots of ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}"
+          git push --force origin bot/screenshots-preview
+          echo "::notice title=Screenshots::Pushed to the bot/screenshots-preview branch (docs/screenshots)."
+
       - name: Propose them for main
-        if: github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
