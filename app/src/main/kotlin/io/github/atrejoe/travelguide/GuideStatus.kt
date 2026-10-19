@@ -17,6 +17,8 @@ data class StoryItem(
     val also: List<String> = emptyList(),
     /** The places the story is about, for the map: the main place first. */
     val places: List<MapPlace> = emptyList(),
+    /** The story as spoken, to play it again. */
+    val sentences: List<String> = emptyList(),
 )
 
 data class MapPlace(val title: String, val point: GeoPoint)
@@ -37,6 +39,8 @@ data class GuideUiState(
     /** Why we are paused when it was not the user's choice, e.g. a phone call. */
     val pauseReason: String? = null,
     val speaking: Boolean = false,
+    /** The story being played again (its [StoryItem.timeMillis]), if any. */
+    val replaying: Long? = null,
     val mode: TravelMode? = null,
     val speedKmh: Double? = null,
     val knownPlaces: Int = 0,
