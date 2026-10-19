@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -90,7 +91,10 @@ fun GuideMap(
         upcoming = scheme.secondary.toArgb(),
     )
     var follow by remember { mutableStateOf(true) }
-    val map = remember { createMap(context) { follow = false } }
+    // In previews and screenshots the map is drawn without tiles, so the result doesn't depend on
+    // the network.
+    val offline = LocalInspectionMode.current
+    val map = remember { createMap(context, offline) { follow = false } }
 
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
@@ -134,7 +138,7 @@ fun GuideMap(
 }
 
 @SuppressLint("ClickableViewAccessibility")
-private fun createMap(context: Context, onUserPan: () -> Unit): MapView {
+private fun createMap(context: Context, offline: Boolean, onUserPan: () -> Unit): MapView {
     Configuration.getInstance().apply {
         // OpenStreetMap's tile policy asks apps to identify themselves.
         userAgentValue = UrlConnectionFetcher.USER_AGENT
@@ -143,6 +147,7 @@ private fun createMap(context: Context, onUserPan: () -> Unit): MapView {
     }
     return MapView(context).apply {
         setTileSource(TileSourceFactory.MAPNIK)
+        setUseDataConnection(!offline)
         setMultiTouchControls(true)
         zoomController.setVisibility(CustomZoomButtonsController.Visibility.NEVER)
         isTilesScaledToDpi = true

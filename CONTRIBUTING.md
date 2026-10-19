@@ -15,7 +15,11 @@
 
 ## Releases
 
-The base version lives in `gradle.properties` (`appVersion`). To release, move the *Unreleased*
+While in alpha, every merge to `main` is released automatically: the *Android* workflow tags it
+`v<appVersion>-alpha.N` (one above the highest existing alpha tag of that version) and publishes a
+pre-release with the APK and the PRs merged since the previous tag as notes.
+
+The base version lives in `gradle.properties` (`appVersion`). For a stable release, move the *Unreleased*
 entries under a new version heading (`## [0.3.0] - YYYY-MM-DD`) in `CHANGELOG.md`, merge, then tag:
 
 ```bash
@@ -28,8 +32,9 @@ APK. Then bump `appVersion` for the next version.
 
 ### Versions
 
-- **versionName**: `appVersion` plus `-prN.run` for pull requests, `-dev.run` for `main`, or the
-  tag without the `v` (`v0.3.0` → `0.3.0`). Local builds use `appVersion`.
+- **versionName**: `appVersion` plus `-prN.run` for pull requests, `-alpha.N` for merges to
+  `main`, `-dev.run` for manual runs, or the tag without the `v` (`v0.3.0` → `0.3.0`). Local
+  builds use `appVersion`.
 - **versionCode**: CI uses the minutes since 2026-01-01 UTC. Android refuses to install a lower
   versionCode over a higher one, so the code must only go up across all builds, including PRs,
   re-runs and a renamed workflow. Run numbers don't guarantee that; the clock does. Local builds
@@ -83,6 +88,29 @@ a keystore or password; `*.jks` and `*.keystore` are git-ignored.
   minute without the Android SDK.
 - The Android build and lint run only when app-related files change.
 - Prefer JVM tests (or screenshot tests that run on the JVM) over emulator tests.
+
+## Screenshots
+
+The README shows screenshots from `docs/screenshots/`, rendered on the JVM by
+`app/src/test/.../ScreenshotTest.kt` (Robolectric and Roborazzi, no emulator) with fixed sample
+content. Rendering takes a few minutes, so pull requests don't do it:
+
+1. After every merge to `main`, the *Android* workflow runs `./gradlew :app:recordRoborazziDebug`.
+2. When an image changed, it pushes them to the `bot/screenshots` branch and starts the required
+   *CI* check on that commit. The run summary has a **Create the pull request** link.
+3. Open that PR and merge it whenever convenient (if one is already open, it's updated instead).
+   Its merge isn't tagged or rebuilt.
+
+So `main` gets current screenshots without anyone's PR waiting for them, at the cost of one click.
+Workflows deliberately can't open or approve PRs here (**Settings → Actions → General → Allow
+GitHub Actions to create and approve pull requests** stays off), so a compromised workflow step
+can't get code into `main` on its own. For the same reason every action in the workflows is
+pinned to a full commit SHA; Renovate keeps those pins up to date.
+
+To look at them locally (needs the Android SDK): `./gradlew :app:recordRoborazziDebug`. To see
+how a branch looks, run the *Android* workflow manually on it: the screenshots are uploaded as an
+artifact and pushed to the `bot/screenshots-preview` branch. Add a screen by adding a test to
+`ScreenshotTest` and the image to the README.
 
 ## Dependency updates
 

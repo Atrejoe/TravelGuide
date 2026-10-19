@@ -2,8 +2,13 @@
 # builds still take minutes, so this runs only when app-related files change.
 #
 # - Pull requests: the APK is attached to the run as an artifact (one per PR).
-# - Pushes to main / manual runs: the APK replaces the rolling `preview` pre-release.
-# - `v*` tags: the APK is attached to that release, with its CHANGELOG.md section as notes.
+# - Every merge to main: tagged and published as an alpha pre-release, v<appVersion>-alpha.N, with
+#   the APK and the PRs merged since the previous tag as notes. Then the screenshots in
+#   docs/screenshots are re-rendered and, when they changed, pushed to bot/screenshots with a link
+#   to create the PR.
+# - Manual runs: the APK (and the screenshots) as run artifacts.
+# - `v*` tags pushed by hand (stable releases): the APK is attached to that release, with its
+#   CHANGELOG.md section as notes.
 #
 # Every build is signed with the same key (repository secrets SIGNING_*, see CONTRIBUTING.md) so a
 # newer build installs over an older one (issue #15). Without the secrets it falls back to a debug
@@ -21,24 +26,16 @@ on:
       - 'sherpa-onnx.version'
       - 'scripts/fetch-sherpa-onnx.sh'
       - '.github/workflows/android.yml'
+  # Every merge to main, whatever it changes, so every merge gets its alpha tag.
   push:
     branches: [main]
     tags: ['v*']
-    # Path filters are not applied to tag pushes.
-    paths:
-      - 'app/**'
-      - 'core/src/main/**'
-      - 'gradle/**'
-      - '*.gradle.kts'
-      - 'gradle.properties'
-      - 'sherpa-onnx.version'
-      - 'scripts/fetch-sherpa-onnx.sh'
-      - '.github/workflows/android.yml'
   workflow_dispatch:
 
+# A newer push to a PR makes its running build pointless; on main every merge must get its tag.
 concurrency:
   group: android-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write # publish the preview pre-release and release assets
@@ -48,20 +45,22 @@ permissions:
 jobs:
   apk:
     name: Build & lint APK
+    # The bot's screenshot merges change only images: no new build or tag for those.
+    if: "!startsWith(github.event.head_commit.message, 'docs: update screenshots')"
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Cache sherpa-onnx
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             app/libs/sherpa-onnx.aar
@@ -76,7 +75,8 @@ jobs:
       # only ever go up, across PRs, main, tags and re-runs. Run numbers restart when the workflow is
       # renamed and are shared by PR and main builds, so use minutes since 2026-01-01T00:00:00Z
       # (epoch 1767225600) instead. That fits in an Int for thousands of years.
-      # versionName: appVersion from gradle.properties plus -prN.run / -dev.run, or the tag without "v".
+      # versionName: appVersion from gradle.properties plus -prN.run / -dev.run, -alpha.N for merges
+      # to main (N one above the highest existing v<appVersion>-alpha.* tag), or the tag without "v".
       - name: Version
         id: version
         env:
@@ -86,6 +86,11 @@ jobs:
           base=$(sed -n 's/^appVersion=//p' gradle.properties | tr -d '[:space:]')
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             name="${GITHUB_REF#refs/tags/v}"
+          elif [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]]; then
+            last=$(git ls-remote --tags origin "refs/tags/v${base}-alpha.*" \
+              | sed -n "s|.*refs/tags/v${base}-alpha\.\([0-9]*\)$|\1|p" | sort -n | tail -1)
+            name="${base}-alpha.$(( ${last:-0} + 1 ))"
+            echo "tag=v$name" >> "$GITHUB_OUTPUT"
           elif [[ -n "$PR_NUMBER" ]]; then
             name="${base}-pr${PR_NUMBER}.${GITHUB_RUN_NUMBER}"
           else
@@ -137,7 +142,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         continue-on-error: true
         with:
           name: lint-report
@@ -154,7 +159,7 @@ jobs:
       - name: Upload APK artifact
         id: apk
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # Artifact storage can be temporarily blocked by account quota; the build itself still counts.
         continue-on-error: true
         with:
@@ -186,15 +191,27 @@ jobs:
             gh pr comment "$PR" --body "$body"
           fi
 
-      - name: Publish preview pre-release
-        if: github.event_name != 'pull_request' && !startsWith(github.ref, 'refs/tags/v')
+      - name: Upload APK artifact (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        continue-on-error: true
+        with:
+          name: travelguide-${{ steps.version.outputs.name }}
+          path: out/*.apk
+          retention-days: 14
+
+      # Creating the release creates the tag. Tags made with the workflow token don't start
+      # workflows, so this doesn't trigger the tag build below a second time.
+      - name: Publish alpha release
+        if: steps.version.outputs.tag != ''
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release delete preview --yes --cleanup-tag || true
-          gh release create preview out/*.apk --prerelease --target "$GITHUB_SHA" \
-            --title "Preview build ${{ steps.version.outputs.name }}" \
-            --notes "Latest development build of ${GITHUB_REF_NAME} (commit ${GITHUB_SHA}). Not a stable release."
+          gh release create "$TAG" out/*.apk --prerelease --target "$GITHUB_SHA" \
+            --title "$TAG" --generate-notes
+          # The rolling preview pre-release is replaced by these alpha releases.
+          gh release delete preview --yes --cleanup-tag 2>/dev/null || true
 
       # Release notes: the matching "## [x.y.z]" section of CHANGELOG.md, else GitHub's generated notes.
       - name: Attach to release
@@ -217,3 +234,101 @@ jobs:
             gh release create "$GITHUB_REF_NAME" --generate-notes
           fi
           gh release upload "$GITHUB_REF_NAME" out/*.apk --clobber
+
+  # Screenshots for the README, rendered on the JVM (Robolectric + Roborazzi, no emulator). Only
+  # after a merge to main (and on manual runs), so pull requests don't pay for it. Changed images
+  # are pushed to the bot/screenshots branch, and the run summary links to a ready-made PR: merging
+  # it is one click, whenever convenient, and nobody's PR waits for it. Workflows deliberately can't
+  # open or approve PRs in this repository (Settings → Actions → General), so a compromised step
+  # can't get code into main on its own.
+  screenshots:
+    name: Screenshots
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+       !startsWith(github.event.head_commit.message, 'docs: update screenshots'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write # push the bot/screenshots branch
+      pull-requests: read # find an open screenshots PR
+      actions: write # start the required check on the bot's branch
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
+        with:
+          cache-read-only: true
+      - name: Cache sherpa-onnx
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            app/libs/sherpa-onnx.aar
+            app/libs/sherpa-onnx.aar.version
+          key: sherpa-onnx-${{ hashFiles('sherpa-onnx.version') }}
+      - name: Fetch sherpa-onnx
+        run: scripts/fetch-sherpa-onnx.sh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Render screenshots
+        run: ./gradlew :app:recordRoborazziDebug
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        continue-on-error: true
+        with:
+          name: screenshots
+          path: |
+            docs/screenshots
+            app/build/outputs/roborazzi
+          retention-days: 14
+
+      # A manual run on any branch shows how its screens look, without touching main or the PR.
+      - name: Share them for review (manual run)
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B bot/screenshots-preview
+          git add docs/screenshots
+          git commit --allow-empty -m "docs: screenshots of ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}"
+          git push --force origin bot/screenshots-preview
+          echo "::notice title=Screenshots::Pushed to the bot/screenshots-preview branch (docs/screenshots)."
+
+      - name: Propose them for main
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if [ -z "$(git status --porcelain -- docs/screenshots)" ]; then
+            echo "Screenshots are up to date." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          branch=bot/screenshots
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git checkout -B "$branch"
+          git add docs/screenshots
+          git commit -m "docs: update screenshots" -m "Rendered from ${GITHUB_SHA::7} by the Android workflow."
+          git push --force origin "$branch"
+          # The required check must exist on this commit before the PR can merge, but pushes made
+          # with the workflow token don't start workflows and CI skips docs-only PRs. A dispatch
+          # runs it now, so the PR is mergeable as soon as it's opened.
+          gh workflow run ci.yml --ref "$branch"
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "The open screenshots PR has been updated with the new images." >> "$GITHUB_STEP_SUMMARY"
+          else
+            title="docs: update screenshots"
+            body="Screenshots re-rendered after ${GITHUB_SHA::7} by the Android workflow."
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1&title=$(jq -rn --arg v "$title" '$v|@uri')&body=$(jq -rn --arg v "$body" '$v|@uri')"
+            {
+              echo "### Screenshots changed"
+              echo "They are on the \`$branch\` branch. [Create the pull request]($url), then merge it whenever convenient."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Screenshots changed::Create the PR from $branch: $url"
+          fi

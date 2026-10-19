@@ -4,6 +4,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.roborazzi)
 }
 
 val sherpaAar = file("libs/sherpa-onnx.aar")
@@ -95,6 +96,11 @@ android {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
+    testOptions {
+        // Robolectric needs the merged resources and manifest for the screenshot tests.
+        unitTests.isIncludeAndroidResources = true
+    }
+
     lint {
         // CI runs lintDebug on every app change; no need to repeat it for release builds.
         checkReleaseBuilds = false
@@ -123,4 +129,14 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons.core)
     debugImplementation(libs.compose.ui.tooling)
+
+    // Screenshots of the main screens, rendered on the JVM: ./gradlew :app:recordRoborazziDebug
+    testImplementation(libs.junit4)
+    testImplementation(libs.androidx.test.junit)
+    testImplementation(libs.robolectric)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(platform(libs.compose.bom))
+    testImplementation(libs.compose.ui.test.junit4)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
