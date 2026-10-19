@@ -9,7 +9,13 @@ your phone.
 
 ## Screenshots
 
-_Screenshots follow once the first APK has been tested on a device (tracked in the roadmap)._
+<p>
+  <img src="docs/screenshots/guide.png" alt="Guide screen: map of the road ahead, the story being told and the timeline of upcoming and earlier stories" width="280">
+  <img src="docs/screenshots/settings.png" alt="Settings: natural on-device voices, speaking rate and pitch" width="280">
+</p>
+
+_Rendered from the current `main` after every merge (sample content; the map is shown without
+tiles)._
 
 ## What it does
 
@@ -62,8 +68,8 @@ _Screenshots follow once the first APK has been tested on a device (tracked in t
 Download the latest APK:
 
 - **Stable**: the [latest release](../../releases/latest).
-- **Development**: the [*preview* pre-release](../../releases/tag/preview), rebuilt from every
-  app change on `main`.
+- **Alpha**: the newest `v…-alpha.N` [pre-release](../../releases). Every merge to `main` is
+  tagged and published as one.
 - **A pull request**: follow the "Test build ready" comment on the PR (the APK artifact of its
   *Android* run).
 
@@ -71,7 +77,7 @@ Enable "Install unknown apps" for your browser or file manager, open the APK, st
 tap **Start guiding**. On first use, open **Settings → Narrator** and download the natural voices
 (99 MB).
 
-Newer builds (releases, preview and pull-request builds alike) install over the old version and
+Newer builds (releases, alpha and pull-request builds alike) install over the old version and
 keep your voices and settings. Builds from before stable signing ([#15](../../issues/15)) can't be
 updated: uninstall such an older build once, then install the new one.
 
@@ -130,8 +136,9 @@ changelog, CI).
 ### CI
 
 - **CI** runs the JVM core tests on each PR (about a minute, no Android SDK).
-- **Android** builds and lints the app when app-related files change. PRs get an APK artifact,
-  `main` updates the `preview` pre-release, and `v*` tags attach the APK to their release.
+- **Android** builds and lints the app when app-related files change in a PR; PRs get an APK
+  artifact. Every merge to `main` is tagged `v<appVersion>-alpha.N` and published as a
+  pre-release with its APK, and the README screenshots are re-rendered (see CONTRIBUTING.md).
 
 ## Roadmap
 
