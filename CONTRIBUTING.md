@@ -97,7 +97,8 @@ content. Rendering takes a few minutes, so pull requests don't do it:
 
 1. After every merge to `main`, the *Android* workflow runs `./gradlew :app:recordRoborazziDebug`.
 2. When an image changed, it pushes them to the `bot/screenshots` branch and starts the required
-   *CI* check on that commit. The run summary has a **Create the pull request** link.
+   *CI* check on that commit. A **Create the pull request** link appears in the run summary and as
+   a comment on the PR that was just merged, so it arrives as a notification.
 3. Open that PR and merge it whenever convenient (if one is already open, it's updated instead).
    Its merge isn't tagged or rebuilt.
 
@@ -106,6 +107,12 @@ Workflows deliberately can't open or approve PRs here (**Settings â†’ Actions â†
 GitHub Actions to create and approve pull requests** stays off), so a compromised workflow step
 can't get code into `main` on its own. For the same reason every action in the workflows is
 pinned to a full commit SHA; Renovate keeps those pins up to date.
+
+The map shows real OpenStreetMap tiles from `app/src/test/resources/screenshot-tiles.zip`, a
+dozen tiles around the sample position, committed so the images don't depend on the network or on
+map edits. If the sample position or zoom changes, delete the archive: the next manual run of the
+*Android* workflow fetches it with `scripts/fetch-screenshot-tiles.sh` and pushes it to
+`bot/screenshots-preview`, from where it can be committed.
 
 To look at them locally (needs the Android SDK): `./gradlew :app:recordRoborazziDebug`. To see
 how a branch looks, run the *Android* workflow manually on it: the screenshots are uploaded as an

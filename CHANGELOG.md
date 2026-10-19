@@ -9,6 +9,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The map in the README screenshots shows real streets instead of an empty grid (#39). A link to
+  open the screenshots PR is now also commented on the PR whose merge changed them.
 - The map no longer jumps in size when guiding starts, and route lines and dots stay inside it
   (#33). The map's space is reserved as soon as guiding starts, the legend keeps a fixed height,
   and the map opens on your position instead of sliding there.
