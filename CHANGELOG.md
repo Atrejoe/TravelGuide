@@ -22,6 +22,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- A small play button on every story in the timeline plays it again (#31). A story being told is
+  interrupted and carries on afterwards from where it was cut off; the button on the current story
+  starts it over. Then the guide goes on as usual.
 - Follow routes from navigation apps ([#5](../../issues/5)): share Google Maps directions, a Komoot
   tour link or a GPX/FIT file (e.g. a Garmin course export) with the app, or import a file in
   Settings → Navigation. Stories and the map then follow that route; the status card and the map

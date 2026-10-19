@@ -43,11 +43,13 @@ import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 
 /**
@@ -70,6 +72,12 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private var userPaused = false
     private var focusPaused = false
     private var abortStory = false
+
+    /** A story the user asked to hear again; played before anything else, then the guide goes on. */
+    private var replayRequest: StoryItem? = null
+
+    /** Wakes the guide loop early, e.g. for a replay while no story is being told. */
+    private val wake = Channel<Unit>(Channel.CONFLATED)
     private var lastGpsFix = 0L
 
     private val locationListener = LocationListener { location -> onLocation(location) }
@@ -114,6 +122,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             ACTION_RESUME -> setUserPaused(false)
             ACTION_TOGGLE -> setUserPaused(!userPaused)
             ACTION_STOP -> stopGuide()
+            ACTION_REPLAY -> requestReplay(intent.getLongExtra(EXTRA_STORY, 0L))
         }
         return START_NOT_STICKY
     }
@@ -175,13 +184,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         guideJob = null
         narrator?.release()
         narrator = null
+        replayRequest = null
         focus.abandon()
         stopLocationUpdates()
         session.isActive = false
         engine.reset()
         GuideStatus.update {
             it.copy(
-                running = false, paused = false, speaking = false, pauseReason = null, message = null,
+                running = false, paused = false, speaking = false, replaying = null, pauseReason = null, message = null,
                 upcoming = emptyList(), route = emptyList(), routeSource = PathSource.NONE,
             )
         }
@@ -221,8 +231,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     private suspend fun runGuide() {
         while (true) {
-            delay(TICK_MILLIS)
+            withTimeoutOrNull(TICK_MILLIS) { wake.receive() }
             if (isPaused()) continue
+            val story = replayRequest
+            if (story != null) {
+                replayRequest = null
+                replay(story)
+                continue
+            }
             // Load (or reload) the voice ahead of the first story so problems show up early.
             if (narratorDirty) currentNarrator()
             val now = System.currentTimeMillis()
@@ -273,12 +289,40 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             poi.title, narration.text, poi.url, System.currentTimeMillis(),
             also = narration.companions.map { it.title },
             places = (listOf(poi) + narration.companions).map { MapPlace(it.title, it.point) },
+            sentences = narration.sentences,
         )
         GuideStatus.update { it.copy(current = item, speaking = true, history = (listOf(item) + it.history).take(50)) }
         updateSession()
         abortStory = false
+        try {
+            speakStory(item)
+        } finally {
+            focus.abandon()
+            GuideStatus.update { it.copy(speaking = false) }
+            updateSession()
+            warnIfVoiceTooSlow()
+        }
+    }
+
+    /** Plays a story again while no other story is being told. */
+    private suspend fun replay(item: StoryItem) {
+        abortStory = false
+        try {
+            speakStory(item, replay = true)
+        } finally {
+            focus.abandon()
+        }
+    }
+
+    /**
+     * Speaks [item] piece by piece. A replay asked for meanwhile cuts in: it plays, and then this
+     * story goes on from the piece that was cut off. Asking to replay this story starts it over.
+     */
+    private suspend fun speakStory(item: StoryItem, replay: Boolean = false) {
+        val before = GuideStatus.state.value.replaying
+        if (replay) GuideStatus.update { it.copy(replaying = item.timeMillis) }
         val first = currentNarrator()
-        val pieces = Narrators.pieces(first, narration.sentences)
+        val pieces = Narrators.pieces(first, item.sentences)
         // Start rendering the whole story right away, also while waiting for audio focus.
         first.prepare(pieces.map { it.text })
         var prepared: Narrator? = first
@@ -286,6 +330,17 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             var index = 0
             while (index < pieces.size && !abortStory) {
                 awaitUnpaused()
+                val request = replayRequest
+                if (request != null) {
+                    replayRequest = null
+                    if (request.timeMillis == item.timeMillis) {
+                        index = 0
+                    } else {
+                        speakStory(request, replay = true)
+                        prepared = null // The replay replaced what was rendered ahead.
+                    }
+                    continue
+                }
                 if (!focus.request()) {
                     delay(1_000)
                     continue
@@ -297,18 +352,25 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                     prepared = narrator
                 }
                 val completed = narrator.speak(pieces[index].text)
-                // Interrupted by a pause: say the piece again after resuming.
-                if (completed || !isPaused()) index++
+                // Cut off by a pause or by a replay: say the piece again afterwards.
+                if (completed || !(isPaused() || replayRequest != null)) index++
                 // A short breath between sentences sounds more like a person telling a story.
                 if (completed && index < pieces.size && pieces[index - 1].endsSentence) delay(SENTENCE_PAUSE_MILLIS)
             }
         } finally {
             prepared?.prepare(emptyList())
-            focus.abandon()
-            GuideStatus.update { it.copy(speaking = false) }
-            updateSession()
-            warnIfVoiceTooSlow()
+            if (replay) GuideStatus.update { it.copy(replaying = before) }
         }
+    }
+
+    /** Plays a told story again, cutting into the current one; see [speakStory]. */
+    private fun requestReplay(storyTime: Long) {
+        val state = GuideStatus.state.value
+        val story = (listOfNotNull(state.current) + state.history).firstOrNull { it.timeMillis == storyTime } ?: return
+        if (story.sentences.isEmpty()) return
+        replayRequest = story
+        if (userPaused) setUserPaused(false)
+        if (state.speaking || state.replaying != null) narrator?.stop() else wake.trySend(Unit)
     }
 
     /** Tells the user when the chosen voice renders slower than it speaks on this phone. */
@@ -454,6 +516,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         const val ACTION_RESUME = "io.github.atrejoe.travelguide.RESUME"
         const val ACTION_TOGGLE = "io.github.atrejoe.travelguide.TOGGLE"
         const val ACTION_STOP = "io.github.atrejoe.travelguide.STOP"
+        const val ACTION_REPLAY = "io.github.atrejoe.travelguide.REPLAY"
+        const val EXTRA_STORY = "story"
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(
@@ -464,6 +528,13 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
         fun send(context: Context, action: String) {
             context.startService(Intent(context, GuideService::class.java).setAction(action))
+        }
+
+        /** Plays the story told at [storyTimeMillis] again. */
+        fun replay(context: Context, storyTimeMillis: Long) {
+            context.startService(
+                Intent(context, GuideService::class.java).setAction(ACTION_REPLAY).putExtra(EXTRA_STORY, storyTimeMillis),
+            )
         }
     }
 }

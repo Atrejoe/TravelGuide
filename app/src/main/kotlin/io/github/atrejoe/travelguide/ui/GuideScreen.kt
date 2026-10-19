@@ -22,12 +22,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -203,7 +205,7 @@ private fun LazyListScope.timeline(state: GuideUiState) {
         TimelineRow("Now", Marker.NOW, first = upcoming.isEmpty(), last = earlier.isEmpty()) {
             val current = state.current
             if (current != null && state.speaking) {
-                StoryCard(current, expanded = true)
+                StoryCard(current, expanded = true, state)
             } else {
                 Text(
                     if (state.running) "Listening to the road ahead…" else "Start guiding to see what's coming up.",
@@ -218,7 +220,7 @@ private fun LazyListScope.timeline(state: GuideUiState) {
     val past = listOfNotNull(finished) + earlier
     itemsIndexed(past, key = { _, s -> "past:" + s.timeMillis }) { index, story ->
         TimelineRow(clock(story.timeMillis), Marker.PAST, first = false, last = index == past.lastIndex) {
-            StoryCard(story, expanded = false)
+            StoryCard(story, expanded = false, state)
         }
     }
 }
@@ -397,11 +399,32 @@ private fun ModeSelector(selected: TravelMode?, detected: TravelMode?, onSelect:
 }
 
 @Composable
-private fun StoryCard(story: StoryItem, expanded: Boolean) {
+private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) {
     val context = LocalContext.current
+    val replaying = state.replaying == story.timeMillis
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(story.title, style = MaterialTheme.typography.titleMedium)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(story.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                // Subtle on purpose: a small, muted icon that doesn't compete with the story.
+                if (state.running && story.sentences.isNotEmpty()) {
+                    IconButton(
+                        onClick = { GuideService.replay(context, story.timeMillis) },
+                        enabled = !replaying,
+                        modifier = Modifier.size(32.dp),
+                    ) {
+                        Icon(
+                            Icons.Filled.PlayArrow,
+                            contentDescription = "Play again",
+                            modifier = Modifier.size(20.dp),
+                            tint = if (replaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        )
+                    }
+                }
+            }
+            if (replaying) {
+                Text("Playing again", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            }
             if (story.also.isNotEmpty()) {
                 Text("Also: " + story.also.joinToString(", "), style = MaterialTheme.typography.bodySmall)
             }
