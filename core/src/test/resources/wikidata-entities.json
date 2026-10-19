@@ -1,0 +1,76 @@
+{
+  "entities": {
+    "Q2601": {
+      "type": "item",
+      "id": "Q2601",
+      "labels": { "en": { "language": "en", "value": "Utrecht City Hall" } },
+      "descriptions": { "en": { "language": "en", "value": "city hall of Utrecht, Netherlands" } },
+      "claims": {
+        "P31": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P31", "datavalue": { "value": { "entity-type": "item", "numeric-id": 25550691, "id": "Q25550691" }, "type": "wikibase-entityid" } },
+            "type": "statement",
+            "rank": "normal"
+          }
+        ],
+        "P571": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P571", "datavalue": { "value": { "time": "+1300-00-00T00:00:00Z", "precision": 9, "calendarmodel": "http://www.wikidata.org/entity/Q1985727" }, "type": "time" } },
+            "type": "statement",
+            "rank": "deprecated"
+          },
+          {
+            "mainsnak": { "snaktype": "value", "property": "P571", "datavalue": { "value": { "time": "+1547-00-00T00:00:00Z", "precision": 9, "calendarmodel": "http://www.wikidata.org/entity/Q1985727" }, "type": "time" } },
+            "type": "statement",
+            "rank": "normal"
+          }
+        ],
+        "P84": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P84", "datavalue": { "value": { "entity-type": "item", "numeric-id": 2387520, "id": "Q2387520" }, "type": "wikibase-entityid" } },
+            "type": "statement",
+            "rank": "normal"
+          }
+        ],
+        "P149": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P149", "datavalue": { "value": { "entity-type": "item", "numeric-id": 14378, "id": "Q14378" }, "type": "wikibase-entityid" } },
+            "type": "statement",
+            "rank": "normal"
+          }
+        ],
+        "P1435": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P1435", "datavalue": { "value": { "entity-type": "item", "numeric-id": 916333, "id": "Q916333" }, "type": "wikibase-entityid" } },
+            "type": "statement",
+            "rank": "normal"
+          }
+        ],
+        "P359": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P359", "datavalue": { "value": "36184", "type": "string" } },
+            "type": "statement",
+            "rank": "normal"
+          }
+        ],
+        "P466": [
+          {
+            "mainsnak": { "snaktype": "value", "property": "P466", "datavalue": { "value": { "entity-type": "item", "numeric-id": 2648498, "id": "Q2648498" }, "type": "wikibase-entityid" } },
+            "type": "statement",
+            "rank": "preferred"
+          }
+        ]
+      },
+      "sitelinks": {}
+    },
+    "Q1404": {
+      "type": "item",
+      "id": "Q1404",
+      "labels": { "en": { "language": "en", "value": "Dom Tower of Utrecht" } },
+      "descriptions": { "en": { "language": "en", "value": "church tower in Utrecht, Netherlands" } },
+      "claims": {},
+      "sitelinks": { "enwiki": { "site": "enwiki", "title": "Dom Tower of Utrecht", "badges": [] } }
+    }
+  },
+  "success": 1
+}

@@ -9,9 +9,21 @@ import kotlinx.serialization.json.Json
 import java.net.URLEncoder
 import java.util.Locale
 
+/** A tagged OpenStreetMap object at a point (the centre of a way or relation). */
+data class OsmFeature(
+    /** "node", "way" or "relation". */
+    val type: String,
+    val id: Long,
+    val point: GeoPoint,
+    val tags: Map<String, String>,
+) {
+    val url: String get() = "https://www.openstreetmap.org/$type/$id"
+}
+
 /**
  * Reads railway lines and roads from OpenStreetMap through the public Overpass API (free, no
- * key). Queries are small and only repeated after moving away from the area fetched before.
+ * key), and named buildings and institutions for walking tours. Queries are small and only
+ * repeated after moving away from the area fetched before.
  */
 class OverpassClient(
     private val http: HttpFetcher,
@@ -56,6 +68,45 @@ class OverpassClient(
         return "$endpoint?data=${URLEncoder.encode(query, "UTF-8")}"
     }
 
+    /** Named buildings, institutions and monuments within [radiusM]; see [placesUrl]. */
+    suspend fun places(center: GeoPoint, radiusM: Int): List<OsmFeature> = parsePlaces(http.get(placesUrl(center, radiusM)))
+
+    /**
+     * Named places worth a story: town halls, churches, museums, libraries, universities,
+     * courthouses, theatres, stations, castles, mills, monuments, listed buildings, and named
+     * buildings with a Wikidata link or a construction date. Stumbling stones and plaques are
+     * left out (a busy old town has hundreds). Ways and relations come with their centre.
+     */
+    fun placesUrl(center: GeoPoint, radiusM: Int): String {
+        val a = aroundFilter(center, radiusM)
+        val query = """
+            [out:json][timeout:25];
+            (
+              nwr($a)["name"]["amenity"~"^(townhall|place_of_worship|library|university|college|courthouse|theatre|concert_hall|arts_centre|monastery|fountain)$"];
+              nwr($a)["name"]["tourism"~"^(museum|gallery|artwork|attraction|viewpoint)$"];
+              nwr($a)["name"]["historic"]["memorial"!~"^(stolperstein|stumbling_stone|plaque|blue_plaque|ghost_bike)$"];
+              nwr($a)["name"]["heritage"];
+              nwr($a)["name"]["man_made"~"^(windmill|watermill|lighthouse|tower)$"];
+              nwr($a)["name"]["railway"="station"]["station"!~"^(subway|light_rail|monorail)$"];
+              wr($a)["name"]["building"]["wikidata"];
+              wr($a)["name"]["building"]["start_date"];
+            );
+            out tags center qt $PLACES_LIMIT;
+        """.trimIndent()
+        return "$endpoint?data=${URLEncoder.encode(query, "UTF-8")}"
+    }
+
+    fun parsePlaces(body: String): List<OsmFeature> =
+        json.decodeFromString(Response.serializer(), body).elements.mapNotNull { e ->
+            val point = when {
+                e.lat != null && e.lon != null -> GeoPoint(e.lat, e.lon)
+                e.center != null -> GeoPoint(e.center.lat, e.center.lon)
+                else -> return@mapNotNull null
+            }
+            if (e.type !in setOf("node", "way", "relation")) return@mapNotNull null
+            OsmFeature(e.type, e.id, point, e.tags)
+        }
+
     private fun aroundFilter(center: GeoPoint, radiusM: Int) =
         String.format(Locale.ROOT, "around:%d,%.6f,%.6f", radiusM, center.lat, center.lon)
 
@@ -91,6 +142,9 @@ class OverpassClient(
         val nodes: List<Long> = emptyList(),
         val geometry: List<LatLon> = emptyList(),
         val tags: Map<String, String> = emptyMap(),
+        val lat: Double? = null,
+        val lon: Double? = null,
+        val center: LatLon? = null,
     )
 
     @Serializable
@@ -98,6 +152,9 @@ class OverpassClient(
 
     private companion object {
         val json = Json { ignoreUnknownKeys = true }
+
+        /** Enough for the centre of an old town within the radius we ask for. */
+        const val PLACES_LIMIT = 400
 
         /** The tags road following uses; the rest is dropped to save memory. */
         val ROAD_TAGS = setOf("highway", "name", "ref", "oneway", "oneway:bicycle", "junction", "destination", "destination:ref")

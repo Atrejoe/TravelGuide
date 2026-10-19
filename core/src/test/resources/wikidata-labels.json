@@ -1,0 +1,9 @@
+{
+  "entities": {
+    "Q25550691": { "type": "item", "id": "Q25550691", "labels": { "en": { "language": "en", "value": "town hall" } } },
+    "Q2387520": { "type": "item", "id": "Q2387520", "labels": { "en": { "language": "nl", "value": "Joost Ritsema van Eck" } } },
+    "Q14378": { "type": "item", "id": "Q14378", "labels": { "en": { "language": "en", "value": "Neoclassical architecture" } } },
+    "Q2648498": { "type": "item", "id": "Q2648498", "labels": { "en": { "language": "en", "value": "municipal council of Utrecht" } } }
+  },
+  "success": 1
+}
