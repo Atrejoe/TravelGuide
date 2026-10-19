@@ -1,9 +1,9 @@
 package io.github.atrejoe.travelguide.ui
 
 import android.content.Context
-import android.os.Environment
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onRoot
 import androidx.test.core.app.ApplicationProvider
@@ -24,7 +24,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
-import org.robolectric.shadows.ShadowEnvironment
 import org.robolectric.shadows.ShadowLooper
 import java.io.File
 import java.util.Locale
@@ -80,18 +79,23 @@ class ScreenshotTest {
      * set in GuideMap), so the map shows real streets without the network.
      */
     private fun offlineTiles() {
-        // osmdroid only reads tile archives when external storage is mounted; Robolectric says it isn't.
-        ShadowEnvironment.setExternalStorageState(Environment.MEDIA_MOUNTED)
         val tiles = javaClass.getResourceAsStream("/screenshot-tiles.zip") ?: return
         val dir = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, "osmdroid").apply { mkdirs() }
         tiles.use { input -> File(dir, "screenshot-tiles.zip").outputStream().use { input.copyTo(it) } }
     }
 
-    /** osmdroid loads tiles on its own threads and redraws through the main looper. */
+    /**
+     * The map only asks for tiles while it is drawn, and loads them on its own threads, redrawing
+     * through the main looper. So: draw, let the tiles load, and draw again for the ones the first
+     * tiles made visible.
+     */
     private fun awaitTiles() {
-        repeat(30) {
-            Thread.sleep(100)
-            ShadowLooper.idleMainLooper()
+        repeat(2) {
+            compose.onRoot().captureToImage()
+            repeat(20) {
+                Thread.sleep(100)
+                ShadowLooper.idleMainLooper()
+            }
             compose.waitForIdle()
         }
     }
