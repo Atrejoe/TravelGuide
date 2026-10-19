@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide.ui
 
 import android.content.Context
+import android.os.Environment
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -23,6 +24,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowEnvironment
 import org.robolectric.shadows.ShadowLooper
 import java.io.File
 import java.util.Locale
@@ -78,6 +80,8 @@ class ScreenshotTest {
      * set in GuideMap), so the map shows real streets without the network.
      */
     private fun offlineTiles() {
+        // osmdroid only reads tile archives when external storage is mounted; Robolectric says it isn't.
+        ShadowEnvironment.setExternalStorageState(Environment.MEDIA_MOUNTED)
         val tiles = javaClass.getResourceAsStream("/screenshot-tiles.zip") ?: return
         val dir = File(ApplicationProvider.getApplicationContext<Context>().cacheDir, "osmdroid").apply { mkdirs() }
         tiles.use { input -> File(dir, "screenshot-tiles.zip").outputStream().use { input.copyTo(it) } }
