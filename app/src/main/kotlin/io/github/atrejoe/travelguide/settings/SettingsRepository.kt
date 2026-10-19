@@ -2,6 +2,7 @@ package io.github.atrejoe.travelguide.settings
 
 import android.content.Context
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -22,6 +23,8 @@ data class AppSettings(
     val rate: Float = 0.95f,
     /** Null means detect the travel mode from speed. */
     val modeOverride: TravelMode? = null,
+    /** Tell about the town, its buildings and institutions while walking (OpenStreetMap, Wikidata). */
+    val walkingPlaces: Boolean = true,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -32,6 +35,7 @@ class SettingsRepository(private val context: Context) {
         val pitch = floatPreferencesKey("pitch")
         val rate = floatPreferencesKey("rate")
         val mode = stringPreferencesKey("mode_override")
+        val walkingPlaces = booleanPreferencesKey("walking_places")
         val version = intPreferencesKey("version")
     }
 
@@ -64,6 +68,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.pitch] = next.pitch
             p[Keys.rate] = next.rate
             if (next.modeOverride == null) p.remove(Keys.mode) else p[Keys.mode] = next.modeOverride.name
+            p[Keys.walkingPlaces] = next.walkingPlaces
         }
     }
 
@@ -78,6 +83,7 @@ class SettingsRepository(private val context: Context) {
             pitch = p[Keys.pitch] ?: defaults.pitch,
             rate = p[Keys.rate] ?: defaults.rate,
             modeOverride = p[Keys.mode]?.let { name -> TravelMode.entries.firstOrNull { it.name == name } },
+            walkingPlaces = p[Keys.walkingPlaces] ?: defaults.walkingPlaces,
         )
     }
 }

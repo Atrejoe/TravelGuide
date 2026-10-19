@@ -64,6 +64,7 @@ import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.core.nav.ImportedRoute
 import io.github.atrejoe.travelguide.core.nav.NavigationStatus
 import io.github.atrejoe.travelguide.core.route.PathSource
+import io.github.atrejoe.travelguide.core.story.PoiSources
 import io.github.atrejoe.travelguide.nav.NavigationState
 import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.service.GuideService
@@ -436,7 +437,7 @@ private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) 
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-"Source: Wikipedia",
+PoiSources.label(story.url),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.clickable {

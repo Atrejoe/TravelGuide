@@ -29,11 +29,15 @@ import io.github.atrejoe.travelguide.core.guide.GuideEngine
 import io.github.atrejoe.travelguide.core.nav.NominatimClient
 import io.github.atrejoe.travelguide.core.nav.OsrmClient
 import io.github.atrejoe.travelguide.core.nav.TowardRouter
+import io.github.atrejoe.travelguide.core.places.OsmPlaceSource
+import io.github.atrejoe.travelguide.core.places.PlaceSource
+import io.github.atrejoe.travelguide.core.places.TownLookup
 import io.github.atrejoe.travelguide.core.rail.OverpassClient
 import io.github.atrejoe.travelguide.core.road.RoadSource
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
+import io.github.atrejoe.travelguide.core.wiki.WikidataClient
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
 import io.github.atrejoe.travelguide.nav.NavigationState
 import io.github.atrejoe.travelguide.nav.RouteRepository
@@ -87,6 +91,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         val fetcher = UrlConnectionFetcher()
         val wikipedia = WikipediaClient(fetcher, lang = "en")
         val overpass = OverpassClient(fetcher)
+        val wikidata = WikidataClient(fetcher)
+        val nominatim = NominatimClient(fetcher)
+        // Buildings in an old town centre make a sizeable answer: parse it off the main thread.
+        val buildings = OsmPlaceSource(overpass, wikidata)
         engine = GuideEngine(
             wikipedia,
             articles = wikipedia,
@@ -95,7 +103,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             roads = RoadSource { center, major, minor, cycleways ->
                 withContext(Dispatchers.Default) { overpass.roads(center, major, minor, cycleways) }
             },
-            toward = TowardRouter(NominatimClient(fetcher), OsrmClient(fetcher)),
+            toward = TowardRouter(nominatim, OsrmClient(fetcher)),
+            places = PlaceSource { center, radius -> withContext(Dispatchers.Default) { buildings.places(center, radius) } },
+            towns = TownLookup(nominatim, wikidata, wikipedia),
         )
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
@@ -215,6 +225,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             }
             settings = s
             engine.motion.modeOverride = s.modeOverride
+            engine.walkingPlaces = s.walkingPlaces
         }
     }
 
