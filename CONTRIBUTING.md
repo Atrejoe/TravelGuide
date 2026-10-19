@@ -96,14 +96,16 @@ The README shows screenshots from `docs/screenshots/`, rendered on the JVM by
 content. Rendering takes a few minutes, so pull requests don't do it:
 
 1. After every merge to `main`, the *Android* workflow runs `./gradlew :app:recordRoborazziDebug`.
-2. When an image changed, it pushes them to the `bot/screenshots` branch, opens (or updates) a
-   *docs: update screenshots* PR with auto-merge, and starts the required *CI* check on it.
-3. That PR merges itself a minute later. Its merge isn't tagged or rebuilt.
+2. When an image changed, it pushes them to the `bot/screenshots` branch and starts the required
+   *CI* check on that commit. The run summary has a **Create the pull request** link.
+3. Open that PR and merge it whenever convenient (if one is already open, it's updated instead).
+   Its merge isn't tagged or rebuilt.
 
-So `main` always gets current screenshots without anyone's PR waiting for them. This needs two
-repository settings, once: **Settings → General → Allow auto-merge** and **Settings → Actions →
-General → Allow GitHub Actions to create and approve pull requests**. Without them the workflow
-leaves the branch and a warning, and the PR can be opened or merged by hand.
+So `main` gets current screenshots without anyone's PR waiting for them, at the cost of one click.
+Workflows deliberately can't open or approve PRs here (**Settings → Actions → General → Allow
+GitHub Actions to create and approve pull requests** stays off), so a compromised workflow step
+can't get code into `main` on its own. For the same reason every action in the workflows is
+pinned to a full commit SHA; Renovate keeps those pins up to date.
 
 To look at them locally (needs the Android SDK): `./gradlew :app:recordRoborazziDebug`. To see
 how a branch looks, run the *Android* workflow manually on it: the screenshots are uploaded as an

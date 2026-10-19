@@ -4,7 +4,8 @@
 # - Pull requests: the APK is attached to the run as an artifact (one per PR).
 # - Every merge to main: tagged and published as an alpha pre-release, v<appVersion>-alpha.N, with
 #   the APK and the PRs merged since the previous tag as notes. Then the screenshots in
-#   docs/screenshots are re-rendered and, when they changed, proposed in a bot PR that merges itself.
+#   docs/screenshots are re-rendered and, when they changed, pushed to bot/screenshots with a link
+#   to create the PR.
 # - Manual runs: the APK (and the screenshots) as run artifacts.
 # - `v*` tags pushed by hand (stable releases): the APK is attached to that release, with its
 #   CHANGELOG.md section as notes.
@@ -49,17 +50,17 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
       - name: Cache sherpa-onnx
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             app/libs/sherpa-onnx.aar
@@ -141,7 +142,7 @@ jobs:
 
       - name: Upload lint report
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         continue-on-error: true
         with:
           name: lint-report
@@ -158,7 +159,7 @@ jobs:
       - name: Upload APK artifact
         id: apk
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         # Artifact storage can be temporarily blocked by account quota; the build itself still counts.
         continue-on-error: true
         with:
@@ -192,7 +193,7 @@ jobs:
 
       - name: Upload APK artifact (manual run)
         if: github.event_name == 'workflow_dispatch'
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         continue-on-error: true
         with:
           name: travelguide-${{ steps.version.outputs.name }}
@@ -235,10 +236,11 @@ jobs:
           gh release upload "$GITHUB_REF_NAME" out/*.apk --clobber
 
   # Screenshots for the README, rendered on the JVM (Robolectric + Roborazzi, no emulator). Only
-  # after a merge to main (and on manual runs), so pull requests don't pay for it. Changed images go
-  # into main through a bot PR that merges itself once the required check has passed, so nobody's
-  # PR gets extra commits or waits for it. Needs, once: Settings → General → "Allow auto-merge" and
-  # Settings → Actions → General → "Allow GitHub Actions to create and approve pull requests".
+  # after a merge to main (and on manual runs), so pull requests don't pay for it. Changed images
+  # are pushed to the bot/screenshots branch, and the run summary links to a ready-made PR: merging
+  # it is one click, whenever convenient, and nobody's PR waits for it. Workflows deliberately can't
+  # open or approve PRs in this repository (Settings → Actions → General), so a compromised step
+  # can't get code into main on its own.
   screenshots:
     name: Screenshots
     if: >-
@@ -249,19 +251,19 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write # push the bot/screenshots branch
-      pull-requests: write # open the PR and enable auto-merge
+      pull-requests: read # find an open screenshots PR
       actions: write # start the required check on the bot's branch
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-java@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+      - uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: 21
-      - uses: gradle/actions/setup-gradle@v5
+      - uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
         with:
           cache-read-only: true
       - name: Cache sherpa-onnx
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             app/libs/sherpa-onnx.aar
@@ -277,7 +279,7 @@ jobs:
 
       - name: Upload screenshots
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         continue-on-error: true
         with:
           name: screenshots
@@ -304,7 +306,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -z "$(git status --porcelain -- docs/screenshots)" ]; then
-            echo "Screenshots are up to date."
+            echo "Screenshots are up to date." >> "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           branch=bot/screenshots
@@ -314,14 +316,19 @@ jobs:
           git add docs/screenshots
           git commit -m "docs: update screenshots" -m "Rendered from ${GITHUB_SHA::7} by the Android workflow."
           git push --force origin "$branch"
-          if [ -z "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
-            gh pr create --head "$branch" --base main --title "docs: update screenshots" \
-              --body "Screenshots re-rendered after ${GITHUB_SHA::7}. This PR merges itself once the required check has passed." \
-              || { echo "::warning title=Screenshots not proposed::Could not open the PR. Allow GitHub Actions to create pull requests (Settings → Actions → General), or open one from the $branch branch."; exit 0; }
-          fi
-          gh pr merge "$branch" --squash --auto \
-            || echo "::warning title=Auto-merge unavailable::Enable Settings → General → Allow auto-merge, or merge the screenshots PR by hand."
-          # Pushes made with the workflow token don't start workflows; a dispatch does, so the
-          # required check runs on the bot's commit.
+          # The required check must exist on this commit before the PR can merge, but pushes made
+          # with the workflow token don't start workflows and CI skips docs-only PRs. A dispatch
+          # runs it now, so the PR is mergeable as soon as it's opened.
           gh workflow run ci.yml --ref "$branch"
-
+          if [ -n "$(gh pr list --head "$branch" --state open --json number --jq '.[].number')" ]; then
+            echo "The open screenshots PR has been updated with the new images." >> "$GITHUB_STEP_SUMMARY"
+          else
+            title="docs: update screenshots"
+            body="Screenshots re-rendered after ${GITHUB_SHA::7} by the Android workflow."
+            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1&title=$(jq -rn --arg v "$title" '$v|@uri')&body=$(jq -rn --arg v "$body" '$v|@uri')"
+            {
+              echo "### Screenshots changed"
+              echo "They are on the \`$branch\` branch. [Create the pull request]($url), then merge it whenever convenient."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::notice title=Screenshots changed::Create the PR from $branch: $url"
+          fi
