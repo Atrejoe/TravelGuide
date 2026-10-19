@@ -91,8 +91,8 @@ fun GuideMap(
         upcoming = scheme.secondary.toArgb(),
     )
     var follow by remember { mutableStateOf(true) }
-    // In previews and screenshots the map is drawn without tiles, so the result doesn't depend on
-    // the network.
+    // Previews and screenshots never download tiles, so the result doesn't depend on the network;
+    // the screenshot test supplies an offline tile archive instead.
     val offline = LocalInspectionMode.current
     val map = remember { createMap(context, offline) { follow = false } }
 

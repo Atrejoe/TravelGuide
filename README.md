@@ -14,8 +14,8 @@ your phone.
   <img src="docs/screenshots/settings.png" alt="Settings: natural on-device voices, speaking rate and pitch" width="280">
 </p>
 
-_Rendered from the current `main` after every merge (sample content; the map is shown without
-tiles)._
+_Rendered from the current `main` after every merge, with sample content. Map © OpenStreetMap
+contributors._
 
 ## What it does
 

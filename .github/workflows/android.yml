@@ -251,7 +251,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: write # push the bot/screenshots branch
-      pull-requests: read # find an open screenshots PR
+      pull-requests: read # find an open screenshots PR and the PR that was merged
+      issues: write # comment the link on the merged PR (comments only; it can't create or merge PRs)
       actions: write # start the required check on the bot's branch
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
@@ -274,6 +275,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      # The map tiles in the screenshots come from a committed archive; only fetched when it's
+      # missing (to be committed from the screenshots-preview branch of a manual run).
+      - name: Map tiles for the screenshots
+        run: |
+          if [ ! -f app/src/test/resources/screenshot-tiles.zip ]; then
+            scripts/fetch-screenshot-tiles.sh
+          fi
+
       - name: Render screenshots
         run: ./gradlew :app:recordRoborazziDebug
 
@@ -295,7 +304,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -B bot/screenshots-preview
-          git add docs/screenshots
+          git add docs/screenshots app/src/test/resources/screenshot-tiles.zip
           git commit --allow-empty -m "docs: screenshots of ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}"
           git push --force origin bot/screenshots-preview
           echo "::notice title=Screenshots::Pushed to the bot/screenshots-preview branch (docs/screenshots)."
@@ -326,9 +335,13 @@ jobs:
             title="docs: update screenshots"
             body="Screenshots re-rendered after ${GITHUB_SHA::7} by the Android workflow."
             url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/compare/main...$branch?expand=1&title=$(jq -rn --arg v "$title" '$v|@uri')&body=$(jq -rn --arg v "$body" '$v|@uri')"
-            {
-              echo "### Screenshots changed"
-              echo "They are on the \`$branch\` branch. [Create the pull request]($url), then merge it whenever convenient."
-            } >> "$GITHUB_STEP_SUMMARY"
+            message="📸 **The screenshots changed** with this merge. They are on the \`$branch\` branch: [create the pull request]($url), then merge it whenever convenient."
+            echo "$message" >> "$GITHUB_STEP_SUMMARY"
             echo "::notice title=Screenshots changed::Create the PR from $branch: $url"
+            # Also on the PR that was just merged, so the link arrives as a notification.
+            merged=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq '.[0].number // empty' || true)
+            if [ -n "$merged" ]; then
+              gh api "repos/$GITHUB_REPOSITORY/issues/$merged/comments" -f body="$message" > /dev/null \
+                || echo "::warning::Could not comment on #$merged."
+            fi
           fi
