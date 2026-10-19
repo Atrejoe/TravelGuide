@@ -7,23 +7,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
-### Fixed
-
-- The map in the README screenshots shows real streets instead of an empty grid (#39). A link to
-  open the screenshots PR is now also commented on the PR whose merge changed them.
-- The map no longer jumps in size when guiding starts, and route lines and dots stay inside it
-  (#33). The map's space is reserved as soon as guiding starts, the legend keeps a fixed height,
-  and the map opens on your position instead of sliding there.
-- Train travel is recognised from the railway you're on, not only from speed. Trains below
-  145 km/h used to be shown as a car (#18). Railway lines come from OpenStreetMap (Overpass API),
-  fetched only when moving fast and after moving a few kilometres.
-- Shorter wait before a story and fewer pauses between sentences with on-device voices (#26).
-  Articles of the next stories are fetched ahead of time, the voice is warmed up when it loads,
-  and the whole story is rendered in the background as soon as it starts, with long sentences cut
-  at commas so the first words come sooner. When a voice is too slow for the phone, the guide
-  screen says so, and the voice preview in Settings shows how fast it renders. The preview no
-  longer loads the voice on every tap: Settings loads the selected voice in the background, and
-  changing pitch or rate no longer reloads it. While a preview plays, its button stops it.
+## [0.3.0] - 2026-10-19
 
 ### Added
 
@@ -68,7 +52,6 @@ All notable changes to this project are documented here. The format follows
   the upcoming ones. The road ahead is drawn as a solid line when it comes from navigation, and
   as a dashed line labelled "guessed" when it is estimated from your movement.
 - In automatic travel mode, the detected mode is shown ("Auto · Cycling", "Cycling (detected)").
-
 - Timeline on the guide screen: upcoming stories with their expected time on top, then the
   current story, then earlier ones, joined by a line on the left.
 - Stories combine places along the route: up to two nearby places, or places the article
@@ -90,8 +73,22 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- The map in the README screenshots shows real streets instead of an empty grid (#39). A link to
+  open the screenshots PR is now also commented on the PR whose merge changed them.
+- The map no longer jumps in size when guiding starts, and route lines and dots stay inside it
+  (#33). The map's space is reserved as soon as guiding starts, the legend keeps a fixed height,
+  and the map opens on your position instead of sliding there.
+- Train travel is recognised from the railway you're on, not only from speed. Trains below
+  145 km/h used to be shown as a car (#18). Railway lines come from OpenStreetMap (Overpass API),
+  fetched only when moving fast and after moving a few kilometres.
+- Shorter wait before a story and fewer pauses between sentences with on-device voices (#26).
+  Articles of the next stories are fetched ahead of time, the voice is warmed up when it loads,
+  and the whole story is rendered in the background as soon as it starts, with long sentences cut
+  at commas so the first words come sooner. When a voice is too slow for the phone, the guide
+  screen says so, and the voice preview in Settings shows how fast it renders. The preview no
+  longer loads the voice on every tap: Settings loads the selected voice in the background, and
+  changing pitch or rate no longer reloads it. While a preview plays, its button stops it.
 - A planned route with long straight segments counted as "off route" between its points.
-
 - Places beyond the predicted route were measured as off to the side, which gave wrong arrival
   times.
 - A newer test build couldn't be installed over an older one, because every CI build was signed
