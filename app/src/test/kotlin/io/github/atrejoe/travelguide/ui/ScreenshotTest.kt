@@ -47,6 +47,7 @@ class ScreenshotTest {
     }
 
     @Test
+    @Config(qualifiers = "+h1250dp") // Tall enough to show the story being told and earlier ones.
     fun guide() {
         GuideStatus.update { sample(System.currentTimeMillis()) }
         compose.setContent {
