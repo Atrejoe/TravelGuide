@@ -72,4 +72,31 @@ data class Poi(
     val extract: String = "",
     val url: String = "",
     val lang: String = "en",
-)
+    /** The Wikidata item, e.g. "Q803", to recognise the same place from different sources. */
+    val wikidataId: String? = null,
+    /**
+     * Title of the Wikipedia article in [lang] for places that came from another source than a
+     * geosearch (whose [pageId] is then not a Wikipedia page id).
+     */
+    val wikiTitle: String? = null,
+    /** What OpenStreetMap and Wikidata tell about a building or institution; null for articles. */
+    val facts: PlaceFacts? = null,
+) {
+    /** True for places found on Wikipedia itself, whose [pageId] is a real page id. */
+    val isWikipediaPage: Boolean get() = pageId > 0
+
+    /** True when a Wikipedia article can be fetched for this place. */
+    val hasArticle: Boolean get() = isWikipediaPage || wikiTitle != null
+
+    /** True when there is something to tell: a lead section, or facts to build a story from. */
+    val hasStory: Boolean get() = extract.isNotBlank() || facts != null
+}
+
+/** Short credit for the link under a story, e.g. "Source: Wikipedia". */
+object PoiSources {
+    fun label(url: String): String = when {
+        "wikidata.org" in url -> "Source: OpenStreetMap and Wikidata"
+        "openstreetmap.org" in url -> "Source: OpenStreetMap"
+        else -> "Source: Wikipedia"
+    }
+}

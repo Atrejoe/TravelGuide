@@ -3,6 +3,7 @@ package io.github.atrejoe.travelguide.core.wiki
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.PoiType
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -41,9 +42,24 @@ class WikipediaClient(
     override suspend fun nearby(center: GeoPoint, radiusM: Int): List<Poi> =
         parse(http.get(nearbyUrl(center, radiusM)))
 
-    override suspend fun article(poi: Poi): String? = parseArticle(http.get(articleUrl(poi.pageId)))
+    /**
+     * The full article: by page id for geosearch results, by title for places found elsewhere
+     * (see [Poi.wikiTitle]); null when the place has neither.
+     */
+    override suspend fun article(poi: Poi): String? = when {
+        poi.isWikipediaPage -> parseArticle(http.get(articleUrl(poi.pageId)))
+        poi.wikiTitle != null -> parseArticle(http.get(articleUrl(title = poi.wikiTitle)))
+        else -> null
+    }
 
-    fun articleUrl(pageId: Long): String = apiUrl(
+    /**
+     * The article [title] as a place with its lead section, like a geosearch result; null when
+     * missing. A page without coordinates is placed at [fallback], or skipped without one.
+     */
+    suspend fun page(title: String, fallback: GeoPoint? = null): Poi? =
+        parse(http.get(pageUrl(title)), fallback).firstOrNull()
+
+    fun articleUrl(pageId: Long? = null, title: String? = null): String = apiUrl(
         linkedMapOf(
             "action" to "query",
             "format" to "json",
@@ -51,8 +67,24 @@ class WikipediaClient(
             "prop" to "extracts",
             "explaintext" to "1",
             "exsectionformat" to "wiki",
-            "pageids" to pageId.toString(),
-        ),
+        ) + if (pageId != null) mapOf("pageids" to pageId.toString()) else mapOf("titles" to title.orEmpty(), "redirects" to "1"),
+    )
+
+    fun pageUrl(title: String): String = apiUrl(
+        linkedMapOf("action" to "query", "format" to "json", "formatversion" to "2", "titles" to title, "redirects" to "1") +
+            pageProps(),
+    )
+
+    /** What we ask for every page: coordinates, short description, lead section, URL, Wikidata id. */
+    private fun pageProps(): Map<String, String> = linkedMapOf(
+        "prop" to "coordinates|description|extracts|info|pageprops",
+        "coprop" to "type|dim",
+        "colimit" to "max",
+        "exintro" to "1",
+        "explaintext" to "1",
+        "exlimit" to "20",
+        "inprop" to "url",
+        "ppprop" to "wikibase_item",
     )
 
     fun parseArticle(body: String): String? =
@@ -68,15 +100,8 @@ class WikipediaClient(
             "ggsradius" to radiusM.coerceIn(10, 10_000).toString(),
             "ggslimit" to limit.coerceIn(1, 20).toString(),
             "ggsnamespace" to "0",
-            "prop" to "coordinates|description|extracts|info",
-            "coprop" to "type|dim",
-            "colimit" to "max",
-            "exintro" to "1",
-            "explaintext" to "1",
-            "exlimit" to "20",
-            "inprop" to "url",
         )
-        return apiUrl(params)
+        return apiUrl(params + pageProps())
     }
 
     private fun apiUrl(params: Map<String, String>): String {
@@ -84,22 +109,25 @@ class WikipediaClient(
         return "https://$lang.wikipedia.org/w/api.php?$query"
     }
 
-    fun parse(body: String): List<Poi> {
+    /** Pages with coordinates; those without are placed at [fallback], or left out without one. */
+    fun parse(body: String, fallback: GeoPoint? = null): List<Poi> {
         val response = json.decodeFromString(ApiResponse.serializer(), body)
         return response.query?.pages.orEmpty().mapNotNull { page ->
-            val coordinate = page.coordinates?.firstOrNull() ?: return@mapNotNull null
-            if (page.missing == true) return@mapNotNull null
+            if (page.missing == true || page.pageid <= 0) return@mapNotNull null
+            val coordinate = page.coordinates?.firstOrNull()
+            val point = coordinate?.let { GeoPoint(it.lat, it.lon) } ?: fallback ?: return@mapNotNull null
             Poi(
                 pageId = page.pageid,
                 title = page.title,
-                point = GeoPoint(coordinate.lat, coordinate.lon),
-                type = PoiType.parse(coordinate.type),
-                population = PoiType.parsePopulation(coordinate.type),
-                dimM = coordinate.dim?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() },
+                point = point,
+                type = PoiType.parse(coordinate?.type),
+                population = PoiType.parsePopulation(coordinate?.type),
+                dimM = coordinate?.dim?.let { it.doubleOrNull ?: it.content.toDoubleOrNull() },
                 description = page.description,
                 extract = page.extract.orEmpty(),
                 url = page.fullurl ?: "https://$lang.wikipedia.org/?curid=${page.pageid}",
                 lang = lang,
+                wikidataId = page.pageprops?.wikibaseItem,
             )
         }
     }
@@ -127,7 +155,11 @@ internal data class ApiPage(
     val description: String? = null,
     val extract: String? = null,
     val fullurl: String? = null,
+    val pageprops: ApiPageProps? = null,
 )
+
+@Serializable
+internal data class ApiPageProps(@SerialName("wikibase_item") val wikibaseItem: String? = null)
 
 @Serializable
 internal data class ApiCoordinate(
