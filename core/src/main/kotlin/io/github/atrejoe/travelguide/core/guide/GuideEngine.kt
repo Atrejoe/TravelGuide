@@ -21,6 +21,7 @@ import io.github.atrejoe.travelguide.core.route.LiveNavigation
 import io.github.atrejoe.travelguide.core.route.PredictedPath
 import io.github.atrejoe.travelguide.core.route.RouteExtrapolator
 import io.github.atrejoe.travelguide.core.story.ArticleParser
+import io.github.atrejoe.travelguide.core.story.ArticleSection
 import io.github.atrejoe.travelguide.core.story.DetailProfile
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
@@ -73,6 +74,9 @@ class GuideEngine(
     private var lastFetchMillis: Long = 0
     private var lastFetchRadius: Int = 0
     private var lastNarrationEnd: Long? = null
+
+    /** Parsed articles by page id, fetched ahead of time; null when the place has no article. */
+    private val articleCache = LinkedHashMap<Long, List<ArticleSection>?>()
 
     val knownPlaces: Int get() = known.size
 
@@ -275,21 +279,52 @@ class GuideEngine(
         lastNarrationEnd?.let { if (nowMillis - it < profile.minGapSeconds * 1000L) return null }
 
         val ranked = rank(state, profile, profile.minScore)
-        val best = ranked.maxByOrNull { it.scored.score * urgency(it.etaSeconds, profile) } ?: return null
+        val best = ranked.maxByOrNull { priority(it, profile) } ?: return null
         told += best.scored.poi.pageId
 
-        val sections = try {
-            articles?.article(best.scored.poi)?.let(ArticleParser::parse)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            null // The lead section from the search result is good enough.
-        }
+        // The lead section from the search result is good enough when the article can't be had.
+        val poi = best.scored.poi
+        val sections = if (poi.pageId in articleCache) articleCache[poi.pageId] else fetchArticle(poi)
         val articleText = sections?.joinToString(" ") { it.text } ?: best.scored.poi.extract
         val companions = companions(best, rank(state, profile, minScore = 0.0), articleText, state, profile)
         told += companions.map { it.poi.pageId }
         return composer.compose(best.scored, state, profile, sections, companions)
     }
+
+    /**
+     * Fetches the articles of the stories most likely to be told next, so a story can start
+     * without waiting on the network. Call it regularly; it fetches at most one article per call.
+     */
+    suspend fun prefetchArticles(count: Int = PREFETCH_COUNT) {
+        if (articles == null) return
+        val state = motion.state ?: return
+        val profile = DetailProfile.forMode(state.mode)
+        val next = rank(state, profile, profile.minScore)
+            .sortedByDescending { priority(it, profile) }
+            .take(count)
+            .firstOrNull { it.scored.poi.pageId !in articleCache }
+            ?: return
+        fetchArticle(next.scored.poi)
+    }
+
+    /** The parsed article, cached; null when unavailable. Network errors are not cached. */
+    private suspend fun fetchArticle(poi: Poi): List<ArticleSection>? {
+        val source = articles ?: return null
+        val sections = try {
+            source.article(poi)?.let(ArticleParser::parse)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        articleCache[poi.pageId] = sections
+        if (articleCache.size > ARTICLE_CACHE_SIZE) articleCache.remove(articleCache.keys.first())
+        return sections
+    }
+
+    /** How strongly a place asks to be told now: its interest, weighed by how soon we pass it. */
+    private fun priority(ranked: Ranked, profile: DetailProfile): Double =
+        ranked.scored.score * urgency(ranked.etaSeconds, profile)
 
     /**
      * Stories we expect to tell soon, in the order we will reach them, for the timeline on screen.
@@ -378,6 +413,7 @@ class GuideEngine(
         lastFetchMillis = 0
         lastFetchRadius = 0
         lastNarrationEnd = null
+        articleCache.clear()
         railNetwork = null
         extrapolator.railGraph = null
         roadNetwork = null
@@ -413,6 +449,9 @@ class GuideEngine(
         const val NAVIGATION_MAX_AGE_MILLIS = 2 * 60_000L
         const val TOWARD_RETRY_MILLIS = 60_000L
         const val TOWARD_OFF_ROUTE_M = 60.0
+
+        const val PREFETCH_COUNT = 2
+        const val ARTICLE_CACHE_SIZE = 20
     }
 
     private fun pointAlong(path: PredictedPath, distanceM: Double): GeoPoint {

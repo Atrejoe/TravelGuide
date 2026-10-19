@@ -137,4 +137,33 @@ class GuideEngineTest {
         // 750 m driven; Near is 750 m further at 25 m/s.
         assertEquals(30.0, upcoming.first().etaSeconds!!.toDouble(), 3.0)
     }
+
+    @Test
+    fun `articles of the next stories are fetched ahead and not again when told`() = runTest {
+        val castle = poi(20, "Castle Rock", GeoMath.destination(start, 0.0, 2_000.0), PoiType.LANDMARK)
+        val fetched = mutableListOf<Long>()
+        var failing = true
+        val engine = GuideEngine(
+            source = { _, _ -> listOf(castle) },
+            articles = { p ->
+                fetched += p.pageId
+                if (failing) throw java.io.IOException("offline")
+                "Castle Rock was built in 1250 by the counts of Holland."
+            },
+            random = Random(3),
+        )
+        val now = engine.drive(speedMps = 8.0, seconds = 30)
+        engine.refreshIfNeeded(now)
+
+        // A network error is not remembered, so the next call tries again.
+        engine.prefetchArticles()
+        failing = false
+        engine.prefetchArticles()
+        engine.prefetchArticles()
+        assertEquals(listOf(20L, 20L), fetched)
+
+        val narration = assertNotNull(engine.nextNarration(now))
+        assertEquals(listOf(20L, 20L), fetched)
+        assertTrue(narration.sentences.any { "1250" in it }, "sentences: ${narration.sentences}")
+    }
 }

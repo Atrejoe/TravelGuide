@@ -3,6 +3,7 @@ package io.github.atrejoe.travelguide.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.util.Log
+import io.github.atrejoe.travelguide.core.story.SpeechChunker
 import io.github.atrejoe.travelguide.settings.AppSettings
 import java.util.Locale
 
@@ -12,17 +13,37 @@ interface Narrator {
     val label: String
 
     /**
-     * Speaks [text] and suspends until it has been played. [upcoming] is the sentence that will
-     * follow, so voices that synthesise ahead can start on it while this one plays. Returns false
-     * when interrupted by [stop] or when speaking failed.
+     * True when speech is rendered on the phone, which takes a while. Stories are then handed over
+     * in short pieces (see [Narrators.pieces]) and rendered ahead with [prepare].
      */
-    suspend fun speak(text: String, upcoming: String? = null): Boolean
+    val rendersOnDevice: Boolean get() = false
+
+    /**
+     * Seconds of rendering per second of speech, once measured. Above 1 the voice can't keep up
+     * and there will be pauses between sentences.
+     */
+    val realTimeFactor: Double? get() = null
+
+    /** Starts rendering [texts] in order, before they are spoken; drops anything else still queued. */
+    fun prepare(texts: List<String>) = Unit
+
+    /**
+     * Speaks [text] and suspends until it has been played. Returns false when interrupted by
+     * [stop] or when speaking failed.
+     */
+    suspend fun speak(text: String): Boolean
+
+    /** Applies new pitch and rate to what is rendered from now on, without reloading the voice. */
+    fun adjust(pitch: Float, rate: Float)
 
     /** Interrupts the sentence currently being spoken. */
     fun stop()
 
     fun release()
 }
+
+/** A piece of a story to speak; a short breath follows when it [endsSentence]. */
+data class SpeechPiece(val text: String, val endsSentence: Boolean)
 
 /** The narrator to use, plus why it is not the one the user picked, if that is the case. */
 data class NarratorChoice(val narrator: Narrator, val warning: String?)
@@ -34,6 +55,12 @@ object Narrators {
         .setUsage(AudioAttributes.USAGE_MEDIA)
         .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
         .build()
+
+    /** The pieces to speak [sentences] in: long sentences are cut into clauses for on-device voices. */
+    fun pieces(narrator: Narrator, sentences: List<String>): List<SpeechPiece> = sentences.flatMap { sentence ->
+        val parts = if (narrator.rendersOnDevice) SpeechChunker.chunks(sentence) else listOf(sentence)
+        parts.mapIndexed { i, part -> SpeechPiece(part, endsSentence = i == parts.lastIndex) }
+    }
 
     /**
      * Creates and warms up the narrator for the configured voice. When the chosen on-device voice

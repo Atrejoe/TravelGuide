@@ -68,3 +68,38 @@ object SentenceSplitter {
         return sentences
     }
 }
+
+/**
+ * Cuts long sentences at clause boundaries for on-device voices, which take longer to render a
+ * long sentence than to play a short one before it. Sentences up to [MAX_WORDS] words stay whole
+ * so most keep their natural intonation, and no piece is shorter than [MIN_WORDS] words.
+ */
+object SpeechChunker {
+    const val MAX_WORDS = 16
+    const val MIN_WORDS = 6
+
+    private val clauseEnd = Regex("(?<=[,;:—])\\s+")
+    private val space = Regex("\\s+")
+
+    fun chunks(sentence: String): List<String> {
+        val text = sentence.trim()
+        if (words(text) <= MAX_WORDS) return listOf(text)
+        val out = mutableListOf<String>()
+        var current = ""
+        for (clause in text.split(clauseEnd)) {
+            if (current.isEmpty()) {
+                current = clause
+            } else if (words(current) >= MIN_WORDS && words(current) + words(clause) > MAX_WORDS) {
+                out += current
+                current = clause
+            } else {
+                current = "$current $clause"
+            }
+        }
+        // A short tail sounds clipped on its own; keep it with the clause before it.
+        if (out.isNotEmpty() && words(current) < MIN_WORDS) out[out.lastIndex] = "${out.last()} $current" else out += current
+        return out
+    }
+
+    private fun words(text: String): Int = text.split(space).count { it.isNotEmpty() }
+}

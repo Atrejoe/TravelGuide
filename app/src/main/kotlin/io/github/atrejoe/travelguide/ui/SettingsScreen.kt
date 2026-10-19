@@ -31,6 +31,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -49,11 +50,17 @@ import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.NeuralVoice
 import io.github.atrejoe.travelguide.voice.Narrators
+import io.github.atrejoe.travelguide.voice.PreviewNarrator
 import io.github.atrejoe.travelguide.voice.SystemVoice
 import io.github.atrejoe.travelguide.voice.SystemVoices
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
 import io.github.atrejoe.travelguide.voice.VoiceEngine
 import io.github.atrejoe.travelguide.voice.VoicePackage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -62,6 +69,15 @@ private val SAMPLE = listOf(
     "As we travel, I'll tell you about the places we pass: the legends behind their names, " +
         "the battles they survived, and the people who shaped them.",
 )
+
+private const val PRELOAD_DELAY_MILLIS = 700L
+
+/** How fast a voice renders on this phone, measured during the preview. */
+private fun speedInfo(label: String, factor: Double): String {
+    val seconds = String.format(Locale.ROOT, "%.1f", factor)
+    val verdict = if (factor > 1.1) "too slow for this phone, so expect pauses between sentences" else "fast enough"
+    return "$label renders 1 second of speech in $seconds s: $verdict."
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -74,10 +90,20 @@ fun SettingsScreen(onBack: () -> Unit) {
     val installed by models.installed.collectAsStateWithLifecycle()
     val progress by models.progress.collectAsStateWithLifecycle()
     var systemVoices by remember { mutableStateOf<List<SystemVoice>>(emptyList()) }
-    var previewing by remember { mutableStateOf(false) }
+    var previewJob by remember { mutableStateOf<Job?>(null) }
     var previewInfo by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { systemVoices = SystemVoices.load(context) }
+
+    // Load the selected voice in the background, so "Preview voice" can start speaking at once.
+    val preview = remember { PreviewNarrator(context, models) }
+    DisposableEffect(preview) { onDispose { preview.release() } }
+    LaunchedEffect(preview) {
+        repo.settings.distinctUntilChangedBy { it.voiceId }.collectLatest { s ->
+            delay(PRELOAD_DELAY_MILLIS) // Skip voices only passed by while choosing.
+            preview.get(s)
+        }
+    }
 
     fun select(voiceId: String) = scope.launch { repo.update { it.copy(voiceId = voiceId) } }
 
@@ -185,24 +211,35 @@ fun SettingsScreen(onBack: () -> Unit) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(
-                        enabled = !previewing,
                         onClick = {
-                            previewing = true
-                            previewInfo = "Loading voice…"
-                            scope.launch {
-                                val choice = Narrators.create(context, settings, models)
-                                previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
-                                try {
-                                    SAMPLE.forEachIndexed { i, sentence ->
-                                        choice.narrator.speak(sentence, upcoming = SAMPLE.getOrNull(i + 1))
+                            val playing = previewJob
+                            if (playing != null) {
+                                // Cut the sentence off right away; cancelling ends the preview.
+                                preview.stop()
+                                playing.cancel()
+                                previewJob = null
+                            } else {
+                                previewInfo = "Loading voice…"
+                                previewJob = scope.launch {
+                                    try {
+                                        val choice = preview.get(settings)
+                                        previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
+                                        val pieces = Narrators.pieces(choice.narrator, SAMPLE)
+                                        choice.narrator.prepare(pieces.map { it.text })
+                                        for (piece in pieces) {
+                                            if (!choice.narrator.speak(piece.text)) break
+                                        }
+                                        choice.narrator.realTimeFactor?.let { factor ->
+                                            previewInfo = speedInfo(choice.narrator.label, factor)
+                                        }
+                                    } finally {
+                                        // Unless a newer preview has started meanwhile.
+                                        if (previewJob === coroutineContext.job) previewJob = null
                                     }
-                                } finally {
-                                    choice.narrator.release()
-                                    previewing = false
                                 }
                             }
                         },
-                    ) { Text(if (previewing) "Speaking…" else "Preview voice") }
+                    ) { Text(if (previewJob != null) "Stop preview" else "Preview voice") }
                     previewInfo?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
                 }
             }
