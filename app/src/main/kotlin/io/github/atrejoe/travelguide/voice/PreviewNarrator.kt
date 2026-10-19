@@ -36,6 +36,11 @@ class PreviewNarrator(private val context: Context, private val models: VoiceMod
         fresh
     }
 
+    /** Stops the preview being spoken, keeping the voice loaded. */
+    fun stop() {
+        choice?.narrator?.stop()
+    }
+
     /** Stops any preview and frees the voice. */
     fun release() {
         closed = true

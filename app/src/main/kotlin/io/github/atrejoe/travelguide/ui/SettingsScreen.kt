@@ -56,9 +56,11 @@ import io.github.atrejoe.travelguide.voice.SystemVoices
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
 import io.github.atrejoe.travelguide.voice.VoiceEngine
 import io.github.atrejoe.travelguide.voice.VoicePackage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChangedBy
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -88,7 +90,7 @@ fun SettingsScreen(onBack: () -> Unit) {
     val installed by models.installed.collectAsStateWithLifecycle()
     val progress by models.progress.collectAsStateWithLifecycle()
     var systemVoices by remember { mutableStateOf<List<SystemVoice>>(emptyList()) }
-    var previewing by remember { mutableStateOf(false) }
+    var previewJob by remember { mutableStateOf<Job?>(null) }
     var previewInfo by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) { systemVoices = SystemVoices.load(context) }
@@ -209,28 +211,35 @@ fun SettingsScreen(onBack: () -> Unit) {
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Button(
-                        enabled = !previewing,
                         onClick = {
-                            previewing = true
-                            previewInfo = "Loading voice…"
-                            scope.launch {
-                                val choice = preview.get(settings)
-                                previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
-                                try {
-                                    val pieces = Narrators.pieces(choice.narrator, SAMPLE)
-                                    choice.narrator.prepare(pieces.map { it.text })
-                                    for (piece in pieces) {
-                                        if (!choice.narrator.speak(piece.text)) break
+                            val playing = previewJob
+                            if (playing != null) {
+                                // Cut the sentence off right away; cancelling ends the preview.
+                                preview.stop()
+                                playing.cancel()
+                                previewJob = null
+                            } else {
+                                previewInfo = "Loading voice…"
+                                previewJob = scope.launch {
+                                    try {
+                                        val choice = preview.get(settings)
+                                        previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
+                                        val pieces = Narrators.pieces(choice.narrator, SAMPLE)
+                                        choice.narrator.prepare(pieces.map { it.text })
+                                        for (piece in pieces) {
+                                            if (!choice.narrator.speak(piece.text)) break
+                                        }
+                                        choice.narrator.realTimeFactor?.let { factor ->
+                                            previewInfo = speedInfo(choice.narrator.label, factor)
+                                        }
+                                    } finally {
+                                        // Unless a newer preview has started meanwhile.
+                                        if (previewJob === coroutineContext.job) previewJob = null
                                     }
-                                    choice.narrator.realTimeFactor?.let { factor ->
-                                        previewInfo = speedInfo(choice.narrator.label, factor)
-                                    }
-                                } finally {
-                                    previewing = false
                                 }
                             }
                         },
-                    ) { Text(if (previewing) "Speaking…" else "Preview voice") }
+                    ) { Text(if (previewJob != null) "Stop preview" else "Preview voice") }
                     previewInfo?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
                 }
             }

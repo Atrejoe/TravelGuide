@@ -18,7 +18,7 @@ All notable changes to this project are documented here. The format follows
   at commas so the first words come sooner. When a voice is too slow for the phone, the guide
   screen says so, and the voice preview in Settings shows how fast it renders. The preview no
   longer loads the voice on every tap: Settings loads the selected voice in the background, and
-  changing pitch or rate no longer reloads it.
+  changing pitch or rate no longer reloads it. While a preview plays, its button stops it.
 
 ### Added
 
