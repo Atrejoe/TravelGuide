@@ -21,6 +21,12 @@ tiles)._
 
 - **Narrates your surroundings** from geotagged Wikipedia articles: towns you enter, rivers you
   cross, castles on the hill.
+- **A walking tour of any town.** On foot it also tells about the town itself and the buildings
+  and institutions you pass: the town hall, churches, museums, the university, listed monuments.
+  This includes places without their own Wikipedia article: their facts come from
+  [OpenStreetMap](https://www.openstreetmap.org/) and [Wikidata](https://www.wikidata.org/)
+  ("It was built in 1488. Today it is protected as a Rijksmonument, a listed national
+  monument."). Free sources, no API key.
 - **Looks ahead.** It predicts where you will be in the next few minutes. With a planned route
   it follows that route; otherwise it extends your current heading. It tells you about what is
   *coming up* rather than what you just passed, and says on which side it is.
@@ -104,7 +110,8 @@ GPS fixes ─▶ MotionTracker ─▶ travel mode, speed, heading
                                 │
                RouteExtrapolator (planned route or dead reckoning)
                                 │  predicted path
-Wikipedia geosearch ─▶ PoiScorer (prominence × interest × geometry × mode weights)
+Wikipedia geosearch ─┐
+OSM buildings + Wikidata (walking) ─┴▶ PoiScorer (prominence × interest × geometry × mode weights)
                                 │  best place
                      NarrationComposer (opener + cleaned article sentences)
                                 │
@@ -113,7 +120,7 @@ Wikipedia geosearch ─▶ PoiScorer (prominence × interest × geometry × mode
 
 | Module | Contents |
 |---|---|
-| `core/` | Pure Kotlin, no Android: geo math, motion detection, route prediction, scoring, Wikipedia client, narration text, route import (GPX/FIT, Google Maps/Komoot/Garmin links, OSRM, Nominatim). Fast JVM unit tests. |
+| `core/` | Pure Kotlin, no Android: geo math, motion detection, route prediction, scoring, Wikipedia, Wikidata and OpenStreetMap clients, narration text, route import (GPX/FIT, Google Maps/Komoot/Garmin links, OSRM, Nominatim). Fast JVM unit tests. |
 | `app/` | Android app (Kotlin, Jetpack Compose): foreground service, location, audio focus, media session, notification, Quick Settings tile, voice download and playback, route sharing and navigation notifications. |
 
 ## Develop
@@ -151,6 +158,10 @@ LLM storytelling and climate facts.
 - Place information: [Wikipedia](https://www.wikipedia.org/) contributors, under
   [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). The app links every story to
   its source article.
+- Buildings and institutions: © [OpenStreetMap](https://www.openstreetmap.org/copyright)
+  contributors (ODbL), read through the [Overpass API](https://overpass-api.de/), and
+  [Wikidata](https://www.wikidata.org/) (CC0). The town you are in is found with
+  [Nominatim](https://nominatim.org/).
 - Map: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, displayed with
   [osmdroid](https://github.com/osmdroid/osmdroid) (Apache 2.0).
 - Routing for shared Google Maps links: [OSRM](https://project-osrm.org/) on the FOSSGIS servers
