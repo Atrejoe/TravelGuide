@@ -12,6 +12,10 @@ lifecycle = "2.11.0"
 media = "1.8.0"
 datastore = "1.2.1"
 commonsCompress = "1.28.0"
+# Optional bring-your-own-key storytelling (issue #7).
+anthropic = "2.73.0"
+# Gemini Nano on the phone, through AICore (ML Kit GenAI Prompt API).
+mlkitGenaiPrompt = "1.0.0-beta4"
 junit = "6.1.3"
 osmdroid = "6.1.20"
 # Screenshots rendered on the JVM (Robolectric), see app/src/test.
@@ -37,6 +41,8 @@ compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview"
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
 compose-material3 = { module = "androidx.compose.material3:material3" }
 compose-material-icons-core = { module = "androidx.compose.material:material-icons-core" }
+anthropic-java = { module = "com.anthropic:anthropic-java", version.ref = "anthropic" }
+mlkit-genai-prompt = { module = "com.google.mlkit:genai-prompt", version.ref = "mlkitGenaiPrompt" }
 commons-compress = { module = "org.apache.commons:commons-compress", version.ref = "commonsCompress" }
 osmdroid = { module = "org.osmdroid:osmdroid-android", version.ref = "osmdroid" }
 junit-bom = { module = "org.junit:junit-bom", version.ref = "junit" }

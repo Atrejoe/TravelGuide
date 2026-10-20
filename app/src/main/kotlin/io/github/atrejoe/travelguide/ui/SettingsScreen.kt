@@ -268,6 +268,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Switch(checked = settings.walkingPlaces, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
                 }
             }
+            item { StorytellerSettings(settings) }
 
             item { HorizontalDivider() }
             item { NavigationSettings() }
@@ -276,7 +277,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             item {
                 Text(
                     "Stories come from Wikipedia (CC BY-SA 4.0), and for buildings from OpenStreetMap (ODbL) and Wikidata (CC0). Map © OpenStreetMap contributors (ODbL). Roads, railways and buildings: Overpass API. Routing: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
-                        "with sherpa-onnx (Apache 2.0). No AI service is used while guiding.",
+                        "with sherpa-onnx (Apache 2.0). No AI service is used while guiding, unless you choose Gemini Nano or Claude as the storyteller.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

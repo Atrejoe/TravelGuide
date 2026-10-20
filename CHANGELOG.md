@@ -7,6 +7,24 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Optionally, a language model retells the stories ([#7](../../issues/7)): pick the storyteller
+  in Settings → Stories. The built-in storyteller stays the default.
+  - **Gemini Nano** runs on the phone through Android AICore: free, and nothing leaves the phone.
+    Settings shows whether the phone offers it and can download it.
+  - **Claude** uses your own Anthropic API key, stored encrypted with the Android Keystore. Choose
+    the model (Claude Opus 5.5 by default, or Sonnet 5.5 or Haiku 5.5, with a cost per place) and
+    a monthly budget.
+  - Only the part about the place itself is retold, from its Wikipedia text; the opening line
+    saying where it is and the nearby places stay as they are. Retold stories are kept, so a place
+    is retold (and paid for) only once. When there's no key, the budget is spent, nothing comes
+    back within 20 seconds or anything goes wrong, the built-in story is told.
+- **Experimental:** an open model run by the app itself can retell the stories too
+  ([#51](../../issues/51)): free, offline and private, on any 64-bit phone. Pick *Open model, on
+  this phone* in Settings → Stories, download Qwen3 1.7B, Gemma 3 1B or SmolLM2 1.7B (about 1 GB),
+  and use *Measure speed* to see how fast your phone runs it. Runs on llama.cpp, built from source.
+
 ## [0.3.0] - 2026-10-19
 
 ### Added

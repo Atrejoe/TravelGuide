@@ -21,6 +21,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)
     api(libs.commons.compress)
+    implementation(libs.anthropic.java)
 
     testImplementation(kotlin("test"))
     testImplementation(platform(libs.junit.bom))

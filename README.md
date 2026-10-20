@@ -67,7 +67,18 @@ contributors._
 - **Pause from anywhere.** Use the media controls in the notification shade, the lock screen,
   Bluetooth/headset buttons or the **Quick Settings tile**.
 - **No paid AI at runtime.** Stories come from Wikipedia text with hand-written phrasing, so
-  there are no API costs. Bring-your-own-key LLM storytelling is on the roadmap as an option.
+  there are no API costs.
+- **Optionally, a language model retells the stories** (Settings → Stories), from the place's
+  Wikipedia article and keeping to its facts:
+  - **Gemini Nano**, on the phone itself through Android AICore: free and private, on phones
+    that offer it (e.g. Pixel 9 and later).
+  - **An open model run by the app itself** (experimental): Qwen3, Gemma 3 or SmolLM2 on
+    llama.cpp, downloaded once (about 1 GB). Free and offline on any 64-bit phone, but slower.
+  - **Claude**, with your own Anthropic API key. You choose the model and a monthly budget; a
+    place is paid for only once. The key is stored encrypted with the Android Keystore and only
+    sent to the Anthropic API.
+
+  On any problem you hear the built-in story.
 
 ## Install
 
@@ -150,8 +161,7 @@ changelog, CI).
 ## Roadmap
 
 Planned features are tracked as [issues](../../issues), such as voice choice and
-Dutch narration, interest selection, start suggestions, optional BYO-key
-LLM storytelling and climate facts.
+Dutch narration, interest selection, start suggestions and climate facts.
 
 ## Credits
 
