@@ -3,8 +3,7 @@ package io.github.atrejoe.travelguide.core.voice
 /**
  * How many threads a voice model gets. onnxruntime splits every step evenly over its threads and
  * waits for the slowest, so on a phone with big and little cores a thread on a little core holds
- * the others up. A Fairphone 4 (Snapdragon 750G: 2 fast, 6 slow cores) rendered slower with 4
- * threads than real time. So: one thread per core outside the slowest cluster, at most [MAX].
+ * the others up. So: one thread per core outside the slowest cluster, at most [MAX].
  */
 object SynthesisThreads {
     const val MAX = 4

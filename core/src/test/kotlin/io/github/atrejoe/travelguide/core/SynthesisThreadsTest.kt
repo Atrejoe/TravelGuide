@@ -7,9 +7,8 @@ import kotlin.test.assertEquals
 class SynthesisThreadsTest {
     @Test
     fun `big and little cores use only the big ones`() {
-        // Snapdragon 750G (Fairphone 4): 6 × 1.8 GHz, 2 × 2.2 GHz.
-        val sd750g = List(6) { 1_804_800L } + List(2) { 2_208_000L }
-        assertEquals(2, SynthesisThreads.forCores(sd750g, fallback = 8))
+        val twoBig = List(6) { 1_800_000L } + List(2) { 2_200_000L }
+        assertEquals(2, SynthesisThreads.forCores(twoBig, fallback = 8))
     }
 
     @Test

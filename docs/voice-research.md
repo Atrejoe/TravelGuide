@@ -26,7 +26,7 @@ to run, work offline, and optionally let users plug in a paid voice service with
 |---|---|---|---|---|---|
 | **Kokoro v0.19 int8** | Very good: natural prosody and breathing | 99 MB (all 11 speakers) | Real time on recent mid/high-end phones; slower than real time on budget phones | George, Lewis (British), Michael, Adam (American) | Apache 2.0 |
 | Kokoro v1.x multi-lang | Very good; more voices | 140 MB (int8) – 348 MB | As above | More, but needs extra lexicons | Apache 2.0 |
-| Piper high | Fair | 110 MB (the fp16 export crashes on some sentences) | Five times slower than medium; slower than real time on a Fairphone 4 | Ryan (until 0.5.0) | MIT / per-voice |
+| Piper high | Fair | 110 MB (the fp16 export crashes on some sentences) | Five times slower than medium; slower than real time on mid-range phones | Ryan (until 0.5.0) | MIT / per-voice |
 | Piper medium | Fair to robotic | 34 MB (fp16), 67 MB (fp32) | Very fast | Norman, Alan, Ryan, Joe, … | MIT / per-voice |
 | Kitten TTS | Fair; expressive for its size | ~25 MB | Slow for its size | Several | Apache 2.0 |
 | Supertonic | Good, multilingual | Varies | Fast | Several | License unclear (check before use) |

@@ -17,8 +17,8 @@ All notable changes to this project are documented here. The format follows
 
 - Faster lite voices ([#59](../../issues/59)): Ryan now uses Piper's medium model, which renders
   about five times faster than the high one; download Ryan again once (67 MB instead of 110 MB).
-  On-device voices run on the phone's fast cores only, e.g. 2 threads instead of 4 on a
-  Fairphone 4, so the slow cores no longer hold every step up.
+  On phones with fast and slow cores, on-device voices run on the fast cores only, so the slow
+  cores no longer hold every step up.
 
 ### Fixed
 
