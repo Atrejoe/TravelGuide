@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Fixed
+
+- The lite voices (Piper: Norman, Ryan, Alan) crashed the app as soon as a story started
+  ([#53](../../issues/53)): their 22 050 Hz audio got a buffer size the phone refuses. A voice
+  that can't play now skips the story instead of crashing the app.
+
 ## [0.4.0] - 2026-10-20
 
 ### Added
@@ -35,8 +41,8 @@ All notable changes to this project are documented here. The format follows
 
 ### Known issues
 
-- The open model Gemma 3 1B crashes the app on some phones, e.g. a Fairphone 4
-  ([#53](../../issues/53)).
+- The lite voices (Piper) crash the app when a story starts ([#53](../../issues/53)); fixed in the
+  next release. Use a Kokoro voice until then.
 - The open model may be too slow on a mid-range phone to retell a story in the 20 seconds it
   gets; you then hear the built-in story. Retelling ahead of time is planned
   ([#54](../../issues/54)).

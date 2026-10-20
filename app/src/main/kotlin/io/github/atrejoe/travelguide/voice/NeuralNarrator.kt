@@ -146,21 +146,24 @@ class NeuralNarrator(
     }
 
     private suspend fun play(samples: FloatArray, sampleRate: Int): Boolean {
-        val minBuffer = AudioTrack.getMinBufferSize(
-            sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT,
-        )
-        val audioTrack = AudioTrack.Builder()
-            .setAudioAttributes(Narrators.audioAttributes)
-            .setAudioFormat(
-                AudioFormat.Builder()
-                    .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
-                    .setSampleRate(sampleRate)
-                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                    .build(),
-            )
-            .setTransferMode(AudioTrack.MODE_STREAM)
-            .setBufferSizeInBytes(maxOf(minBuffer, sampleRate)) // ~0.25 s of float samples
-            .build()
+        val audioTrack = try {
+            AudioTrack.Builder()
+                .setAudioAttributes(Narrators.audioAttributes)
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_FLOAT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build(),
+                )
+                .setTransferMode(AudioTrack.MODE_STREAM)
+                .setBufferSizeInBytes(bufferSize(sampleRate))
+                .build()
+        } catch (e: RuntimeException) {
+            // The story fails, not the app (issue #53).
+            Log.e(TAG, "Cannot play audio at $sampleRate Hz", e)
+            return false
+        }
         track = audioTrack
         try {
             // Pitch shifting is done by time-stretching, which adds a metallic edge; only use it
@@ -197,6 +200,16 @@ class NeuralNarrator(
         }
     }
 
+    /**
+     * About 0.25 s of mono float samples, at least what the device needs, in whole frames of 4
+     * bytes: AudioTrack refuses anything else, e.g. 22 050 bytes for a 22 050 Hz Piper voice (#53).
+     */
+    private fun bufferSize(sampleRate: Int): Int {
+        val minBuffer = AudioTrack.getMinBufferSize(sampleRate, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_FLOAT)
+        val bytes = maxOf(minBuffer, sampleRate)
+        return (bytes + FRAME_BYTES - 1) / FRAME_BYTES * FRAME_BYTES
+    }
+
     override fun stop() {
         stopped = true
         track?.let {
@@ -226,5 +239,8 @@ class NeuralNarrator(
 
     private companion object {
         const val TAG = "NeuralNarrator"
+
+        /** One mono sample of 32-bit float PCM. */
+        const val FRAME_BYTES = 4
     }
 }
