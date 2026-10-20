@@ -52,6 +52,15 @@
       "depNameTemplate": "k2-fsa/sherpa-onnx",
       "datasourceTemplate": "github-releases",
       "extractVersionTemplate": "^v(?<version>.+)$"
+    },
+    {
+      "description": "llama.cpp for the on-device storyteller, fetched by app/src/main/cpp/CMakeLists.txt. Its b<build> tags come out several times a day; the monthly schedule keeps that to one PR.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^app/src/main/cpp/CMakeLists\\.txt$/"],
+      "matchStrings": ["set\\(LLAMA_CPP_TAG (?<currentValue>b\\d+)\\)"],
+      "depNameTemplate": "ggml-org/llama.cpp",
+      "datasourceTemplate": "github-tags",
+      "versioningTemplate": "regex:^b(?<major>\\d+)$"
     }
   ]
 }

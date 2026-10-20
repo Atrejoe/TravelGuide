@@ -1,0 +1,47 @@
+# Checks that the open models of the on-device storyteller (issue #51) can still be downloaded,
+# and prints their size and SHA-256 for LocalModels. Only when the catalog changes, and monthly.
+name: Model links
+
+on:
+  pull_request:
+    paths:
+      - 'core/src/main/kotlin/io/github/atrejoe/travelguide/core/enhance/LocalStoryEnhancer.kt'
+      - '.github/workflows/model-links.yml'
+  schedule:
+    - cron: '17 5 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    name: Model links
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Check every model URL
+        run: |
+          catalog=core/src/main/kotlin/io/github/atrejoe/travelguide/core/enhance/LocalStoryEnhancer.kt
+          status=0
+          echo "| Model file | Size | SHA-256 |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| --- | --- | --- |" >> "$GITHUB_STEP_SUMMARY"
+          for url in $(grep -oE 'https://huggingface\.co/[^"]+\.gguf' "$catalog"); do
+            # Hugging Face names the file's SHA-256 in X-Linked-Etag on its redirect.
+            headers="$(curl -sSI --max-time 30 "$url")" || { echo "::error::$url unreachable"; status=1; continue; }
+            code="$(echo "$headers" | head -n1 | awk '{print $2}')"
+            sha="$(echo "$headers" | grep -i '^x-linked-etag:' | tr -d '"\r' | awk '{print $2}')"
+            size="$(echo "$headers" | grep -i '^x-linked-size:' | tr -d '\r' | awk '{print $2}')"
+            if [[ "$code" != 302 && "$code" != 200 ]] || [[ -z "$sha" ]]; then
+              echo "::error::$url answered HTTP $code"
+              status=1
+              continue
+            fi
+            echo "$url: $((size / 1000000)) MB, sha256 $sha"
+            echo "| ${url##*/} | $((size / 1000000)) MB | \`$sha\` |" >> "$GITHUB_STEP_SUMMARY"
+            if ! grep -q "$sha" "$catalog"; then
+              echo "::warning::${url##*/} has no sha256 in the catalog (or a different one): $sha"
+            fi
+          done
+          exit $status

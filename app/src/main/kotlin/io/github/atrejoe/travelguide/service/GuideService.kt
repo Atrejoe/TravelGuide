@@ -25,6 +25,8 @@ import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.core.enhance.ClaudeStoryEnhancer
+import io.github.atrejoe.travelguide.core.enhance.LocalModels
+import io.github.atrejoe.travelguide.core.enhance.LocalStoryEnhancer
 import io.github.atrejoe.travelguide.core.enhance.StoryEnhancement
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
@@ -47,6 +49,8 @@ import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.settings.Storyteller
+import io.github.atrejoe.travelguide.story.LlamaModel
+import io.github.atrejoe.travelguide.story.LocalOnDevice
 import io.github.atrejoe.travelguide.story.NanoStoryEnhancer
 import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
@@ -299,11 +303,13 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     }
 
     /** Rebuilt when the storyteller, key, model or budget changes; null when it can't be used. */
-    private fun currentEnhancement(): StoryEnhancement? {
+    private suspend fun currentEnhancement(): StoryEnhancement? {
         val storyteller = settings.storyteller
         val key = if (storyteller == Storyteller.CLAUDE) app.apiKeys.get() ?: return null else null
         if (storyteller == Storyteller.GEMINI_NANO && !NanoStoryEnhancer.supported) return null
-        val config = listOf(storyteller, key.orEmpty(), settings.claudeModel, settings.monthlyBudgetUsd)
+        val localModel = LocalModels.byId(settings.localModel)
+        val localFile = if (storyteller == Storyteller.ON_DEVICE) app.localModels.file(localModel) ?: return null else null
+        val config = listOf(storyteller, key.orEmpty(), settings.claudeModel, settings.monthlyBudgetUsd, localModel.id)
         if (config != enhancementConfig) {
             closeEnhancement()
             enhancementConfig = config
@@ -315,6 +321,13 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 )
                 // Free: no budget.
                 Storyteller.GEMINI_NANO -> StoryEnhancement(NanoStoryEnhancer(), app.retoldStories, Double.MAX_VALUE)
+                Storyteller.ON_DEVICE -> try {
+                    val llama = LlamaModel.load(this, localFile!!)
+                    StoryEnhancement(LocalOnDevice(LocalStoryEnhancer(llama, localModel), llama), app.retoldStories, Double.MAX_VALUE)
+                } catch (e: Exception) {
+                    Log.w(TAG, "Could not load ${localModel.name}", e)
+                    null
+                }
                 Storyteller.BUILT_IN -> null
             }
         }

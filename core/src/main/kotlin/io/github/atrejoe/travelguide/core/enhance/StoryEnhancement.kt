@@ -42,6 +42,9 @@ interface StoryEnhancer {
     /** The most one [retell] can cost, so a call never runs over the budget. */
     val maxCostUsd: Double
 
+    /** The most article text to send; a model that reads slowly gets less. */
+    val maxSourceChars: Int get() = 6_000
+
     suspend fun retell(request: StoryRequest): RetoldStory
 }
 
@@ -129,8 +132,8 @@ class StoryEnhancement(
         val request = StoryRequest(
             title = poi.title,
             description = poi.description,
-            // The lead section plus what the template picked from the rest of the article.
-            source = (poi.extract + "\n\n" + body.joinToString(" ")).take(MAX_SOURCE_CHARS),
+            // What the template picked from the article, then its lead section, as far as it fits.
+            source = (body.joinToString(" ") + "\n\n" + poi.extract).take(enhancer.maxSourceChars),
             opener = narration.sentences.first(),
             mode = mode,
             where = NarrationComposer.label(narration.relative),
@@ -170,7 +173,6 @@ class StoryEnhancement(
 
     companion object {
         const val DEFAULT_TIMEOUT_MILLIS = 20_000L
-        private const val MAX_SOURCE_CHARS = 6_000
         private const val MIN_SENTENCES = 3
     }
 }

@@ -20,6 +20,10 @@ All notable changes to this project are documented here. The format follows
     saying where it is and the nearby places stay as they are. Retold stories are kept, so a place
     is retold (and paid for) only once. When there's no key, the budget is spent, nothing comes
     back within 20 seconds or anything goes wrong, the built-in story is told.
+- **Experimental:** an open model run by the app itself can retell the stories too
+  ([#51](../../issues/51)): free, offline and private, on any 64-bit phone. Pick *Open model, on
+  this phone* in Settings → Stories, download Qwen3 1.7B, Gemma 3 1B or SmolLM2 1.7B (about 1 GB),
+  and use *Measure speed* to see how fast your phone runs it. Runs on llama.cpp, built from source.
 
 ## [0.3.0] - 2026-10-19
 

@@ -72,6 +72,8 @@ contributors._
   Wikipedia article and keeping to its facts:
   - **Gemini Nano**, on the phone itself through Android AICore: free and private, on phones
     that offer it (e.g. Pixel 9 and later).
+  - **An open model run by the app itself** (experimental): Qwen3, Gemma 3 or SmolLM2 on
+    llama.cpp, downloaded once (about 1 GB). Free and offline on any 64-bit phone, but slower.
   - **Claude**, with your own Anthropic API key. You choose the model and a monthly budget; a
     place is paid for only once. The key is stored encrypted with the Android Keystore and only
     sent to the Anthropic API.
