@@ -36,6 +36,7 @@ object CrashReport {
 
     /** Marks risky work; when the app dies during [block], the next report names [step]. */
     suspend fun <T> during(step: String, block: suspend () -> T): T {
+        CrashReporting.step(step)
         if (!::dir.isInitialized) return block()
         write(stepFile, step)
         try {

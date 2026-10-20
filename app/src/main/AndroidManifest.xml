@@ -27,6 +27,9 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.TravelGuide">
 
+        <!-- Sentry only starts when the listener opts in (CrashReporting). -->
+        <meta-data android:name="io.sentry.auto-init" android:value="false" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"

@@ -82,6 +82,22 @@ To sign local builds with the same key, set `TRAVELGUIDE_KEYSTORE_FILE` (absolut
 environment variables or Gradle properties (e.g. in `~/.gradle/gradle.properties`). Never commit
 a keystore or password; `*.jks` and `*.keystore` are git-ignored.
 
+## Crash reports (Sentry)
+
+Testers can opt in to crash reports in Settings → *Send crash reports* (issue #56). The switch is
+only there in builds with a Sentry DSN; without one the app never reports.
+
+- **Set up once:** create a Sentry project for Android and add these repository secrets.
+  - `SENTRY_DSN`: the project's DSN. It is the same for every user and ends up in the APK, so it
+    is not a real secret; keeping it in a secret only keeps forks and local builds from reporting.
+  - `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, `SENTRY_PROJECT` (optional): CI then uploads the native debug
+    symbols of stable-signed builds, so llama.cpp crashes show function names and lines.
+- **Locally:** pass `-PSENTRY_DSN=…` to Gradle to try it.
+- **Privacy:** reports have no personal data, location, place names, screenshots or tracing; what
+  the app was doing (e.g. "writing a story with Gemma 3 1B") goes along as a breadcrumb.
+- **Reading reports from Claude:** connect Sentry's MCP connector at claude.ai → Customize →
+  Connectors, then start a new session.
+
 ## Keeping CI fast
 
 - Put logic in `core/` whenever possible. It runs on the plain JVM and is tested in about a

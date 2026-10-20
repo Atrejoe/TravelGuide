@@ -130,6 +130,8 @@ jobs:
           TRAVELGUIDE_KEYSTORE_PASSWORD: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
           TRAVELGUIDE_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           TRAVELGUIDE_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+          # Opt-in crash reports (issue #56); without it the app never reports.
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
           task=":app:assemble${VARIANT^}"
           ./gradlew "$task" :app:lintDebug :core:test \
@@ -139,6 +141,23 @@ jobs:
       - name: Remove signing key
         if: always()
         run: rm -f "$RUNNER_TEMP/travelguide-signing.jks"
+
+      # Native crash reports (llama.cpp) only show function names and lines with the debug
+      # symbols, which the APK leaves out. Uploaded for stable-signed builds when Sentry is set up.
+      - name: Upload native debug symbols to Sentry
+        if: steps.signing.outputs.variant == 'release'
+        continue-on-error: true
+        env:
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+        run: |
+          if [[ -z "$SENTRY_AUTH_TOKEN" || -z "$SENTRY_ORG" || -z "$SENTRY_PROJECT" ]]; then
+            echo "Sentry is not set up (SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT); skipping."
+            exit 0
+          fi
+          npx --yes @sentry/cli@3.8.0 debug-files upload --include-sources \
+            app/build/intermediates/merged_native_libs/release
 
       - name: Upload lint report
         if: always()

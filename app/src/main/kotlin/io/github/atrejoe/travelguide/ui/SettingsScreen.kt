@@ -48,6 +48,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.atrejoe.travelguide.CrashReporting
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.NeuralVoice
@@ -273,6 +274,11 @@ fun SettingsScreen(onBack: () -> Unit) {
             item { HorizontalDivider() }
             item { NavigationSettings() }
 
+            if (CrashReporting.available) {
+                item { HorizontalDivider() }
+                item { CrashReportSettings() }
+            }
+
             item { HorizontalDivider() }
             item {
                 Text(
@@ -358,5 +364,30 @@ private fun VoiceSlider(label: String, value: Float, range: ClosedFloatingPointR
             onValueChangeFinished = { onChange(current) },
             valueRange = range,
         )
+    }
+}
+
+/** Settings → Crash reports (issue #56): opt in to sending crash reports to Sentry. */
+@Composable
+private fun CrashReportSettings() {
+    val context = LocalContext.current
+    val enabled by CrashReporting.enabled.collectAsStateWithLifecycle()
+    Row(
+        Modifier.fillMaxWidth().toggleable(
+            value = enabled,
+            onValueChange = { CrashReporting.setEnabled(context, it) },
+            role = Role.Switch,
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text("Send crash reports", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                "When the app crashes, send a report to the developer through Sentry: the error, the app and " +
+                    "Android version and the phone model. Never your location, places or stories.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        Switch(checked = enabled, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
     }
 }
