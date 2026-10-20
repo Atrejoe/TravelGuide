@@ -26,12 +26,22 @@ to run, work offline, and optionally let users plug in a paid voice service with
 |---|---|---|---|---|---|
 | **Kokoro v0.19 int8** | Very good: natural prosody and breathing | 99 MB (all 11 speakers) | Real time on recent mid/high-end phones; slower than real time on budget phones | George, Lewis (British), Michael, Adam (American) | Apache 2.0 |
 | Kokoro v1.x multi-lang | Very good; more voices | 140 MB (int8) – 348 MB | As above | More, but needs extra lexicons | Apache 2.0 |
-| Piper high | Fair | 110 MB (the fp16 export crashes on some sentences) | Fast | Ryan | MIT / per-voice |
-| Piper medium | Fair to robotic | 34 MB (fp16) | Very fast | Norman, Alan, Joe, … | MIT / per-voice |
+| Piper high | Fair | 110 MB (the fp16 export crashes on some sentences) | Five times slower than medium; slower than real time on mid-range phones | Ryan (until 0.5.0) | MIT / per-voice |
+| Piper medium | Fair to robotic | 34 MB (fp16), 67 MB (fp32) | Very fast | Norman, Alan, Ryan, Joe, … | MIT / per-voice |
 | Kitten TTS | Fair; expressive for its size | ~25 MB | Slow for its size | Several | Apache 2.0 |
 | Supertonic | Good, multilingual | Varies | Fast | Several | License unclear (check before use) |
 
 In CI (2 CPU threads) Kokoro takes 0.5–1.1 s per second of audio, and Piper medium 0.03–0.05 s.
+Measured on an x86 CPU with sherpa-onnx 1.13.8, the Piper variants compare as follows (seconds per
+second of audio, 1 / 2 / 4 threads):
+
+| Piper model | fp32 | fp16 | int8 |
+|---|---|---|---|
+| Norman medium | 0.11 / 0.09 / 0.07 | 0.12 / 0.07 / 0.04 | 0.32 / 0.26 / 0.27 |
+| Ryan medium | 0.09 / 0.06 / 0.05 | doesn't load | 0.28 / 0.22 / 0.23 |
+| Ryan high | 0.70 / 0.37 / 0.24 | 0.68 / 0.40 / 0.20 | 1.90 / 1.66 / 1.59 |
+
+The int8 exports are smaller but about three times slower, and barely gain from more threads.
 Other speed figures are indicative: a Kokoro app built on sherpa-onnx reports about 20–40 s of
 generation per minute of audio on a Snapdragon 8 Gen 3, and 60–90 s on mid-range phones. The app
 synthesises the next sentence while the current one plays, which hides most of that.
@@ -57,7 +67,7 @@ characters that is under $1 per hour.
 
 - **Default: Kokoro "George"** (deep, warm British storyteller), with Lewis, Michael and Adam as
   alternatives. One download serves all four.
-- **Lite: Piper Norman, Ryan (high) and Alan** for older phones.
+- **Lite: Piper Norman, Ryan and Alan** (medium) for older phones.
 - **System voices** remain available.
 - **Next:** bring-your-own-key cloud voices (OpenAI first, for its instruction-steerable delivery,
   then ElevenLabs). Tracked in issue #2.
