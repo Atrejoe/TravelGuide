@@ -27,6 +27,7 @@ class TravelGuideApp : Application() {
     override fun onCreate() {
         super.onCreate()
         CrashReport.install(this)
+        CrashReporting.start(this)
         settings = SettingsRepository(this)
         voiceModels = VoiceModelManager(this)
         apiKeys = ApiKeyStore(this)

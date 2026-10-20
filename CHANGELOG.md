@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Opt-in crash reports ([#56](../../issues/56)): with *Send crash reports* on in Settings, a crash
+  is reported to the developer through Sentry, including crashes in the open model's native code.
+  Off by default; reports contain no location, places or stories.
+
 ### Fixed
 
 - The lite voices (Piper: Norman, Ryan, Alan) crashed the app as soon as a story started

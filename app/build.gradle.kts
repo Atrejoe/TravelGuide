@@ -49,6 +49,11 @@ android {
         // The base version lives in gradle.properties (appVersion); CI adds a -prN.run / -dev.run suffix.
         versionName = (findProperty("versionName") as String?) ?: (findProperty("appVersion") as String?) ?: "0.0.0"
 
+        // Opt-in crash reports (issue #56): the project's Sentry DSN, the same for every user. Without
+        // it (forks, local builds) the app never reports. A Gradle property or environment variable.
+        val sentryDsn = (providers.gradleProperty("SENTRY_DSN").orNull ?: providers.environmentVariable("SENTRY_DSN").orNull).orEmpty().trim()
+        buildConfigField("String", "SENTRY_DSN", "\"$sentryDsn\"")
+
         ndk {
             // Keeps the APK small: virtually all current phones are arm64; x86_64 is for emulators.
             abiFilters += listOf("arm64-v8a", "x86_64")
@@ -58,7 +63,9 @@ android {
         externalNativeBuild {
             cmake {
                 abiFilters("arm64-v8a")
-                arguments += "-DCMAKE_BUILD_TYPE=Release"
+                // Optimised, with debug info for readable native crash reports (issue #56); the APK
+                // itself gets the stripped libraries.
+                arguments += "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
             }
         }
     }
@@ -140,6 +147,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.osmdroid)
     implementation(libs.mlkit.genai.prompt)
+    implementation(libs.sentry.android)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
