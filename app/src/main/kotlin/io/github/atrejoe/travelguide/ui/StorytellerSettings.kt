@@ -102,6 +102,12 @@ fun StorytellerSettings(settings: AppSettings) {
             settings.storyteller == Storyteller.GEMINI_NANO,
         ) { choose(Storyteller.GEMINI_NANO) }
         StorytellerRow(
+            "Open model, on this phone",
+            "Retells each story with a small open model that the app runs itself. Free and private, on any recent " +
+                "phone; needs a download of about 1 GB, and is slower and less accurate than Claude. Experimental.",
+            settings.storyteller == Storyteller.ON_DEVICE,
+        ) { choose(Storyteller.ON_DEVICE) }
+        StorytellerRow(
             "Claude, with your own key",
             "Retells each story from its Wikipedia article with your own Anthropic API key. Anthropic bills you per " +
                 "story; a place is paid for only once.",
@@ -126,6 +132,7 @@ fun StorytellerSettings(settings: AppSettings) {
                 Button(onClick = { downloadNano() }) { Text("Download Gemini Nano") }
             }
         }
+        if (settings.storyteller == Storyteller.ON_DEVICE) OnDeviceSettings(settings)
         if (settings.storyteller != Storyteller.CLAUDE) return@Column
 
         if (hasKey) {

@@ -53,6 +53,14 @@ android {
             // Keeps the APK small: virtually all current phones are arm64; x86_64 is for emulators.
             abiFilters += listOf("arm64-v8a", "x86_64")
         }
+
+        // The on-device storyteller (issue #51): llama.cpp, phones only.
+        externalNativeBuild {
+            cmake {
+                abiFilters("arm64-v8a")
+                arguments += "-DCMAKE_BUILD_TYPE=Release"
+            }
+        }
     }
 
     signingConfigs {
@@ -92,8 +100,17 @@ android {
         buildConfig = true
     }
 
+    externalNativeBuild {
+        cmake {
+            path("src/main/cpp/CMakeLists.txt")
+        }
+    }
+
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        // llama.cpp loads the best of its CPU variants from files at runtime, so they must be
+        // unpacked on install.
+        jniLibs.useLegacyPackaging = true
     }
 
     testOptions {
