@@ -36,6 +36,9 @@ data class RetoldStory(val text: String, val costUsd: Double)
 
 /** Retells a story with a language model. Throws on any failure; [StoryEnhancement] falls back. */
 interface StoryEnhancer {
+    /** Names the storyteller in the cache, so switching to another one retells the stories. */
+    val id: String
+
     /** The most one [retell] can cost, so a call never runs over the budget. */
     val maxCostUsd: Double
 
@@ -93,7 +96,7 @@ enum class EnhanceOutcome {
  * longer than [timeoutMillis] for a story.
  */
 class StoryEnhancement(
-    private val enhancer: StoryEnhancer,
+    val enhancer: StoryEnhancer,
     private val store: StoryStore,
     private val monthlyBudgetUsd: Double,
     private val timeoutMillis: Long = DEFAULT_TIMEOUT_MILLIS,
@@ -111,7 +114,7 @@ class StoryEnhancement(
     suspend fun enhance(narration: Narration, mode: TravelMode, interests: Map<Interest, Double>): Narration {
         val poi = narration.poi
         if (poi.extract.isBlank() || narration.bodySize == 0) return narration.also { lastOutcome = EnhanceOutcome.SKIPPED }
-        val key = "${poi.lang}:${poi.pageId}"
+        val key = "${enhancer.id}:${poi.lang}:${poi.pageId}"
         store.story(key)?.let { cached ->
             sentencesOf(cached)?.let {
                 lastOutcome = EnhanceOutcome.CACHED

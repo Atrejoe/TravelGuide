@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -14,7 +13,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -33,9 +31,13 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import com.google.mlkit.genai.common.DownloadStatus
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.settings.AppSettings
+import io.github.atrejoe.travelguide.settings.Storyteller
+import io.github.atrejoe.travelguide.story.NanoStoryEnhancer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -44,8 +46,8 @@ import java.time.ZoneOffset
 import java.util.Locale
 
 /**
- * Settings → Stories: optionally let Claude retell the stories with the listener's own API key
- * (issue #7). Off by default; the guide works the same without it.
+ * Settings → Stories: who tells the stories (issue #7). Gemini Nano on the phone or Claude with
+ * the listener's own API key can retell them; the built-in storyteller is the default.
  */
 @Composable
 fun StorytellerSettings(settings: AppSettings) {
@@ -57,31 +59,74 @@ fun StorytellerSettings(settings: AppSettings) {
     var keyInput by remember { mutableStateOf("") }
     var spent by remember { mutableDoubleStateOf(0.0) }
 
-    LaunchedEffect(settings.claudeStories) {
+    var nano by remember { mutableStateOf<NanoStoryEnhancer.Availability?>(null) }
+    var nanoProgress by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(settings.storyteller) {
         spent = withContext(Dispatchers.IO) { context.app.retoldStories.spent(YearMonth.now(ZoneOffset.UTC).toString()) }
+        if (settings.storyteller == Storyteller.GEMINI_NANO) nano = NanoStoryEnhancer.status()
+    }
+
+    fun choose(storyteller: Storyteller) = scope.launch { repo.update { it.copy(storyteller = storyteller) } }
+
+    fun downloadNano() = scope.launch {
+        try {
+            NanoStoryEnhancer.download().collect { status ->
+                nanoProgress = when (status) {
+                    is DownloadStatus.DownloadStarted -> "Downloading Gemini Nano…"
+                    is DownloadStatus.DownloadProgress -> "Downloading Gemini Nano: ${status.totalBytesDownloaded / 1_000_000} MB"
+                    is DownloadStatus.DownloadFailed -> "Download failed: ${status.e.message}"
+                    is DownloadStatus.DownloadCompleted -> null
+                    else -> nanoProgress
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            nanoProgress = "Download failed: ${e.message}"
+        }
+        nano = NanoStoryEnhancer.status()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Row(
-            Modifier.fillMaxWidth().toggleable(
-                value = settings.claudeStories,
-                onValueChange = { on -> scope.launch { repo.update { it.copy(claudeStories = on) } } },
-                role = Role.Switch,
-            ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                Text("Retell stories with Claude", style = MaterialTheme.typography.bodyLarge)
-                Text(
-                    "Optional: Claude retells each story from its Wikipedia article, with your own Anthropic API key. " +
-                        "Anthropic bills you per story; a place is paid for only once. Without a key, over budget or " +
-                        "when anything goes wrong, you hear the built-in story.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
+        Text("Storyteller", style = MaterialTheme.typography.titleMedium)
+        StorytellerRow(
+            "Built-in",
+            "Stories from Wikipedia text with hand-written phrasing. Free, and works everywhere.",
+            settings.storyteller == Storyteller.BUILT_IN,
+        ) { choose(Storyteller.BUILT_IN) }
+        StorytellerRow(
+            "Gemini Nano, on this phone",
+            "Retells each story from its Wikipedia article on the phone itself, through Android AICore. Free and " +
+                "private, but only on some recent phones (e.g. Pixel 9 and later).",
+            settings.storyteller == Storyteller.GEMINI_NANO,
+        ) { choose(Storyteller.GEMINI_NANO) }
+        StorytellerRow(
+            "Claude, with your own key",
+            "Retells each story from its Wikipedia article with your own Anthropic API key. Anthropic bills you per " +
+                "story; a place is paid for only once.",
+            settings.storyteller == Storyteller.CLAUDE,
+        ) { choose(Storyteller.CLAUDE) }
+        Text(
+            "When a story can't be retold, you hear the built-in one.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        if (settings.storyteller == Storyteller.GEMINI_NANO) {
+            val status = nanoProgress ?: when (nano) {
+                null -> "Checking whether this phone has Gemini Nano…"
+                NanoStoryEnhancer.Availability.AVAILABLE -> "Gemini Nano is ready."
+                NanoStoryEnhancer.Availability.DOWNLOADABLE -> "Gemini Nano needs to be downloaded first."
+                NanoStoryEnhancer.Availability.DOWNLOADING -> "Gemini Nano is being downloaded."
+                NanoStoryEnhancer.Availability.UNAVAILABLE -> "This phone doesn't offer Gemini Nano: you'll hear the built-in stories."
             }
-            Switch(checked = settings.claudeStories, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
+            Text(status, style = MaterialTheme.typography.bodyMedium)
+            if (nano == NanoStoryEnhancer.Availability.DOWNLOADABLE && nanoProgress == null) {
+                Button(onClick = { downloadNano() }) { Text("Download Gemini Nano") }
+            }
         }
-        if (!settings.claudeStories) return@Column
+        if (settings.storyteller != Storyteller.CLAUDE) return@Column
 
         if (hasKey) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -144,6 +189,20 @@ fun StorytellerSettings(settings: AppSettings) {
             valueRange = 1f..20f,
             steps = 18,
         )
+    }
+}
+
+@Composable
+private fun StorytellerRow(title: String, description: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().selectable(selected = selected, onClick = onSelect, role = Role.RadioButton),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(description, style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

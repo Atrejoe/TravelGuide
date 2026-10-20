@@ -9,6 +9,7 @@ import io.github.atrejoe.travelguide.core.enhance.MemoryStoryStore
 import io.github.atrejoe.travelguide.core.enhance.RetoldStory
 import io.github.atrejoe.travelguide.core.enhance.StoryEnhancement
 import io.github.atrejoe.travelguide.core.enhance.StoryEnhancer
+import io.github.atrejoe.travelguide.core.enhance.StoryPrompt
 import io.github.atrejoe.travelguide.core.enhance.StoryRequest
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.interest.Interest
@@ -47,6 +48,7 @@ class StoryEnhancementTest {
     private val interests = mapOf(Interest.HISTORY to 2.0, Interest.NATURE to 0.0, Interest.CULTURE to 1.0)
 
     private class FakeEnhancer(var answer: suspend (StoryRequest) -> RetoldStory) : StoryEnhancer {
+        override val id = "fake"
         override val maxCostUsd = 0.05
         val requests = mutableListOf<StoryRequest>()
         override suspend fun retell(request: StoryRequest): RetoldStory {
@@ -100,6 +102,29 @@ class StoryEnhancementTest {
         assertEquals(first.sentences.drop(1), second.sentences.drop(1))
         assertEquals("On your right is the Grote Kerk.", second.sentences.first())
         assertEquals(0.02, store.spent("2026-10"), 1e-9)
+    }
+
+    @Test
+    fun `another storyteller retells the story anew`() = runTest {
+        val store = MemoryStoryStore()
+        StoryEnhancement(FakeEnhancer { retold }, store, monthlyBudgetUsd = 1.0).enhance(narration, TravelMode.WALKING, interests)
+        val other = object : StoryEnhancer {
+            override val id = "other"
+            override val maxCostUsd = 0.0
+            override suspend fun retell(request: StoryRequest) = RetoldStory("Another story.", 0.0)
+        }
+        val enhancement = StoryEnhancement(other, store, monthlyBudgetUsd = 1.0)
+
+        val story = enhancement.enhance(narration, TravelMode.WALKING, interests)
+
+        assertEquals(EnhanceOutcome.RETOLD, enhancement.lastOutcome)
+        assertEquals("Another story.", story.sentences[1])
+    }
+
+    @Test
+    fun `a story cut off at the limit keeps its complete sentences`() {
+        assertEquals("Mozart played here. He was ten.", StoryPrompt.completeSentences("Mozart played here. He was ten. The organ was"))
+        assertNull(StoryPrompt.completeSentences("Mozart played"))
     }
 
     @Test
