@@ -144,18 +144,22 @@ jobs:
 
       # Native crash reports (llama.cpp) only show function names and lines with the debug
       # symbols, which the APK leaves out. Uploaded for stable-signed builds when Sentry is set up.
+      # The organization and project aren't secret (the DSN in every APK names the project), so
+      # they are spelled out here; only the token is a secret.
       - name: Upload native debug symbols to Sentry
         if: steps.signing.outputs.variant == 'release'
         continue-on-error: true
         env:
           SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-          SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-          SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+          SENTRY_ORG: atrejoe-5fd385238
+          SENTRY_PROJECT: travelguide
         run: |
-          if [[ -z "$SENTRY_AUTH_TOKEN" || -z "$SENTRY_ORG" || -z "$SENTRY_PROJECT" ]]; then
-            echo "Sentry is not set up (SENTRY_AUTH_TOKEN, SENTRY_ORG, SENTRY_PROJECT); skipping."
+          if [[ -z "$SENTRY_AUTH_TOKEN" ]]; then
+            echo "Sentry is not set up (SENTRY_AUTH_TOKEN); skipping."
             exit 0
           fi
+          # Which server, organization and token scopes are used, for when the upload fails.
+          npx --yes @sentry/cli@3.8.0 info || true
           npx --yes @sentry/cli@3.8.0 debug-files upload --include-sources \
             app/build/intermediates/merged_native_libs/release
 
