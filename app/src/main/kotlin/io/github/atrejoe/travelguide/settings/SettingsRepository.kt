@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
 import kotlinx.coroutines.flow.Flow
@@ -25,6 +26,12 @@ data class AppSettings(
     val modeOverride: TravelMode? = null,
     /** Tell about the town, its buildings and institutions while walking (OpenStreetMap, Wikidata). */
     val walkingPlaces: Boolean = true,
+    /** Let Claude retell stories with the listener's own API key (issue #7); off by default. */
+    val claudeStories: Boolean = false,
+    /** A [ClaudeModel] id. */
+    val claudeModel: String = ClaudeModel.DEFAULT.id,
+    /** The most to spend on retelling per calendar month (UTC), in US dollars. */
+    val monthlyBudgetUsd: Float = 2f,
 )
 
 private val Context.dataStore by preferencesDataStore(name = "settings")
@@ -36,6 +43,9 @@ class SettingsRepository(private val context: Context) {
         val rate = floatPreferencesKey("rate")
         val mode = stringPreferencesKey("mode_override")
         val walkingPlaces = booleanPreferencesKey("walking_places")
+        val claudeStories = booleanPreferencesKey("claude_stories")
+        val claudeModel = stringPreferencesKey("claude_model")
+        val monthlyBudget = floatPreferencesKey("monthly_budget_usd")
         val version = intPreferencesKey("version")
     }
 
@@ -69,6 +79,9 @@ class SettingsRepository(private val context: Context) {
             p[Keys.rate] = next.rate
             if (next.modeOverride == null) p.remove(Keys.mode) else p[Keys.mode] = next.modeOverride.name
             p[Keys.walkingPlaces] = next.walkingPlaces
+            p[Keys.claudeStories] = next.claudeStories
+            p[Keys.claudeModel] = next.claudeModel
+            p[Keys.monthlyBudget] = next.monthlyBudgetUsd
         }
     }
 
@@ -84,6 +97,9 @@ class SettingsRepository(private val context: Context) {
             rate = p[Keys.rate] ?: defaults.rate,
             modeOverride = p[Keys.mode]?.let { name -> TravelMode.entries.firstOrNull { it.name == name } },
             walkingPlaces = p[Keys.walkingPlaces] ?: defaults.walkingPlaces,
+            claudeStories = p[Keys.claudeStories] ?: defaults.claudeStories,
+            claudeModel = p[Keys.claudeModel] ?: defaults.claudeModel,
+            monthlyBudgetUsd = p[Keys.monthlyBudget] ?: defaults.monthlyBudgetUsd,
         )
     }
 }

@@ -24,6 +24,11 @@ data class Narration(
     val relative: RelativePosition,
     /** Nearby places woven into this story. */
     val companions: List<Poi> = emptyList(),
+    /**
+     * How many sentences after the opening one tell about [poi] itself; the rest are about the
+     * [companions] and a closing remark. A retold story (see StoryEnhancement) replaces just these.
+     */
+    val bodySize: Int = (sentences.size - 1).coerceAtLeast(0),
 ) {
     val text: String get() = sentences.joinToString(" ")
 }
@@ -79,6 +84,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
             listOf(opener(poi, relative, motion.mode)) + body + extra + listOfNotNull(closing),
             relative,
             companions.map { it.poi },
+            bodySize = body.size,
         )
     }
 
