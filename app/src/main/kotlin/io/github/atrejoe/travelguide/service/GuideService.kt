@@ -23,6 +23,9 @@ import io.github.atrejoe.travelguide.MapPlace
 import io.github.atrejoe.travelguide.StoryItem
 import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
+import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
+import io.github.atrejoe.travelguide.core.enhance.ClaudeStoryEnhancer
+import io.github.atrejoe.travelguide.core.enhance.StoryEnhancement
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
@@ -270,9 +273,41 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 continue
             }
             publishUpcoming(now)
-            tell(narration)
+            tell(retold(narration))
             engine.onNarrationFinished(System.currentTimeMillis())
         }
+    }
+
+    private var enhancement: StoryEnhancement? = null
+    private var enhancementConfig: Triple<String, String, Float>? = null
+
+    /**
+     * The story retold by Claude when the listener turned that on and stored a key (issue #7);
+     * otherwise, or when anything goes wrong, the template story as it is.
+     */
+    private suspend fun retold(narration: Narration): Narration {
+        if (!settings.claudeStories) return narration
+        val enhancement = withContext(Dispatchers.IO) { currentEnhancement() } ?: return narration
+        val mode = engine.motion.state?.mode ?: return narration
+        val story = withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
+        enhancement.lastError?.let { Log.w(TAG, "Claude could not retell ${narration.poi.title}", it) }
+        Log.i(TAG, "Story of ${narration.poi.title}: ${enhancement.lastOutcome}")
+        return story
+    }
+
+    /** Rebuilt when the key, model or budget changes. */
+    private fun currentEnhancement(): StoryEnhancement? {
+        val key = app.apiKeys.get() ?: return null
+        val config = Triple(key, settings.claudeModel, settings.monthlyBudgetUsd)
+        if (config != enhancementConfig) {
+            enhancementConfig = config
+            enhancement = StoryEnhancement(
+                ClaudeStoryEnhancer(key, ClaudeModel.byId(settings.claudeModel)),
+                app.retoldStories,
+                settings.monthlyBudgetUsd.toDouble(),
+            )
+        }
+        return enhancement
     }
 
     private fun publishUpcoming(now: Long) {

@@ -67,7 +67,11 @@ contributors._
 - **Pause from anywhere.** Use the media controls in the notification shade, the lock screen,
   Bluetooth/headset buttons or the **Quick Settings tile**.
 - **No paid AI at runtime.** Stories come from Wikipedia text with hand-written phrasing, so
-  there are no API costs. Bring-your-own-key LLM storytelling is on the roadmap as an option.
+  there are no API costs.
+- **Optionally, Claude retells the stories.** With your own Anthropic API key (Settings → Stories),
+  Claude retells each story from its Wikipedia article, keeping to its facts. You choose the model
+  and a monthly budget; a place is paid for only once, and on any problem you hear the built-in
+  story. The key is stored encrypted with the Android Keystore and only sent to the Anthropic API.
 
 ## Install
 
@@ -150,8 +154,7 @@ changelog, CI).
 ## Roadmap
 
 Planned features are tracked as [issues](../../issues), such as voice choice and
-Dutch narration, interest selection, start suggestions, optional BYO-key
-LLM storytelling and climate facts.
+Dutch narration, interest selection, start suggestions and climate facts.
 
 ## Credits
 
