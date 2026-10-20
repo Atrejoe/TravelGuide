@@ -322,7 +322,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 // Free: no budget.
                 Storyteller.GEMINI_NANO -> StoryEnhancement(NanoStoryEnhancer(), app.retoldStories, Double.MAX_VALUE)
                 Storyteller.ON_DEVICE -> try {
-                    val llama = LlamaModel.load(this, localFile!!)
+                    val llama = LlamaModel.load(this, localFile!!, localModel.name)
                     StoryEnhancement(LocalOnDevice(LocalStoryEnhancer(llama, localModel), llama), app.retoldStories, Double.MAX_VALUE)
                 } catch (e: Exception) {
                     Log.w(TAG, "Could not load ${localModel.name}", e)

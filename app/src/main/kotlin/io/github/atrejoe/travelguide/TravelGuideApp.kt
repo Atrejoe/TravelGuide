@@ -26,6 +26,7 @@ class TravelGuideApp : Application() {
     @OptIn(DelicateCoroutinesApi::class) // App-lifetime, one-off settings upgrade and route restore.
     override fun onCreate() {
         super.onCreate()
+        CrashReport.install(this)
         settings = SettingsRepository(this)
         voiceModels = VoiceModelManager(this)
         apiKeys = ApiKeyStore(this)

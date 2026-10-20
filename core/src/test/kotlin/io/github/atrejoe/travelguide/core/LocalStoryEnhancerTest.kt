@@ -15,6 +15,7 @@ import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.RelativePosition
 import kotlinx.coroutines.test.runTest
+import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -89,5 +90,15 @@ class LocalStoryEnhancerTest {
         }
         assertEquals(LocalModels.GEMMA3, LocalModels.byId("gemma3-1b-q4km"))
         assertEquals(LocalModels.DEFAULT, LocalModels.byId("gone"))
+    }
+
+    /** The exact prompt of the sample story, for the native check in CI (tools/llama-check). */
+    @Test
+    fun `writes the sample prompt for the native check`() {
+        val dir = File("build/llama-check").apply { mkdirs() }
+        File(dir, "system.txt").writeText(StoryPrompt.SYSTEM)
+        File(dir, "user.txt").writeText(StoryPrompt.user(LocalStoryEnhancer.SAMPLE))
+        LocalModels.all.forEach { File(dir, "${it.id}.suffix").writeText(it.userSuffix) }
+        assertTrue(File(dir, "user.txt").readText().contains("Grote Kerk"))
     }
 }

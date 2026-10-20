@@ -89,6 +89,7 @@ fun StorytellerSettings(settings: AppSettings) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        CrashNotice()
         Text("Storyteller", style = MaterialTheme.typography.titleMedium)
         StorytellerRow(
             "Built-in",

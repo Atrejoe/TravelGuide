@@ -1,5 +1,8 @@
 package io.github.atrejoe.travelguide.core.enhance
 
+import io.github.atrejoe.travelguide.core.interest.Interest
+import io.github.atrejoe.travelguide.core.motion.TravelMode
+
 /** An open model the app can download and run on the phone (issue #51). */
 data class LocalModel(
     val id: String,
@@ -81,6 +84,34 @@ class LocalStoryEnhancer(
         const val MAX_TOKENS = 320
         const val MAX_SOURCE_CHARS = 2_500
         private val thinking = Regex("<think>.*?(</think>|$)", RegexOption.DOT_MATCHES_ALL)
+
+        /**
+         * A sample story for measuring speed, about as long as a real request: the template's
+         * highlights and the article's lead. CI also runs it (tools/llama-check).
+         */
+        val SAMPLE = StoryRequest(
+            title = "Grote Kerk, Haarlem",
+            description = "Protestant church in Haarlem, Netherlands",
+            source = "The Grote Kerk or Sint-Bavokerk is a Reformed Protestant church and former Catholic cathedral on " +
+                "the central market square in Haarlem. It is dedicated to Saint Bavo. Building began around 1370 on the " +
+                "site of an earlier church that had been damaged by fire, and the church was finished around 1520. " +
+                "After the Reformation it became a Protestant church in 1578, and its altars and images were removed. " +
+                "The church is famous for its organ, built by Christian Müller between 1735 and 1738. With its tall case " +
+                "and thousands of pipes it was for a time the largest organ in the world. Many famous musicians came to " +
+                "play it: George Frideric Handel played it in 1740, and a ten-year-old Wolfgang Amadeus Mozart played it " +
+                "in 1766 during his family's tour of Europe. The painter Frans Hals is buried in the church, and a lamp " +
+                "marks his grave. Small houses and shops were built against the outside walls of the church over the " +
+                "centuries; the rent paid for its upkeep, and some of them are still there. Inside, the floor is made of " +
+                "gravestones, and the church was used as a burial place until the nineteenth century. Dogs were driven " +
+                "out of the church by a dog whipper, and a chapel still shows a carving of one. Today the church hosts " +
+                "concerts and the International Organ Festival Haarlem, held every two years since 1951.",
+            opener = "On your left rises the Grote Kerk, the church of Saint Bavo.",
+            mode = TravelMode.WALKING,
+            where = "left · 100 m",
+            interests = listOf(Interest.HISTORY, Interest.CULTURE),
+            sentences = 5,
+            lang = "en",
+        )
 
         /** The story without any thinking, cut back to complete sentences when it hit the limit. */
         fun clean(generated: Generated): String? {

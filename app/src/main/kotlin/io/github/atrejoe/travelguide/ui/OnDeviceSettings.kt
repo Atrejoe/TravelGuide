@@ -1,5 +1,7 @@
 package io.github.atrejoe.travelguide.ui
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -14,6 +16,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -25,13 +28,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.atrejoe.travelguide.CrashReport
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.enhance.LocalModels
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.story.LocalStoryBenchmark
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Settings → Stories → Open model: which model, its download, and how fast it is here (issue #51). */
 @Composable
@@ -132,5 +138,29 @@ fun OnDeviceSettings(settings: AppSettings) {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         benchmark?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
+    }
+}
+
+/** What went wrong when the app last crashed (see [CrashReport]), with a button to copy it. */
+@Composable
+fun CrashNotice() {
+    val context = LocalContext.current
+    var report by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) { report = withContext(Dispatchers.IO) { CrashReport.last(context) } }
+    val text = report ?: return
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("The app crashed last time", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+        Text(text, style = MaterialTheme.typography.bodySmall)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = {
+                context.getSystemService(ClipboardManager::class.java)
+                    ?.setPrimaryClip(ClipData.newPlainText("TravelGuide crash", text))
+                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+            }) { Text("Copy") }
+            OutlinedButton(onClick = {
+                CrashReport.clear()
+                report = null
+            }) { Text("Dismiss") }
+        }
     }
 }

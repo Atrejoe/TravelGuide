@@ -2,6 +2,7 @@ package io.github.atrejoe.travelguide.story
 
 import android.content.Context
 import android.os.Build
+import io.github.atrejoe.travelguide.CrashReport
 import io.github.atrejoe.travelguide.core.enhance.Generated
 import io.github.atrejoe.travelguide.core.enhance.TextGenerator
 import kotlinx.coroutines.Dispatchers
@@ -27,7 +28,7 @@ data class LlamaStats(val promptTokens: Int, val promptSeconds: Double, val stor
  * An open model loaded with llama.cpp (issue #51; see app/src/main/cpp). Loading takes a few
  * seconds and the model's size in memory, so keep one and [close] it when done.
  */
-class LlamaModel private constructor(private var handle: Long) : TextGenerator, AutoCloseable {
+class LlamaModel private constructor(private var handle: Long, private val label: String) : TextGenerator, AutoCloseable {
     private val mutex = Mutex()
 
     /** Guards against cancelling a model that was already freed. */
@@ -52,10 +53,12 @@ class LlamaModel private constructor(private var handle: Long) : TextGenerator, 
                 }
             }
             try {
-                val (bytes, stats) = runInterruptible(LlamaEngine.dispatcher) {
+                val (bytes, stats) = CrashReport.during("writing a story with $label") {
+                    runInterruptible(LlamaEngine.dispatcher) {
                     // Freeing runs on this same thread, so the model is either still there or gone.
                     if (synchronized(lock) { freed }) throw IOException("The model was closed")
-                    LlamaEngine.nativeGenerate(h, system, user, maxTokens, TEMPERATURE, SEED) to LlamaEngine.nativeStats(h)
+                        LlamaEngine.nativeGenerate(h, system, user, maxTokens, TEMPERATURE, SEED) to LlamaEngine.nativeStats(h)
+                    }
                 }
                 lastStats = LlamaStats(stats[0].toInt(), stats[1], stats[2].toInt(), stats[3])
                 Generated(bytes.decodeToString(), cutOff = stats[2].toInt() >= maxTokens)
@@ -89,13 +92,15 @@ class LlamaModel private constructor(private var handle: Long) : TextGenerator, 
         private const val SEED = 42
         private const val CONTEXT_TOKENS = 2_048
 
-        /** Loads [file]; throws when the phone can't run it. Blocks for a few seconds. */
-        suspend fun load(context: Context, file: File): LlamaModel {
-            LlamaEngine.init(context)
-            val handle = runInterruptible(LlamaEngine.dispatcher) {
-                LlamaEngine.nativeLoad(file.absolutePath, CONTEXT_TOKENS, LlamaEngine.threads())
+        /** Loads [file], named [label] in crash reports; throws when the phone can't run it. Takes a few seconds. */
+        suspend fun load(context: Context, file: File, label: String): LlamaModel {
+            val handle = CrashReport.during("loading $label") {
+                LlamaEngine.init(context)
+                runInterruptible(LlamaEngine.dispatcher) {
+                    LlamaEngine.nativeLoad(file.absolutePath, CONTEXT_TOKENS, LlamaEngine.threads())
+                }
             }
-            return LlamaModel(handle)
+            return LlamaModel(handle, label)
         }
     }
 }
@@ -115,7 +120,11 @@ internal object LlamaEngine {
     fun init(context: Context) {
         if (initialized) return
         check(supported) { "Open models need a 64-bit ARM phone" }
-        System.loadLibrary("travelguide_llama")
+        try {
+            System.loadLibrary("travelguide_llama")
+        } catch (e: UnsatisfiedLinkError) {
+            throw IOException("The open-model engine is missing from this build: ${e.message}", e)
+        }
         // The CPU code comes in variants for older and newer ARM cores, as separate libraries.
         nativeInit(context.applicationInfo.nativeLibraryDir)
         initialized = true
