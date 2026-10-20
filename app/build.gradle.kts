@@ -122,6 +122,7 @@ dependencies {
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.osmdroid)
+    implementation(libs.mlkit.genai.prompt)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)

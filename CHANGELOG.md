@@ -9,13 +9,17 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
-- Optionally, Claude retells the stories with your own Anthropic API key ([#7](../../issues/7)).
-  Off by default. Settings → Stories takes the key (encrypted with the Android Keystore), the model
-  (Claude Opus 5.5 by default, or Sonnet 5.5 or Haiku 5.5, with a cost per place) and a monthly
-  budget. Claude rewrites only the part about the place itself, from its Wikipedia text; the
-  opening line saying where it is and the nearby places stay as they are. Retold stories are kept,
-  so a place is paid for only once. Without a key, over budget, after 20 seconds or on any error,
-  the built-in story is told.
+- Optionally, a language model retells the stories ([#7](../../issues/7)): pick the storyteller
+  in Settings → Stories. The built-in storyteller stays the default.
+  - **Gemini Nano** runs on the phone through Android AICore: free, and nothing leaves the phone.
+    Settings shows whether the phone offers it and can download it.
+  - **Claude** uses your own Anthropic API key, stored encrypted with the Android Keystore. Choose
+    the model (Claude Opus 5.5 by default, or Sonnet 5.5 or Haiku 5.5, with a cost per place) and
+    a monthly budget.
+  - Only the part about the place itself is retold, from its Wikipedia text; the opening line
+    saying where it is and the nearby places stay as they are. Retold stories are kept, so a place
+    is retold (and paid for) only once. When there's no key, the budget is spent, nothing comes
+    back within 20 seconds or anything goes wrong, the built-in story is told.
 
 ## [0.3.0] - 2026-10-19
 

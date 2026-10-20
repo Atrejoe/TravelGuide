@@ -46,6 +46,8 @@ import io.github.atrejoe.travelguide.nav.NavigationState
 import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
 import io.github.atrejoe.travelguide.settings.AppSettings
+import io.github.atrejoe.travelguide.settings.Storyteller
+import io.github.atrejoe.travelguide.story.NanoStoryEnhancer
 import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
 import kotlinx.coroutines.Dispatchers
@@ -197,6 +199,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         guideJob = null
         narrator?.release()
         narrator = null
+        closeEnhancement()
         replayRequest = null
         focus.abandon()
         stopLocationUpdates()
@@ -279,35 +282,49 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     }
 
     private var enhancement: StoryEnhancement? = null
-    private var enhancementConfig: Triple<String, String, Float>? = null
+    private var enhancementConfig: List<Any>? = null
 
     /**
-     * The story retold by Claude when the listener turned that on and stored a key (issue #7);
+     * The story retold by Gemini Nano or Claude when the listener chose one (issue #7);
      * otherwise, or when anything goes wrong, the template story as it is.
      */
     private suspend fun retold(narration: Narration): Narration {
-        if (!settings.claudeStories) return narration
+        if (settings.storyteller == Storyteller.BUILT_IN) return narration
         val enhancement = withContext(Dispatchers.IO) { currentEnhancement() } ?: return narration
         val mode = engine.motion.state?.mode ?: return narration
         val story = withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
-        enhancement.lastError?.let { Log.w(TAG, "Claude could not retell ${narration.poi.title}", it) }
+        enhancement.lastError?.let { Log.w(TAG, "Could not retell ${narration.poi.title}", it) }
         Log.i(TAG, "Story of ${narration.poi.title}: ${enhancement.lastOutcome}")
         return story
     }
 
-    /** Rebuilt when the key, model or budget changes. */
+    /** Rebuilt when the storyteller, key, model or budget changes; null when it can't be used. */
     private fun currentEnhancement(): StoryEnhancement? {
-        val key = app.apiKeys.get() ?: return null
-        val config = Triple(key, settings.claudeModel, settings.monthlyBudgetUsd)
+        val storyteller = settings.storyteller
+        val key = if (storyteller == Storyteller.CLAUDE) app.apiKeys.get() ?: return null else null
+        if (storyteller == Storyteller.GEMINI_NANO && !NanoStoryEnhancer.supported) return null
+        val config = listOf(storyteller, key.orEmpty(), settings.claudeModel, settings.monthlyBudgetUsd)
         if (config != enhancementConfig) {
+            closeEnhancement()
             enhancementConfig = config
-            enhancement = StoryEnhancement(
-                ClaudeStoryEnhancer(key, ClaudeModel.byId(settings.claudeModel)),
-                app.retoldStories,
-                settings.monthlyBudgetUsd.toDouble(),
-            )
+            enhancement = when (storyteller) {
+                Storyteller.CLAUDE -> StoryEnhancement(
+                    ClaudeStoryEnhancer(key!!, ClaudeModel.byId(settings.claudeModel)),
+                    app.retoldStories,
+                    settings.monthlyBudgetUsd.toDouble(),
+                )
+                // Free: no budget.
+                Storyteller.GEMINI_NANO -> StoryEnhancement(NanoStoryEnhancer(), app.retoldStories, Double.MAX_VALUE)
+                Storyteller.BUILT_IN -> null
+            }
         }
         return enhancement
+    }
+
+    private fun closeEnhancement() {
+        (enhancement?.enhancer as? AutoCloseable)?.close()
+        enhancement = null
+        enhancementConfig = null
     }
 
     private fun publishUpcoming(now: Long) {

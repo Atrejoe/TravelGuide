@@ -68,10 +68,15 @@ contributors._
   Bluetooth/headset buttons or the **Quick Settings tile**.
 - **No paid AI at runtime.** Stories come from Wikipedia text with hand-written phrasing, so
   there are no API costs.
-- **Optionally, Claude retells the stories.** With your own Anthropic API key (Settings → Stories),
-  Claude retells each story from its Wikipedia article, keeping to its facts. You choose the model
-  and a monthly budget; a place is paid for only once, and on any problem you hear the built-in
-  story. The key is stored encrypted with the Android Keystore and only sent to the Anthropic API.
+- **Optionally, a language model retells the stories** (Settings → Stories), from the place's
+  Wikipedia article and keeping to its facts:
+  - **Gemini Nano**, on the phone itself through Android AICore: free and private, on phones
+    that offer it (e.g. Pixel 9 and later).
+  - **Claude**, with your own Anthropic API key. You choose the model and a monthly budget; a
+    place is paid for only once. The key is stored encrypted with the Android Keystore and only
+    sent to the Anthropic API.
+
+  On any problem you hear the built-in story.
 
 ## Install
 
