@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-20
+
 ### Added
 
 - Optionally, a language model retells the stories ([#7](../../issues/7)): pick the storyteller
@@ -24,6 +26,20 @@ All notable changes to this project are documented here. The format follows
   ([#51](../../issues/51)): free, offline and private, on any 64-bit phone. Pick *Open model, on
   this phone* in Settings → Stories, download Qwen3 1.7B, Gemma 3 1B or SmolLM2 1.7B (about 1 GB),
   and use *Measure speed* to see how fast your phone runs it. Runs on llama.cpp, built from source.
+- After a crash, Settings → Stories shows what the app was doing and how Android ended it, with a
+  button to copy the report.
+
+### Changed
+
+- sherpa-onnx 1.13.8 for the on-device voices; Gradle 9.8.2 and kotlinx-serialization 1.12.0.
+
+### Known issues
+
+- The open model Gemma 3 1B crashes the app on some phones, e.g. a Fairphone 4
+  ([#53](../../issues/53)).
+- The open model may be too slow on a mid-range phone to retell a story in the 20 seconds it
+  gets; you then hear the built-in story. Retelling ahead of time is planned
+  ([#54](../../issues/54)).
 
 ## [0.3.0] - 2026-10-19
 
