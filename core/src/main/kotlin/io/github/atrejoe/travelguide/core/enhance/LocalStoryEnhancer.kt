@@ -9,7 +9,7 @@ data class LocalModel(
     /** A 4-bit GGUF file. */
     val url: String,
     val sizeMb: Int,
-    /** Checked after downloading, when known. */
+    /** Checked after downloading; the Model links workflow prints it. */
     val sha256: String? = null,
     /** Appended to the request, e.g. to turn off Qwen3's thinking. */
     val userSuffix: String = "",
@@ -22,7 +22,8 @@ object LocalModels {
         description = "The best stories of the three. Apache 2.0.",
         license = "Apache 2.0",
         url = "https://huggingface.co/unsloth/Qwen3-1.7B-GGUF/resolve/main/Qwen3-1.7B-Q4_K_M.gguf",
-        sizeMb = 1_110,
+        sizeMb = 1_107,
+        sha256 = "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897",
         userSuffix = " /no_think",
     )
     val GEMMA3 = LocalModel(
@@ -31,7 +32,8 @@ object LocalModels {
         description = "Smaller and faster, shorter stories. Gemma Terms of Use.",
         license = "Gemma Terms of Use",
         url = "https://huggingface.co/unsloth/gemma-3-1b-it-GGUF/resolve/main/gemma-3-1b-it-Q4_K_M.gguf",
-        sizeMb = 810,
+        sizeMb = 806,
+        sha256 = "8270790f3ab69fdfe860b7b64008d9a19986d8df7e407bb018184caa08798ebd",
     )
     val SMOLLM2 = LocalModel(
         id = "smollm2-1.7b-q4km",
@@ -39,7 +41,8 @@ object LocalModels {
         description = "Fully open, training data included. English only. Apache 2.0.",
         license = "Apache 2.0",
         url = "https://huggingface.co/HuggingFaceTB/SmolLM2-1.7B-Instruct-GGUF/resolve/main/smollm2-1.7b-instruct-q4_k_m.gguf",
-        sizeMb = 1_060,
+        sizeMb = 1_055,
+        sha256 = "decd2598bc2c8ed08c19adc3c8fdd461ee19ed5708679d1c54ef54a5a30d4f33",
     )
 
     val all = listOf(QWEN3, GEMMA3, SMOLLM2)

@@ -83,7 +83,10 @@ class LocalStoryEnhancerTest {
     fun `every model has a download`() {
         assertEquals(LocalModels.QWEN3, LocalModels.DEFAULT)
         assertEquals(LocalModels.all.size, LocalModels.all.map { it.id }.toSet().size)
-        LocalModels.all.forEach { assertTrue(it.url.startsWith("https://huggingface.co/") && it.url.endsWith(".gguf"), it.url) }
+        LocalModels.all.forEach {
+            assertTrue(it.url.startsWith("https://huggingface.co/") && it.url.endsWith(".gguf"), it.url)
+            assertTrue(it.sha256.orEmpty().matches(Regex("[0-9a-f]{64}")), "${it.name} is checked after downloading")
+        }
         assertEquals(LocalModels.GEMMA3, LocalModels.byId("gemma3-1b-q4km"))
         assertEquals(LocalModels.DEFAULT, LocalModels.byId("gone"))
     }
