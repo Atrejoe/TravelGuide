@@ -11,6 +11,7 @@ import com.k2fsa.sherpa.onnx.OfflineTtsKokoroModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import io.github.atrejoe.travelguide.core.voice.ModelFiles
+import io.github.atrejoe.travelguide.core.voice.SynthesisThreads
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +22,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.concurrent.Executors
 import kotlin.coroutines.coroutineContext
 import kotlin.math.abs
@@ -74,7 +76,7 @@ class NeuralNarrator(
     private fun engine(): OfflineTts = tts ?: OfflineTts(assetManager = null, config = config()).also { tts = it }
 
     private fun config(): OfflineTtsConfig {
-        val threads = Runtime.getRuntime().availableProcessors().coerceIn(1, 4)
+        val threads = synthesisThreads
         val model = when (voice.pkg.engine) {
             VoiceEngine.PIPER -> OfflineTtsModelConfig(
                 vits = OfflineTtsVitsModelConfig(
@@ -242,5 +244,20 @@ class NeuralNarrator(
 
         /** One mono sample of 32-bit float PCM. */
         const val FRAME_BYTES = 4
+
+        /** Threads for the voice model: the phone's fast cores, see [SynthesisThreads]. */
+        val synthesisThreads: Int by lazy {
+            val cores = Runtime.getRuntime().availableProcessors()
+            val frequencies = (0 until cores).map { core ->
+                try {
+                    File("/sys/devices/system/cpu/cpu$core/cpufreq/cpuinfo_max_freq").readText().trim().toLong()
+                } catch (e: Exception) {
+                    0L
+                }
+            }
+            SynthesisThreads.forCores(frequencies, fallback = cores).also {
+                Log.i(TAG, "$it synthesis threads; cores at ${frequencies.joinToString()} kHz")
+            }
+        }
     }
 }

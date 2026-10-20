@@ -43,8 +43,9 @@ object VoiceCatalog {
         ),
         NeuralVoice(
             "piper-ryan", "Ryan", "American, expressive · lite",
-            // The fp16 export of this model fails in onnxruntime on some sentences.
-            VoicePackage("vits-piper-en_US-ryan-high", VoiceEngine.PIPER, 110),
+            // Medium, not high: high renders five times slower, too slow for mid-range phones. The
+            // fp16 export of this model doesn't load in onnxruntime.
+            VoicePackage("vits-piper-en_US-ryan-medium", VoiceEngine.PIPER, 67),
         ),
         NeuralVoice(
             "piper-alan", "Alan", "British, soft-spoken · lite",
