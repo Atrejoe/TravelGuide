@@ -29,6 +29,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Fixed
 
+- Shorter pauses between sentences with on-device voices ([#63](../../issues/63)): a story now
+  plays as one audio stream, so each sentence follows the previous one without the gap of
+  opening and closing the audio output, with just a short breath in between.
 - The lite voices (Piper: Norman, Ryan, Alan) crashed the app as soon as a story started
   ([#53](../../issues/53)): their 22 050 Hz audio got a buffer size the phone refuses. A voice
   that can't play now skips the story instead of crashing the app.

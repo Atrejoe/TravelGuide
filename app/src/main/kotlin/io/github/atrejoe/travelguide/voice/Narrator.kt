@@ -5,6 +5,7 @@ import android.media.AudioAttributes
 import android.util.Log
 import io.github.atrejoe.travelguide.core.story.SpeechChunker
 import io.github.atrejoe.travelguide.settings.AppSettings
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 /** Speaks one sentence at a time so playback can be paused and resumed at sentence boundaries. */
@@ -31,10 +32,17 @@ interface Narrator {
     fun isPrepared(text: String): Boolean = true
 
     /**
-     * Speaks [text] and suspends until it has been played. Returns false when interrupted by
-     * [stop] or when speaking failed.
+     * Speaks [text] and suspends until it has been played, or, for a voice that streams its
+     * pieces back to back, until it is queued for playback (see [drain]). Returns false when
+     * interrupted by [stop] or when speaking failed.
      */
     suspend fun speak(text: String): Boolean
+
+    /** A pause of [millis] between sentences, timed with what is still to be heard. */
+    suspend fun silence(millis: Long) = delay(millis)
+
+    /** Suspends until everything spoken has been heard; call it when a story ends. */
+    suspend fun drain() = Unit
 
     /** Applies new pitch and rate to what is rendered from now on, without reloading the voice. */
     fun adjust(pitch: Float, rate: Float)
