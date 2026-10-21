@@ -50,7 +50,8 @@ object SentenceSplitter {
             val nextWord = text.substring(last).takeWhile { it.isLetterOrDigit() }
             // "J. van Campen" is an initial, but in "Henry V. The tower" a new sentence starts.
             val isInitial = lastWord.length == 1 && lastWord[0].isLetter() && nextWord !in language.sentenceStarters
-            val isAbbreviation = lastWord in language.abbreviations || isInitial
+            val isOrdinal = language.ordinalDots && lastWord.length <= 2 && lastWord.all { it.isDigit() }
+            val isAbbreviation = lastWord in language.abbreviations || isInitial || isOrdinal
             if (isAbbreviation) {
                 current.append(' ')
             } else {

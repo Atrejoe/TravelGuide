@@ -316,8 +316,15 @@ object Dutch : StoryLanguage("nl", "Dutch", "Nederlands") {
     private fun sinceDate(date: HistoricDate): String = when (date.precision) {
         HistoricDate.Precision.YEAR -> "${date.year}"
         HistoricDate.Precision.DECADE -> "de jaren ${date.year / 10 * 10}"
-        HistoricDate.Precision.CENTURY -> "de ${date.century}e eeuw"
+        HistoricDate.Precision.CENTURY -> "de ${ordinal(date.century)} eeuw"
     }
+
+    /** Spelled out, so every voice reads "de vijftiende eeuw" right. */
+    private fun ordinal(n: Int): String = listOf(
+        "eerste", "tweede", "derde", "vierde", "vijfde", "zesde", "zevende", "achtste", "negende", "tiende", "elfde",
+        "twaalfde", "dertiende", "veertiende", "vijftiende", "zestiende", "zeventiende", "achttiende", "negentiende",
+        "twintigste", "eenentwintigste",
+    ).getOrNull(n - 1) ?: "${n}e"
 
     override fun ago(years: Int) = ", meer dan $years jaar geleden"
 

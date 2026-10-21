@@ -53,7 +53,7 @@ object VoiceCatalog {
             "piper-alan", "Alan", "British, soft-spoken · lite",
             VoicePackage("vits-piper-en_GB-alan-medium-fp16", VoiceEngine.PIPER, 34),
         ),
-        // Dutch (issue #68). The fp16 exports of these models don't load in onnxruntime.
+        // Other languages (issue #68). The fp16 exports of these models don't load in onnxruntime.
         NeuralVoice(
             "piper-nl-pim", "Pim", "Dutch (Netherlands), male",
             VoicePackage("vits-piper-nl_NL-pim-medium", VoiceEngine.PIPER, 67), lang = "nl",
@@ -65,6 +65,46 @@ object VoiceCatalog {
         NeuralVoice(
             "piper-nl-nathalie", "Nathalie", "Flemish (Belgium), female",
             VoicePackage("vits-piper-nl_BE-nathalie-medium", VoiceEngine.PIPER, 67), lang = "nl",
+        ),
+        NeuralVoice(
+            "piper-de-thorsten", "Thorsten", "German, male",
+            VoicePackage("vits-piper-de_DE-thorsten-medium", VoiceEngine.PIPER, 67), lang = "de",
+        ),
+        NeuralVoice(
+            "piper-de-kerstin", "Kerstin", "German, female",
+            VoicePackage("vits-piper-de_DE-kerstin-low", VoiceEngine.PIPER, 67), lang = "de",
+        ),
+        NeuralVoice(
+            "piper-fr-tom", "Tom", "French, male",
+            VoicePackage("vits-piper-fr_FR-tom-medium", VoiceEngine.PIPER, 67), lang = "fr",
+        ),
+        NeuralVoice(
+            "piper-fr-siwis", "Siwis", "French, female",
+            VoicePackage("vits-piper-fr_FR-siwis-medium", VoiceEngine.PIPER, 67), lang = "fr",
+        ),
+        NeuralVoice(
+            "piper-es-davefx", "Davefx", "Spanish (Spain), male",
+            VoicePackage("vits-piper-es_ES-davefx-medium", VoiceEngine.PIPER, 67), lang = "es",
+        ),
+        NeuralVoice(
+            "piper-es-ald", "Ald", "Spanish (Mexico), male",
+            VoicePackage("vits-piper-es_MX-ald-medium", VoiceEngine.PIPER, 67), lang = "es",
+        ),
+        NeuralVoice(
+            "piper-it-paola", "Paola", "Italian, female",
+            VoicePackage("vits-piper-it_IT-paola-medium", VoiceEngine.PIPER, 67), lang = "it",
+        ),
+        NeuralVoice(
+            "piper-it-riccardo", "Riccardo", "Italian, male",
+            VoicePackage("vits-piper-it_IT-riccardo-x_low", VoiceEngine.PIPER, 27), lang = "it",
+        ),
+        NeuralVoice(
+            "piper-pt-tugao", "Tugão", "Portuguese (Portugal), male",
+            VoicePackage("vits-piper-pt_PT-tugao-medium", VoiceEngine.PIPER, 67), lang = "pt",
+        ),
+        NeuralVoice(
+            "piper-pt-faber", "Faber", "Portuguese (Brazil), male",
+            VoicePackage("vits-piper-pt_BR-faber-medium", VoiceEngine.PIPER, 67), lang = "pt",
         ),
     )
 

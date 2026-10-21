@@ -45,6 +45,9 @@ abstract class StoryLanguage(
     /** Words that start a new sentence after a single letter, as in "Henry V. The tower". */
     abstract val sentenceStarters: Set<String>
 
+    /** True where a dot after a number marks an ordinal, as in German "im 15. Jahrhundert". */
+    open val ordinalDots: Boolean = false
+
     // Choosing sentences
 
     /** Superlatives, legends, disasters, famous people: what makes a sentence worth telling. */
@@ -65,8 +68,15 @@ abstract class StoryLanguage(
     /** True when [sentence], the first of an article about [title], merely defines it ("X is a town in …"). */
     abstract fun isDefinition(sentence: String, title: String): Boolean
 
-    /** "It is a village in Utrecht, Netherlands." from a Wikidata short description; null when unusable. */
+    /**
+     * "It is a village in Utrecht, Netherlands." from a Wikidata short description; null when
+     * unusable, or in languages where the description's gender is unknown: the article's own
+     * first sentence then says what the place is.
+     */
     abstract fun identityLine(description: String): String?
+
+    /** "C'est une église." for a place without an article, when [identityLine] can't say it. */
+    open fun kindLine(kind: PlaceKind): String? = null
 
     /** Short spoken announcements of a new topic. */
     abstract fun leads(kind: SectionKind): List<String>
@@ -137,7 +147,7 @@ abstract class StoryLanguage(
 }
 
 object StoryLanguages {
-    val all: List<StoryLanguage> = listOf(English, Dutch)
+    val all: List<StoryLanguage> = listOf(English, Dutch, German, French, Spanish, Italian, Portuguese)
 
     /** The language with [code], or English when there is none. */
     fun of(code: String?): StoryLanguage = all.firstOrNull { it.code == code } ?: English
