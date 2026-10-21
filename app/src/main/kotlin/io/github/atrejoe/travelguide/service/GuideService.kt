@@ -116,6 +116,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             places = PlaceSource { center, radius -> withContext(Dispatchers.Default) { buildings.places(center, radius) } },
             towns = TownLookup(nominatim, wikidata, wikipedia),
         )
+        engine.onActivity = { what -> GuideStatus.update { it.copy(activity = what) } }
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
         session = MediaSessionCompat(this, "TravelGuide").apply {
@@ -212,6 +213,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         GuideStatus.update {
             it.copy(
                 running = false, paused = false, speaking = false, replaying = null, pauseReason = null, message = null,
+                activity = null, waiting = null,
                 upcoming = emptyList(), route = emptyList(), routeSource = PathSource.NONE,
             )
         }
@@ -245,7 +247,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         if (existing != null && !narratorDirty) return existing
         existing?.release()
         narratorDirty = false
-        val choice = Narrators.create(this, settings, app.voiceModels)
+        val choice = doing("Loading the voice…") { Narrators.create(this, settings, app.voiceModels) }
         GuideStatus.update { it.copy(voiceLabel = choice.narrator.label, voiceWarning = choice.warning) }
         return choice.narrator.also { narrator = it }
     }
@@ -275,6 +277,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             publishUpcoming(now)
             val narration = engine.nextNarration(now)
             if (narration == null) {
+                GuideStatus.update { it.copy(waiting = engine.waitingFor(now)) }
                 // Between stories: fetch what the next one needs, so it starts without delay.
                 engine.prefetchArticles()
                 continue
@@ -293,10 +296,20 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
      * otherwise, or when anything goes wrong, the template story as it is.
      */
     private suspend fun retold(narration: Narration): Narration {
-        if (settings.storyteller == Storyteller.BUILT_IN) return narration
-        val enhancement = withContext(Dispatchers.IO) { currentEnhancement() } ?: return narration
+        val storyteller = when (settings.storyteller) {
+            Storyteller.BUILT_IN -> return narration
+            Storyteller.GEMINI_NANO -> "Gemini Nano"
+            Storyteller.CLAUDE -> "Claude"
+            Storyteller.ON_DEVICE -> LocalModels.byId(settings.localModel).name
+        }
+        val load: suspend () -> StoryEnhancement? = { withContext(Dispatchers.IO) { currentEnhancement() } }
+        // Only the open model takes a while to load.
+        val enhancement = (if (settings.storyteller == Storyteller.ON_DEVICE) doing("Loading $storyteller…", load) else load())
+            ?: return narration
         val mode = engine.motion.state?.mode ?: return narration
-        val story = withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
+        val story = doing("Retelling ${narration.poi.title} with $storyteller…") {
+            withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
+        }
         enhancement.lastError?.let { Log.w(TAG, "Could not retell ${narration.poi.title}", it) }
         Log.i(TAG, "Story of ${narration.poi.title}: ${enhancement.lastOutcome}")
         return story
@@ -367,7 +380,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             places = (listOf(poi) + narration.companions).map { MapPlace(it.title, it.point) },
             sentences = narration.sentences,
         )
-        GuideStatus.update { it.copy(current = item, speaking = true, history = (listOf(item) + it.history).take(50)) }
+        GuideStatus.update { it.copy(current = item, speaking = true, waiting = null, history = (listOf(item) + it.history).take(50)) }
         updateSession()
         abortStory = false
         try {
@@ -427,7 +440,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                     narrator.prepare(pieces.drop(index).map { it.text })
                     prepared = narrator
                 }
-                val completed = narrator.speak(pieces[index].text)
+                val text = pieces[index].text
+                val completed = if (narrator.isPrepared(text)) narrator.speak(text) else doing("Preparing speech…") { narrator.speak(text) }
                 // Cut off by a pause or by a replay: say the piece again afterwards.
                 if (completed || !(isPaused() || replayRequest != null)) index++
                 // A short breath between sentences sounds more like a person telling a story.
@@ -436,6 +450,16 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         } finally {
             prepared?.prepare(emptyList())
             if (replay) GuideStatus.update { it.copy(replaying = before) }
+        }
+    }
+
+    /** Shows [what] as the guide's current activity while [block] runs (issue #65). */
+    private suspend fun <T> doing(what: String, block: suspend () -> T): T {
+        GuideStatus.update { it.copy(activity = what) }
+        try {
+            return block()
+        } finally {
+            GuideStatus.update { it.copy(activity = null) }
         }
     }
 

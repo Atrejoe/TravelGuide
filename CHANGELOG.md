@@ -9,6 +9,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Stories about the wider area when nothing nearby is worth one ([#64](../../issues/64)): after
+  two minutes without a story the guide looks three times further, after four minutes nine times
+  (up to 10 km), and tells about places out of sight ("A little further afield, about 6 km to
+  your left, lies …"). Nearby places go first again as soon as there is one.
+- The guide screen shows what the guide is doing ([#65](../../issues/65)): searching Wikipedia,
+  reading about a place, retelling it, loading the voice or preparing speech, and between
+  stories when the next one can come or when it will look further afield.
 - Opt-in crash reports ([#56](../../issues/56)): with *Send crash reports* on in Settings, a crash
   is reported to the developer through Sentry, including crashes in the open model's native code.
   Off by default; reports contain no location, places or stories.

@@ -5,6 +5,7 @@ import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
 import io.github.atrejoe.travelguide.core.motion.TravelMode
+import io.github.atrejoe.travelguide.core.story.DetailProfile
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.PoiType
 import io.github.atrejoe.travelguide.core.story.RelativePosition
@@ -165,5 +166,48 @@ class GuideEngineTest {
         val narration = assertNotNull(engine.nextNarration(now))
         assertEquals(listOf(20L, 20L), fetched)
         assertTrue(narration.sentences.any { "1250" in it }, "sentences: ${narration.sentences}")
+    }
+
+    @Test
+    fun `a quiet stretch widens the search to the wider area`() = runTest {
+        // Out of sight while walking: 2.5 km to the east of the street.
+        val lake = poi(30, "Silver Lake", GeoMath.destination(start, 90.0, 2_500.0), PoiType.LANDMARK)
+        val radii = mutableListOf<Int>()
+        val activities = mutableListOf<String>()
+        val engine = GuideEngine({ _, radius -> radii += radius; listOf(lake) }, random = Random(2))
+        engine.onActivity = { it?.let(activities::add) }
+        val now = engine.drive(speedMps = 1.4, seconds = 30)
+        engine.refreshIfNeeded(now)
+        assertNull(engine.nextNarration(now))
+        assertEquals("Nothing nearby worth a story yet; looking further afield in 3 min", engine.waitingFor(now))
+
+        // Each two minutes of quiet after the usual gap look a step further.
+        val step1 = now + 30_000 + 2 * 60_000
+        assertEquals(1, engine.widening(step1))
+        engine.refreshIfNeeded(step1)
+        val step2 = step1 + 2 * 60_000
+        assertEquals(2, engine.widening(step2))
+        assertEquals("Nothing nearby; looking further afield, within 9 km", engine.waitingFor(step2))
+        engine.refreshIfNeeded(step2)
+        assertEquals(listOf(1_000, 3_000, 9_000), radii)
+        assertTrue("Searching Wikipedia within 9 km…" in activities, "activities: $activities")
+
+        val narration = assertNotNull(engine.nextNarration(step2))
+        assertEquals("Silver Lake", narration.poi.title)
+        assertTrue(Regex("afield|Out of sight").containsMatchIn(narration.sentences.first()), narration.sentences.first())
+
+        // After a story, nearby comes first again.
+        engine.onNarrationFinished(step2)
+        assertEquals(0, engine.widening(step2 + 60_000))
+        assertEquals("Next story in 20 s", engine.waitingFor(step2 + 10_000))
+    }
+
+    @Test
+    fun `wider profiles stop at the Wikipedia limit`() {
+        val walking = DetailProfile.forMode(TravelMode.WALKING)
+        assertEquals(walking, walking.widened(0))
+        assertEquals(3_000, walking.widened(1).searchRadiusM)
+        assertEquals(750.0, walking.widened(1).visibilityM)
+        assertEquals(10_000, DetailProfile.forMode(TravelMode.DRIVING).widened(2).searchRadiusM)
     }
 }

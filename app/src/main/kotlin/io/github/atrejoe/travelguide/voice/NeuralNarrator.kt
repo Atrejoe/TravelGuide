@@ -132,6 +132,9 @@ class NeuralNarrator(
         for (text in texts) if (text !in queued) queued[text] = synthesize(text)
     }
 
+    override fun isPrepared(text: String): Boolean =
+        last?.first == text || queued[text]?.isCompleted == true
+
     override suspend fun speak(text: String): Boolean {
         if (released) return false
         stopped = false

@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide.core.story
 
 import io.github.atrejoe.travelguide.core.motion.TravelMode
+import kotlin.math.pow
 
 /**
  * How we tell stories at a given travel mode: the faster you go, the wider we look and the more
@@ -24,7 +25,26 @@ data class DetailProfile(
 ) {
     fun typeWeight(type: PoiType): Double = typeWeights[type] ?: 1.0
 
+    /**
+     * This profile looking [level] steps further afield (issue #64): each step searches
+     * [WIDEN_FACTOR] times wider, up to what Wikipedia allows, and counts places that much further
+     * from the route as worth a story.
+     */
+    fun widened(level: Int): DetailProfile {
+        if (level <= 0) return this
+        val factor = WIDEN_FACTOR.pow(level)
+        return copy(
+            searchRadiusM = (searchRadiusM * factor).toInt().coerceAtMost(MAX_SEARCH_RADIUS_M),
+            visibilityM = visibilityM * factor,
+        )
+    }
+
     companion object {
+        const val WIDEN_FACTOR = 3.0
+
+        /** Wikipedia's geosearch radius limit. */
+        const val MAX_SEARCH_RADIUS_M = 10_000
+
         fun forMode(mode: TravelMode): DetailProfile = when (mode) {
             TravelMode.STATIONARY -> DetailProfile(
                 searchRadiusM = 1_000, lookaheadSeconds = 0, maxSentences = 6, minGapSeconds = 60,

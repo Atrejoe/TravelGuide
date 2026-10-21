@@ -55,6 +55,10 @@ data class GuideUiState(
     val route: List<GeoPoint> = emptyList(),
     val routeSource: PathSource = PathSource.NONE,
     val message: String? = null,
+    /** What the guide is doing right now, e.g. "Reading about Grote Kerk…" (issue #65). */
+    val activity: String? = null,
+    /** What it waits for between stories, e.g. "Next story in 20 s". */
+    val waiting: String? = null,
     /** The voice actually speaking, and why it differs from the chosen one, if it does. */
     val voiceLabel: String? = null,
     val voiceWarning: String? = null,
