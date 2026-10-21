@@ -1,5 +1,7 @@
 package io.github.atrejoe.travelguide.core.places
 
+import io.github.atrejoe.travelguide.core.lang.Heritage
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.geo.GeoMath
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.rail.OsmFeature
@@ -39,6 +41,7 @@ class OsmPlaceSource(
     private val lang: String = "en",
     private val currentYear: Int = Year.now().value,
 ) : PlaceSource {
+    private val language = StoryLanguages.of(lang)
 
     override suspend fun places(center: GeoPoint, radiusM: Int): List<Poi> {
         val features = overpass.places(center, radiusM)
@@ -97,7 +100,7 @@ class OsmPlaceSource(
             title = tags["name:$lang"]?.takeIf { it.isNotBlank() } ?: englishLabel(entity) ?: name,
             point = f.point,
             type = osmKind.poiType,
-            description = facts.description ?: kindLabel ?: PlaceClassifier.noun(osmKind, tags),
+            description = facts.description ?: kindLabel ?: PlaceClassifier.noun(osmKind, tags, language),
             url = when {
                 wikiTitle != null -> "https://$lang.wikipedia.org/wiki/" + wikiTitle.replace(' ', '_')
                 qid != null -> "https://www.wikidata.org/wiki/$qid"
@@ -122,21 +125,20 @@ class OsmPlaceSource(
     }
 
     /** A spoken noun phrase for the protection of a monument, e.g. "a Rijksmonument, a listed national monument". */
-    internal fun heritage(entity: WikidataEntity?, tags: Map<String, String>): String? {
+    internal fun heritage(entity: WikidataEntity?, tags: Map<String, String>): String? = heritageKind(entity, tags)?.let(language::heritage)
+
+    private fun heritageKind(entity: WikidataEntity?, tags: Map<String, String>): Heritage? {
         val designations = entity?.items?.get("P1435").orEmpty()
         val worldHeritage = designations.any { it == WORLD_HERITAGE } || tags["heritage"] == "1" || tags["heritage:operator"] == "whc"
         val rijksmonument = designations.any { it == RIJKSMONUMENT } || entity?.strings?.containsKey("P359") == true ||
             !tags["ref:rce"].isNullOrBlank() || tags["heritage:operator"] == "rce"
         return when {
-            worldHeritage -> "part of a UNESCO World Heritage Site"
-            rijksmonument -> "a Rijksmonument, a listed national monument"
-            !tags["listed_status"].isNullOrBlank() -> tags["listed_status"]!!.let { status ->
-                val spoken = status.replace("*", " star").trim()
-                if (spoken.contains("listed", ignoreCase = true)) withArticle(spoken) else withArticle("$spoken listed building")
-            }
-            designations.isNotEmpty() -> "a listed monument"
-            tags["heritage"] == "2" -> "a national monument"
-            !tags["heritage"].isNullOrBlank() -> "a listed monument"
+            worldHeritage -> Heritage.WorldHeritage
+            rijksmonument -> Heritage.Rijksmonument
+            !tags["listed_status"].isNullOrBlank() -> Heritage.ListedStatus(tags["listed_status"]!!)
+            designations.isNotEmpty() -> Heritage.Listed
+            tags["heritage"] == "2" -> Heritage.National
+            !tags["heritage"].isNullOrBlank() -> Heritage.Listed
             else -> null
         }
     }
@@ -176,8 +178,5 @@ class OsmPlaceSource(
             }
             return -(f.id * 4 + type)
         }
-
-        fun withArticle(phrase: String): String =
-            if (phrase.first().lowercaseChar() in "aeiou") "an $phrase" else "a $phrase"
     }
 }

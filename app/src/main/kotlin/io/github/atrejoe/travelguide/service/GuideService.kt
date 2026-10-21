@@ -95,26 +95,35 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     private val locationListener = LocationListener { location -> onLocation(location) }
 
+    private val fetcher = UrlConnectionFetcher()
+    private val overpass = OverpassClient(fetcher)
+    private val nominatim = NominatimClient(fetcher)
+
+    /** Wikipedia and Wikidata in the story language (issue #68). */
+    private inner class Sources(val lang: String) {
+        val wikipedia = WikipediaClient(fetcher, lang = lang)
+        private val wikidata = WikidataClient(fetcher, lang = lang)
+        val buildings = OsmPlaceSource(overpass, wikidata, lang = lang)
+        val towns = TownLookup(nominatim, wikidata, wikipedia, lang = lang)
+    }
+
+    private var sources = Sources(AppSettings().language)
+
     override fun onCreate() {
         super.onCreate()
-        val fetcher = UrlConnectionFetcher()
-        val wikipedia = WikipediaClient(fetcher, lang = "en")
-        val overpass = OverpassClient(fetcher)
-        val wikidata = WikidataClient(fetcher)
-        val nominatim = NominatimClient(fetcher)
-        // Buildings in an old town centre make a sizeable answer: parse it off the main thread.
-        val buildings = OsmPlaceSource(overpass, wikidata)
+        // The sources are looked up on every call, so a change of language takes effect at once.
         engine = GuideEngine(
-            wikipedia,
-            articles = wikipedia,
+            { center, radius -> sources.wikipedia.nearby(center, radius) },
+            articles = { poi -> sources.wikipedia.article(poi) },
             rails = overpass,
             // Road networks can be large: parse them off the main thread.
             roads = RoadSource { center, major, minor, cycleways ->
                 withContext(Dispatchers.Default) { overpass.roads(center, major, minor, cycleways) }
             },
             toward = TowardRouter(nominatim, OsrmClient(fetcher)),
-            places = PlaceSource { center, radius -> withContext(Dispatchers.Default) { buildings.places(center, radius) } },
-            towns = TownLookup(nominatim, wikidata, wikipedia),
+            // Buildings in an old town centre make a sizeable answer: parse it off the main thread.
+            places = PlaceSource { center, radius -> withContext(Dispatchers.Default) { sources.buildings.places(center, radius) } },
+            towns = { point -> sources.towns.town(point) },
         )
         engine.onActivity = { what -> GuideStatus.update { it.copy(activity = what) } }
         focus = AudioFocus(this, this)
@@ -230,7 +239,13 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     private suspend fun watchSettings() {
         app.settings.settings.distinctUntilChanged().collect { s ->
-            if (s.voiceId != settings.voiceId) {
+            if (s.language != sources.lang) {
+                // Places and stories found so far are in the old language.
+                sources = Sources(s.language)
+                engine.forgetPlaces()
+                narratorDirty = true
+            }
+            if (s.voiceId != settings.voiceId || s.language != settings.language) {
                 narratorDirty = true
             } else if (s.pitch != settings.pitch || s.rate != settings.rate) {
                 narrator?.adjust(s.pitch, s.rate)

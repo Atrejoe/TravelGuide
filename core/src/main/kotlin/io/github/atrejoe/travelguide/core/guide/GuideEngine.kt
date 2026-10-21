@@ -5,6 +5,7 @@ import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.interest.Interest
 import io.github.atrejoe.travelguide.core.interest.InterestClassifier
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
 import io.github.atrejoe.travelguide.core.motion.TravelMode
@@ -520,7 +521,7 @@ class GuideEngine(
         val source = articles ?: return null
         if (!poi.hasArticle) return null
         val sections = try {
-            doing("Reading about ${poi.title}…") { source.article(poi) }?.let(ArticleParser::parse)
+            doing("Reading about ${poi.title}…") { source.article(poi) }?.let { ArticleParser.parse(it, StoryLanguages.of(poi.lang)) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -615,6 +616,25 @@ class GuideEngine(
     /** Call when a story has finished playing so the next one waits for the configured gap. */
     fun onNarrationFinished(nowMillis: Long) {
         lastNarrationEnd = nowMillis
+    }
+
+    /**
+     * Forgets the places found and the stories told, e.g. after a change of language: they are
+     * fetched again, in the new language. Travel, roads and navigation are kept.
+     */
+    fun forgetPlaces() {
+        known.clear()
+        told.clear()
+        toldItems.clear()
+        articleCache.clear()
+        lastFetchCenter = null
+        lastFetchMillis = 0
+        lastFetchRadius = 0
+        lastPlacesCenter = null
+        lastPlacesAttemptMillis = Long.MIN_VALUE / 2
+        lastTownPoint = null
+        pendingTown = null
+        currentTown = null
     }
 
     fun reset() {

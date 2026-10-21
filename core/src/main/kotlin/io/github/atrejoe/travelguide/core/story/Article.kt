@@ -1,5 +1,8 @@
 package io.github.atrejoe.travelguide.core.story
 
+import io.github.atrejoe.travelguide.core.lang.English
+import io.github.atrejoe.travelguide.core.lang.StoryLanguage
+
 /** What a section of an article is about, which decides how story-worthy its sentences are. */
 enum class SectionKind(val weight: Double) {
     INTRO(1.0),
@@ -16,27 +19,10 @@ enum class SectionKind(val weight: Double) {
     ;
 
     companion object {
-        private val rules: List<Pair<SectionKind, List<String>>> = listOf(
-            SKIP to listOf(
-                "demograph", "population", "government", "politic", "administrat", "economy",
-                "transport", "education", "sport", "twin", "sister cit", "reference", "notes",
-                "further reading", "external link", "see also", "gallery", "bibliograph", "sources",
-                "notable people", "people", "infrastructure", "media", "health", "statistic",
-                "subdivision", "neighbourhood", "neighborhood", "district", "list of", "citations",
-            ),
-            NAME to listOf("etymolog", "name", "toponym"),
-            LEGEND to listOf("legend", "folklore", "myth", "ghost", "mystery"),
-            HISTORY to listOf("history", "origin", "founding", "medieval", "middle ages", "war", "ancient", "prehistor", "century"),
-            CULTURE to listOf("culture", "art", "festival", "cuisine", "food", "music", "religio", "tradition", "event"),
-            LANDMARKS to listOf("landmark", "architecture", "sight", "monument", "building", "attraction", "heritage"),
-            NATURE to listOf("geograph", "geolog", "nature", "landscape", "flora", "fauna", "wildlife", "ecolog", "environment", "course", "hydrolog"),
-            CLIMATE to listOf("climate", "weather"),
-        )
-
-        fun fromTitle(title: String): SectionKind {
+        fun fromTitle(title: String, language: StoryLanguage = English): SectionKind {
             val t = title.lowercase()
             if (t.isBlank()) return INTRO
-            return rules.firstOrNull { (_, words) -> words.any { it in t } }?.first ?: OTHER
+            return language.sectionRules.firstOrNull { (_, words) -> words.any { it in t } }?.first ?: OTHER
         }
     }
 }
@@ -51,7 +37,7 @@ object ArticleParser {
      * inherit the kind of their parent unless their own title says otherwise, so "History >
      * Middle Ages" stays history while "History > Population" is skipped.
      */
-    fun parse(extract: String): List<ArticleSection> {
+    fun parse(extract: String, language: StoryLanguage = English): List<ArticleSection> {
         val sections = mutableListOf<ArticleSection>()
         var title = ""
         var kind = SectionKind.INTRO
@@ -74,7 +60,7 @@ object ArticleParser {
             val level = match.groupValues[1].length
             title = match.groupValues[2]
             while (parents.isNotEmpty() && parents.last().first >= level) parents.removeLast()
-            val own = SectionKind.fromTitle(title)
+            val own = SectionKind.fromTitle(title, language)
             val parent = parents.lastOrNull()?.second
             kind = when {
                 parent == SectionKind.SKIP -> SectionKind.SKIP

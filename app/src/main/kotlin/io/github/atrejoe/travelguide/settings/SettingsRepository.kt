@@ -11,13 +11,19 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.core.enhance.LocalModel
 import io.github.atrejoe.travelguide.core.enhance.LocalModels
+import io.github.atrejoe.travelguide.core.lang.English
+import io.github.atrejoe.travelguide.core.lang.StoryLanguage
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import java.util.Locale
 
 data class AppSettings(
+    /** The language of the stories and voices (issue #68), a [StoryLanguage] code. */
+    val language: String = English.code,
     /** `neural:<id>` for an on-device Piper voice, `system:<name>` for an Android TTS voice. */
     val voiceId: String = VoiceCatalog.DEFAULT_VOICE_ID,
     /** Below 1 gives a deeper voice; 1 avoids the artefacts of pitch shifting. */
@@ -57,6 +63,7 @@ private val Context.dataStore by preferencesDataStore(name = "settings")
 
 class SettingsRepository(private val context: Context) {
     private object Keys {
+        val language = stringPreferencesKey("language")
         val voice = stringPreferencesKey("voice")
         val pitch = floatPreferencesKey("pitch")
         val rate = floatPreferencesKey("rate")
@@ -94,6 +101,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         context.dataStore.edit { p ->
             val next = transform(fromPrefs(p))
+            p[Keys.language] = next.language
             p[Keys.voice] = next.voiceId
             p[Keys.pitch] = next.pitch
             p[Keys.rate] = next.rate
@@ -108,12 +116,18 @@ class SettingsRepository(private val context: Context) {
 
     private companion object {
         const val CURRENT_VERSION = 2
+
+        /** The phone's language when stories can be told in it, else English. */
+        fun phoneLanguage(): String = StoryLanguages.of(Locale.getDefault().language).code
     }
 
     private fun fromPrefs(p: Preferences): AppSettings {
         val defaults = AppSettings()
+        // Earlier versions only told stories in English: keep it for those who chose a voice.
+        val language = p[Keys.language] ?: if (p[Keys.voice] != null) English.code else phoneLanguage()
         return AppSettings(
-            voiceId = p[Keys.voice] ?: defaults.voiceId,
+            language = language,
+            voiceId = p[Keys.voice] ?: VoiceCatalog.defaultVoiceId(language),
             pitch = p[Keys.pitch] ?: defaults.pitch,
             rate = p[Keys.rate] ?: defaults.rate,
             modeOverride = p[Keys.mode]?.let { name -> TravelMode.entries.firstOrNull { it.name == name } },

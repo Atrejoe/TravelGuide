@@ -1,5 +1,6 @@
 package io.github.atrejoe.travelguide.core.interest
 
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.PoiType
 
@@ -12,45 +13,18 @@ enum class Interest {
     PLACES,
 }
 
-/** Keyword-based tagging; deliberately cheap so no language model is needed at runtime. */
+/** Keyword-based tagging in the place's language; deliberately cheap so no language model is needed at runtime. */
 object InterestClassifier {
-    private val keywords: Map<Interest, List<String>> = mapOf(
-        Interest.HISTORY to listOf(
-            "battle", "castle", "fort", "war", "ancient", "medieval", "roman", "century", "historic",
-            "ruin", "monument", "memorial", "archaeolog", "abbey", "palace", "founded", "siege",
-            "monastery", "manor", "estate", "dynasty", "viking", "prehistoric", "burial", "mound",
-            "fortress", "rampart", "citadel", "heritage", "former", "demolished", "rebuilt",
-        ),
-        Interest.NATURE to listOf(
-            "river", "lake", "mountain", "forest", "nature reserve", "national park", "valley", "hill",
-            "island", "glacier", "dune", "heath", "wetland", "bird", "species", "climate", "geolog",
-        ),
-        Interest.CULTURE to listOf(
-            "museum", "festival", "theatre", "theater", "art", "music", "painter", "writer", "cuisine",
-            "tradition", "religio", "church", "cathedral", "mosque", "temple", "university",
-        ),
-        Interest.ARCHITECTURE to listOf(
-            "building", "tower", "bridge", "architect", "windmill", "mill", "house", "castle", "church",
-            "cathedral", "station", "canal", "lock", "dam", "skyscraper",
-        ),
-    )
-
-    /** Description openings that mark an administrative place ("municipality in Gelderland"). */
-    private val placeNouns = setOf(
-        "city", "town", "village", "municipality", "capital", "province", "region", "county",
-        "district", "neighbourhood", "neighborhood", "hamlet", "commune", "borough", "parish",
-        "former", "human", "place", "census-designated",
-    )
-
     fun classify(poi: Poi): Set<Interest> {
+        val language = StoryLanguages.of(poi.lang)
         val text = buildString {
             append(poi.description.orEmpty().lowercase()).append(' ')
             append(poi.extract.take(300).lowercase())
         }
-        val found = keywords.filterValues { words -> words.any { it in text } }.keys.toMutableSet()
+        val found = language.interestKeywords.filterValues { words -> words.any { it in text } }.keys.toMutableSet()
         // Only what a place *is* makes it a town or region, not a mention of "the region" in its text.
         val firstWords = poi.description.orEmpty().lowercase().split(' ', ',').filter { it.isNotBlank() }.take(3)
-        if (firstWords.firstOrNull() in placeNouns && firstWords.none { it in setOf("church", "castle", "fort", "mill") }) {
+        if (firstWords.firstOrNull() in language.placeNouns && firstWords.none { it in language.notPlaceNouns }) {
             found += Interest.PLACES
         }
         when (poi.type) {

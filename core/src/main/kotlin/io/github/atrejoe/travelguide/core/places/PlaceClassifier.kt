@@ -1,5 +1,7 @@
 package io.github.atrejoe.travelguide.core.places
 
+import io.github.atrejoe.travelguide.core.lang.English
+import io.github.atrejoe.travelguide.core.lang.StoryLanguage
 import io.github.atrejoe.travelguide.core.story.PlaceKind
 
 /**
@@ -119,18 +121,9 @@ object PlaceClassifier {
         else -> null
     }
 
-    private val denominations = mapOf(
-        "catholic" to "Catholic", "roman_catholic" to "Catholic", "old_catholic" to "Old Catholic",
-        "protestant" to "Protestant", "reformed" to "Protestant", "dutch_reformed" to "Protestant",
-        "lutheran" to "Lutheran", "evangelical" to "Protestant", "anglican" to "Anglican",
-        "orthodox" to "Orthodox", "greek_orthodox" to "Greek Orthodox", "russian_orthodox" to "Russian Orthodox",
-        "baptist" to "Baptist", "methodist" to "Methodist", "mennonite" to "Mennonite", "remonstrant" to "Remonstrant",
-    )
-
     /** What to call it when nothing better is known: "Catholic church", "town hall"… */
-    fun noun(kind: PlaceKind, tags: Map<String, String>): String {
+    fun noun(kind: PlaceKind, tags: Map<String, String>, language: StoryLanguage = English): String {
         val christian = kind == PlaceKind.CHURCH || kind == PlaceKind.CATHEDRAL || kind == PlaceKind.CHAPEL
-        val adjective = if (christian) denominations[tags["denomination"]] else null
-        return listOfNotNull(adjective, kind.noun).joinToString(" ")
+        return language.withDenomination(if (christian) tags["denomination"] else null, language.placeNoun(kind))
     }
 }
