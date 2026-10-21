@@ -62,6 +62,19 @@ class NominatimClient(
      */
     suspend fun reverse(point: GeoPoint): ReverseGeocodedPlace? = parseReverse(throttled(reverseUrl(point)))
 
+    /** The ISO 3166 code of the country at [point], e.g. "it"; null at sea or when unknown. */
+    suspend fun country(point: GeoPoint): String? = parseCountry(throttled(countryUrl(point)))
+
+    fun countryUrl(point: GeoPoint): String = String.format(
+        Locale.ROOT, "%s/reverse?format=jsonv2&zoom=3&lat=%.6f&lon=%.6f", baseUrl, point.lat, point.lon,
+    )
+
+    fun parseCountry(body: String): String? {
+        val root = lenientJson.parseToJsonElement(body) as? JsonObject ?: return null
+        val address = root["address"] as? JsonObject ?: return null
+        return address["country_code"]?.jsonPrimitive?.contentOrNull?.takeIf { it.isNotBlank() }?.lowercase()
+    }
+
     private suspend fun throttled(url: String): String = throttle.withLock {
         val wait = lastRequestMillis + MIN_INTERVAL_MILLIS - clock()
         if (wait > 0) delay(wait)

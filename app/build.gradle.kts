@@ -147,6 +147,7 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.osmdroid)
     implementation(libs.mlkit.genai.prompt)
+    implementation(libs.mlkit.translate)
     implementation(libs.sentry.android)
 
     implementation(platform(libs.compose.bom))

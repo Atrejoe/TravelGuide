@@ -5,7 +5,9 @@ import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.interest.Interest
 import io.github.atrejoe.travelguide.core.interest.InterestClassifier
+import io.github.atrejoe.travelguide.core.lang.StoryLanguage
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
+import io.github.atrejoe.travelguide.core.lang.Translator
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.MotionTracker
 import io.github.atrejoe.travelguide.core.motion.TravelMode
@@ -74,6 +76,15 @@ class GuideEngine(
     private val composer = NarrationComposer(random)
 
     var interestWeights: Map<Interest, Double> = InterestClassifier.defaultWeights
+
+    /**
+     * The language to tell in (issue #68); null tells every place in its own article's language.
+     * Places found in another language are only told when there is a [translator].
+     */
+    var language: StoryLanguage? = null
+
+    /** Translates what articles in another language say (issue #71); null to skip such places. */
+    var translator: Translator? = null
 
     /** Whether to tell about buildings, institutions and the town itself while walking. */
     var walkingPlaces: Boolean = true
@@ -443,7 +454,7 @@ class GuideEngine(
         val articleText = sections?.joinToString(" ") { it.text } ?: best.scored.poi.extract
         val companions = companions(best, rank(state, profile, minScore = 0.0), articleText, state, profile)
         companions.forEach { markTold(it.poi) }
-        return composer.compose(best.scored, state, profile, sections, companions)
+        return translated(composer.compose(best.scored, state, profile, sections, companions, storyLanguage = storyLanguage(poi)))
     }
 
     /**
@@ -455,7 +466,7 @@ class GuideEngine(
         val poi = best.scored.poi
         markTold(poi)
         val sections = if (poi.pageId in articleCache) articleCache[poi.pageId] else fetchArticle(poi)
-        return composer.compose(best.scored, state, wide, sections, afield = true)
+        return translated(composer.compose(best.scored, state, wide, sections, afield = true, storyLanguage = storyLanguage(poi)))
     }
 
     /**
@@ -491,13 +502,46 @@ class GuideEngine(
         }
     }
 
+    private fun storyLanguage(poi: Poi): StoryLanguage = language ?: StoryLanguages.of(poi.lang)
+
+    /** A place in another language can only be told when it can be translated. */
+    private fun canTell(poi: Poi): Boolean = language.let { it == null || it.code == poi.lang || translator != null }
+
+    /**
+     * [narration] with the sentences still in another language translated into the story's
+     * (issue #71); null when that fails, so the place is skipped rather than told in the wrong
+     * language.
+     */
+    private suspend fun translated(narration: Narration): Narration? {
+        val target = narration.lang
+        val foreign = narration.sentenceLangs.withIndex().filter { it.value != target }
+        if (foreign.isEmpty()) return narration
+        val translator = translator ?: return null
+        val sentences = narration.sentences.toMutableList()
+        try {
+            doing("Translating ${narration.poi.title}…") {
+                for ((from, items) in foreign.groupBy { it.value }) {
+                    val indices = items.map { it.index }
+                    val result = translator.translate(indices.map { narration.sentences[it] }, from, target)
+                    check(result.size == indices.size) { "Translated ${result.size} of ${indices.size} sentences" }
+                    indices.zip(result).forEach { (i, text) -> sentences[i] = text }
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            return null
+        }
+        return narration.copy(sentences = sentences, sentenceLangs = sentences.map { target })
+    }
+
     /** The story of the town we are in, history first; we are in it, wherever its centre is. */
-    private suspend fun tellTown(town: Poi, state: MotionState, profile: DetailProfile): Narration {
+    private suspend fun tellTown(town: Poi, state: MotionState, profile: DetailProfile): Narration? {
         markTold(town)
         val sections = if (town.pageId in articleCache) articleCache[town.pageId] else fetchArticle(town)
         val path = extrapolator.predict(state, profile.lookaheadSeconds)
         val scored = ScoredPoi(town, 1.0, path.locate(town.point), GeoMath.distance(state.fix.point, town.point))
-        return composer.compose(scored, state, profile, sections, relative = RelativePosition.Here)
+        return translated(composer.compose(scored, state, profile, sections, relative = RelativePosition.Here, storyLanguage = storyLanguage(town)))
     }
 
     /**
@@ -558,7 +602,7 @@ class GuideEngine(
         val moving = state.speedMps > 0.5 && path.points.size > 1
         return known.values
             .asSequence()
-            .filter { it.hasStory && !isTold(it) }
+            .filter { it.hasStory && !isTold(it) && canTell(it) }
             .mapNotNull { scorer.score(it, path) }
             .filter { it.score >= minScore }
             // A building without an article is only worth telling while you can see it.

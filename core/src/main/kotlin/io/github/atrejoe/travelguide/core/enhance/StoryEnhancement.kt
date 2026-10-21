@@ -118,9 +118,15 @@ class StoryEnhancement(
     suspend fun enhance(narration: Narration, mode: TravelMode, interests: Map<Interest, Double>): Narration {
         val poi = narration.poi
         if (poi.extract.isBlank() || narration.bodySize == 0) return narration.also { lastOutcome = EnhanceOutcome.SKIPPED }
-        val key = "${enhancer.id}:${poi.lang}:${poi.pageId}"
+        // In the story's language: a place found in another Wikipedia is retold in this one (issue #71).
+        // Stories retold before keep their key.
+        val key = if (narration.lang == poi.lang) {
+            "${enhancer.id}:${poi.lang}:${poi.pageId}"
+        } else {
+            "${enhancer.id}:${narration.lang}:${poi.lang}:${poi.pageId}"
+        }
         store.story(key)?.let { cached ->
-            sentencesOf(cached, poi.lang)?.let {
+            sentencesOf(cached, narration.lang)?.let {
                 lastOutcome = EnhanceOutcome.CACHED
                 return narration.withBody(it)
             }
@@ -140,7 +146,7 @@ class StoryEnhancement(
             where = NarrationComposer.label(narration.relative),
             interests = interests.entries.filter { it.value > 0 }.sortedByDescending { it.value }.map { it.key },
             sentences = narration.bodySize.coerceAtLeast(MIN_SENTENCES),
-            lang = poi.lang,
+            lang = narration.lang,
         )
         var failure: Exception? = null
         val retold = try {
@@ -158,7 +164,7 @@ class StoryEnhancement(
             return narration.also { lastOutcome = EnhanceOutcome.FAILED }
         }
         store.addSpent(month, retold.costUsd)
-        val sentences = sentencesOf(retold.text, poi.lang) ?: return narration.also { lastOutcome = EnhanceOutcome.FAILED }
+        val sentences = sentencesOf(retold.text, narration.lang) ?: return narration.also { lastOutcome = EnhanceOutcome.FAILED }
         store.putStory(key, sentences.joinToString(" "))
         lastOutcome = EnhanceOutcome.RETOLD
         return narration.withBody(sentences)
@@ -168,7 +174,11 @@ class StoryEnhancement(
         SentenceSplitter.split(TextCleaner.clean(text), StoryLanguages.of(lang)).filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
 
     private fun Narration.withBody(body: List<String>): Narration =
-        copy(sentences = listOf(sentences.first()) + body + sentences.drop(1 + bodySize), bodySize = body.size)
+        copy(
+            sentences = listOf(sentences.first()) + body + sentences.drop(1 + bodySize),
+            bodySize = body.size,
+            sentenceLangs = listOf(sentenceLangs.first()) + body.map { lang } + sentenceLangs.drop(1 + bodySize),
+        )
 
     private fun month(): String = YearMonth.from(Instant.ofEpochMilli(clock()).atZone(ZoneOffset.UTC)).toString()
 

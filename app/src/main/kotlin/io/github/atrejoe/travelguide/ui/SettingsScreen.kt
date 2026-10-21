@@ -333,6 +333,27 @@ fun SettingsScreen(onBack: () -> Unit) {
                     Switch(checked = settings.walkingPlaces, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
                 }
             }
+            item {
+                val language = StoryLanguages.of(settings.language).name
+                Row(
+                    Modifier.fillMaxWidth().toggleable(
+                        value = settings.translatePlaces,
+                        onValueChange = { on -> scope.launch { repo.update { it.copy(translatePlaces = on) } } },
+                        role = Role.Switch,
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Translate places without a $language article", style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            "Also tell about places only the Wikipedia of the country you're in, or the English one, " +
+                                "knows, translated on the phone. The first time per language this downloads about 30 MB.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    Switch(checked = settings.translatePlaces, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
+                }
+            }
             item { StorytellerSettings(settings) }
 
             item { HorizontalDivider() }
