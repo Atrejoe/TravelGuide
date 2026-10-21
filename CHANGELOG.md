@@ -14,7 +14,6 @@ All notable changes to this project are documented here. The format follows
   and three Dutch on-device voices can be downloaded (Pim and Ronnie, Netherlands; Nathalie,
   Flemish), or the phone's own Dutch voice is used. The language defaults to the phone's when
   stories can be told in it; the app's screens stay in English.
-
 - Stories about the wider area when nothing nearby is worth one ([#64](../../issues/64)): after
   two minutes without a story the guide looks three times further, after four minutes nine times
   (up to 10 km), and tells about places out of sight ("A little further afield, about 6 km to
