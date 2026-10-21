@@ -39,24 +39,24 @@ object Spanish : StoryLanguage("es", "Spanish", "Español") {
     )
 
     override val remarkable = Regex(
-        "(?U)\\b(más antigu[oa]s?|más grande|mayor|más alt[oa]s?|más larg[oa]s?|más pequeñ[oa]s?|primer[oa]?|únic[oa]s?|" +
+        "(?<!\\p{L})(más antigu[oa]s?|más grande|mayor|más alt[oa]s?|más larg[oa]s?|más pequeñ[oa]s?|primer[oa]?|únic[oa]s?|" +
             "últim[oa]s?|famos[oa]s?|célebres?|notables?|legendari[oa]s?|leyendas?|mitos?|según|apodad[oa]|" +
             "conocid[oa] como|destruid[oa]s?|incendios?|incendiad[oa]|inundación|peste|asedio|sitio de|batallas?|tratado|" +
             "descubiert[oa]|inventad[oa]|sobrevivi(ó|eron)|milagros?|secretos?|misterios?|rey|reina|emperador|" +
-            "roman[oa]s?|vikingos?|medieval(es)?|monjes?|caballeros?|sant[oa]|san|peregrin[oa]s?|tesoros?|ruinas?)\\b",
+            "roman[oa]s?|vikingos?|medieval(es)?|monjes?|caballeros?|sant[oa]|san|peregrin[oa]s?|tesoros?|ruinas?)(?!\\p{L})",
         RegexOption.IGNORE_CASE,
     )
     override val nameOrigin = Regex(
-        "(?U)\\b(debe su nombre|toma su nombre|nombrad[oa] en honor|deriva de|procede de|proviene de|el nombre|significa|significado)\\b",
+        "(?<!\\p{L})(debe su nombre|toma su nombre|nombrad[oa] en honor|deriva de|procede de|proviene de|el nombre|significa|significado)(?!\\p{L})",
         RegexOption.IGNORE_CASE,
     )
-    override val dated = Regex("(?U)\\b(1[0-9]{3}|20[0-2][0-9]|siglo [XVI]+|siglo [0-9]{1,2}|a\\. ?C|d\\. ?C)")
+    override val dated = Regex("(?<!\\p{L})(1[0-9]{3}|20[0-2][0-9]|siglo [XVI]+|siglo [0-9]{1,2}|a\\. ?C|d\\. ?C)")
     override val administrative = Regex(
-        "(?U)\\b(habitantes|población|censo|municipio de|km²|km2|kilómetros cuadrados|código postal|densidad|por ciento|" +
+        "(?<!\\p{L})(habitantes|población|censo|municipio de|km²|km2|kilómetros cuadrados|código postal|densidad|por ciento|" +
             "hogares|mediana|administrativ|estadístic|elegid|alcalde|coordenadas|se encuentra en la provincia|está formado por)",
         RegexOption.IGNORE_CASE,
     )
-    override val contextDependent = Regex("(?U)^(Él|Ella|Ellos|Ellas|Este|Esta|Estos|Estas|Su|Sus|Sin embargo|Pero|También|Ambos|Allí|Además)\\b")
+    override val contextDependent = Regex("^(Él|Ella|Ellos|Ellas|Este|Esta|Estos|Estas|Su|Sus|Sin embargo|Pero|También|Ambos|Allí|Además)(?!\\p{L})")
 
     private val definitionVerbs = listOf(" es un", " es una", " es el", " es la", " era un", " era una", " son ")
 

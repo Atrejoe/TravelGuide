@@ -126,6 +126,19 @@ class LanguagesTest {
     }
 
     @Test
+    fun `patterns use only what Android's regex engine knows`() {
+        // Android compiles patterns with ICU, which rejects Java's (?U) flag; the app then crashed
+        // as soon as the languages loaded (TRAVELGUIDE-2).
+        for (language in StoryLanguages.all) {
+            val patterns = listOf(language.remarkable, language.nameOrigin, language.dated, language.administrative, language.contextDependent)
+            for (pattern in patterns) assertTrue("(?U" !in pattern.pattern, "${language.name}: ${pattern.pattern.take(40)}")
+        }
+        // Words with accents at their edges still match whole.
+        assertTrue(French.remarkable.containsMatchIn("Le traité fut signé ici."))
+        assertTrue(!French.remarkable.containsMatchIn("Un roitelet chante."))
+    }
+
+    @Test
     fun `a German ordinal dot doesn't end a sentence`() {
         assertEquals(
             listOf("Die Burg stammt aus dem 15. Jahrhundert und wurde 1488 erweitert.", "Danach verfiel sie."),
