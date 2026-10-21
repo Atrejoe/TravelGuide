@@ -232,6 +232,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                         for (piece in pieces) {
                                             if (!choice.narrator.speak(piece.text)) break
                                         }
+                                        choice.narrator.drain()
                                         choice.narrator.realTimeFactor?.let { factor ->
                                             previewInfo = speedInfo(choice.narrator.label, factor)
                                         }

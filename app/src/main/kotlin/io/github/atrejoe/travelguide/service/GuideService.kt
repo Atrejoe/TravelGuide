@@ -243,6 +243,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private suspend fun currentNarrator(): Narrator {
         val existing = narrator
         if (existing != null && !narratorDirty) return existing
+        existing?.drain()
         existing?.release()
         narratorDirty = false
         val choice = Narrators.create(this, settings, app.voiceModels)
@@ -431,8 +432,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 // Cut off by a pause or by a replay: say the piece again afterwards.
                 if (completed || !(isPaused() || replayRequest != null)) index++
                 // A short breath between sentences sounds more like a person telling a story.
-                if (completed && index < pieces.size && pieces[index - 1].endsSentence) delay(SENTENCE_PAUSE_MILLIS)
+                if (completed && index < pieces.size && pieces[index - 1].endsSentence) narrator.silence(SENTENCE_PAUSE_MILLIS)
             }
+            // The last piece may still be playing.
+            if (!abortStory) narrator?.drain()
         } finally {
             prepared?.prepare(emptyList())
             if (replay) GuideStatus.update { it.copy(replaying = before) }
