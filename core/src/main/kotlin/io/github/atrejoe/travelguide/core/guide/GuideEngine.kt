@@ -77,6 +77,21 @@ class GuideEngine(
     /** Whether to tell about buildings, institutions and the town itself while walking. */
     var walkingPlaces: Boolean = true
 
+    /**
+     * Told what the guide is fetching, e.g. "Reading about Grote Kerk…", and null when it is done
+     * (issue #65).
+     */
+    var onActivity: (String?) -> Unit = {}
+
+    private suspend fun <T> doing(what: String, block: suspend () -> T): T {
+        onActivity(what)
+        try {
+            return block()
+        } finally {
+            onActivity(null)
+        }
+    }
+
     private val known = LinkedHashMap<Long, Poi>()
     private val told = HashSet<Long>()
 
@@ -86,6 +101,9 @@ class GuideEngine(
     private var lastFetchMillis: Long = 0
     private var lastFetchRadius: Int = 0
     private var lastNarrationEnd: Long? = null
+
+    /** When guiding started, until the first story; the quiet that widens the search counts from there. */
+    private var quietSince: Long? = null
 
     /** Parsed articles by page id, fetched ahead of time; null when the place has no article. */
     private val articleCache = LinkedHashMap<Long, List<ArticleSection>?>()
@@ -124,7 +142,7 @@ class GuideEngine(
         if (nowMillis - lastRailAttemptMillis < RAIL_RETRY_MILLIS) return
         lastRailAttemptMillis = nowMillis
         try {
-            railNetwork = source.around(here, RAIL_RADIUS_M).also { extrapolator.railGraph = RailGraph(it) }
+            railNetwork = doing("Looking up railway lines…") { source.around(here, RAIL_RADIUS_M) }.also { extrapolator.railGraph = RailGraph(it) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -197,7 +215,9 @@ class GuideEngine(
         if (nowMillis - lastRoadAttemptMillis < backoff) return
         lastRoadAttemptMillis = nowMillis
         try {
-            val network = source.roads(here, ROAD_MAJOR_RADIUS_M, if (minor) ROAD_MINOR_RADIUS_M else 0, cycleways = cycling)
+            val network = doing("Looking up the roads…") {
+                source.roads(here, ROAD_MAJOR_RADIUS_M, if (minor) ROAD_MINOR_RADIUS_M else 0, cycleways = cycling)
+            }
             roadNetwork = network
             extrapolator.roadGraph = RoadGraph(network)
             roadFailures = 0
@@ -225,7 +245,7 @@ class GuideEngine(
         if (nowMillis - lastTowardAttemptMillis < TOWARD_RETRY_MILLIS) return
         lastTowardAttemptMillis = nowMillis
         val computed = try {
-            router.route(here, name, state.mode)
+            doing("Planning the route towards $name…") { router.route(here, name, state.mode) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -257,7 +277,9 @@ class GuideEngine(
         refreshTownIfNeeded(nowMillis)
         val placesFetched = refreshPlacesIfNeeded(nowMillis)
         val state = motion.state ?: return placesFetched
-        val profile = DetailProfile.forMode(state.mode)
+        if (quietSince == null) quietSince = nowMillis
+        // Further afield when there has been nothing to tell for a while.
+        val profile = DetailProfile.forMode(state.mode).widened(widening(nowMillis))
         val path = extrapolator.predict(state, profile.lookaheadSeconds)
         // Search around the middle of the predicted stretch so both near and upcoming places are covered.
         val center = pointAlong(path, minOf(path.lengthM / 2, profile.searchRadiusM * 0.6))
@@ -269,7 +291,9 @@ class GuideEngine(
             nowMillis - lastFetchMillis > refreshIntervalMillis
         if (!due) return placesFetched
 
-        val articles = source.nearby(center, profile.searchRadiusM)
+        val articles = doing("Searching Wikipedia within ${radiusText(profile.searchRadiusM)}…") {
+            source.nearby(center, profile.searchRadiusM)
+        }
         lastFetchCenter = center
         lastFetchMillis = nowMillis
         lastFetchRadius = profile.searchRadiusM
@@ -304,7 +328,7 @@ class GuideEngine(
         if (nowMillis - lastPlacesAttemptMillis < backoff) return false
         lastPlacesAttemptMillis = nowMillis
         val found = try {
-            source.places(center, PLACES_RADIUS_M)
+            doing("Looking up buildings nearby…") { source.places(center, PLACES_RADIUS_M) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -367,7 +391,7 @@ class GuideEngine(
         if (nowMillis - lastTownAttemptMillis < backoff) return
         lastTownAttemptMillis = nowMillis
         val town = try {
-            source.town(here)
+            doing("Looking up which town this is…") { source.town(here) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -408,7 +432,8 @@ class GuideEngine(
         }
 
         val ranked = rank(state, profile, profile.minScore)
-        val best = ranked.maxByOrNull { priority(it, profile) } ?: return null
+        val best = ranked.maxByOrNull { priority(it, profile) }
+            ?: return widening(nowMillis).takeIf { it > 0 }?.let { tellAfield(state, profile.widened(it)) }
         markTold(best.scored.poi)
 
         // The lead section from the search result is good enough when the article can't be had.
@@ -418,6 +443,51 @@ class GuideEngine(
         val companions = companions(best, rank(state, profile, minScore = 0.0), articleText, state, profile)
         companions.forEach { markTold(it.poi) }
         return composer.compose(best.scored, state, profile, sections, companions)
+    }
+
+    /**
+     * A story from further afield (issue #64), when nothing nearby is worth one; null when there
+     * is nothing there either.
+     */
+    private suspend fun tellAfield(state: MotionState, wide: DetailProfile): Narration? {
+        val best = rank(state, wide, wide.minScore).maxByOrNull { priority(it, wide) } ?: return null
+        val poi = best.scored.poi
+        markTold(poi)
+        val sections = if (poi.pageId in articleCache) articleCache[poi.pageId] else fetchArticle(poi)
+        return composer.compose(best.scored, state, wide, sections, afield = true)
+    }
+
+    /**
+     * How many steps further afield to look (issue #64): one more for every [WIDEN_AFTER_MILLIS]
+     * without a story once the next one was due, at most [MAX_WIDENING].
+     */
+    fun widening(nowMillis: Long): Int {
+        val state = motion.state ?: return 0
+        val since = lastNarrationEnd ?: quietSince ?: return 0
+        val due = since + DetailProfile.forMode(state.mode).minGapSeconds * 1000L
+        return ((nowMillis - due) / WIDEN_AFTER_MILLIS).toInt().coerceIn(0, MAX_WIDENING)
+    }
+
+    /**
+     * What the guide waits for between stories, for the screen (issue #65): the gap after a
+     * story, or how far it looks and when it will look further.
+     */
+    fun waitingFor(nowMillis: Long): String? {
+        val state = motion.state ?: return null
+        val profile = DetailProfile.forMode(state.mode)
+        lastNarrationEnd?.let { end ->
+            val left = end + profile.minGapSeconds * 1000L - nowMillis
+            if (left > 0) return "Next story in ${durationText(left)}"
+        }
+        val level = widening(nowMillis)
+        val since = lastNarrationEnd ?: quietSince ?: nowMillis
+        val nextStep = since + profile.minGapSeconds * 1000L + (level + 1) * WIDEN_AFTER_MILLIS - nowMillis
+        val radius = radiusText(profile.widened(level).searchRadiusM)
+        return when {
+            level == 0 -> "Nothing nearby worth a story yet; looking further afield in ${durationText(nextStep)}"
+            level < MAX_WIDENING -> "Nothing nearby; looking further afield, within $radius. Wider in ${durationText(nextStep)}"
+            else -> "Nothing nearby; looking further afield, within $radius"
+        }
     }
 
     /** The story of the town we are in, history first; we are in it, wherever its centre is. */
@@ -450,7 +520,7 @@ class GuideEngine(
         val source = articles ?: return null
         if (!poi.hasArticle) return null
         val sections = try {
-            source.article(poi)?.let(ArticleParser::parse)
+            doing("Reading about ${poi.title}…") { source.article(poi) }?.let(ArticleParser::parse)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -564,6 +634,7 @@ class GuideEngine(
         lastFetchMillis = 0
         lastFetchRadius = 0
         lastNarrationEnd = null
+        quietSince = null
         articleCache.clear()
         railNetwork = null
         extrapolator.railGraph = null
@@ -617,8 +688,24 @@ class GuideEngine(
         const val TOWN_RECHECK_M = 400.0
         const val TOWN_RETRY_MILLIS = 60_000L
 
+        /** Without a story for this long after the next one was due, look a step further afield. */
+        const val WIDEN_AFTER_MILLIS = 2 * 60_000L
+        const val MAX_WIDENING = 2
+
         const val PREFETCH_COUNT = 2
         const val ARTICLE_CACHE_SIZE = 20
+    }
+
+    private fun radiusText(meters: Int): String = when {
+        meters < 1_000 -> "$meters m"
+        meters % 1_000 == 0 -> "${meters / 1_000} km"
+        else -> "${"%.1f".format(java.util.Locale.ROOT, meters / 1_000.0)} km"
+    }
+
+    /** "20 s" or "2 min", rounded up. */
+    private fun durationText(millis: Long): String {
+        val seconds = ((millis + 999) / 1_000).coerceAtLeast(1)
+        return if (seconds < 60) "$seconds s" else "${(seconds + 59) / 60} min"
     }
 
     private fun pointAlong(path: PredictedPath, distanceM: Double): GeoPoint {

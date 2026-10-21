@@ -27,6 +27,9 @@ interface Narrator {
     /** Starts rendering [texts] in order, before they are spoken; drops anything else still queued. */
     fun prepare(texts: List<String>) = Unit
 
+    /** False while [text] is still being rendered, so speaking it would have to wait. */
+    fun isPrepared(text: String): Boolean = true
+
     /**
      * Speaks [text] and suspends until it has been played. Returns false when interrupted by
      * [stop] or when speaking failed.

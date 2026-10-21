@@ -49,6 +49,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
      * the geosearch result is used, or for a place without an article, its facts.
      * @param relative where the place is, when known better than from its position (e.g. the town
      * we are walking in).
+     * @param afield true for a place further away than we would normally tell about, which you
+     * probably can't see (issue #64).
      */
     fun compose(
         scored: ScoredPoi,
@@ -57,6 +59,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
         sections: List<ArticleSection>? = null,
         companions: List<ScoredPoi> = emptyList(),
         relative: RelativePosition? = null,
+        afield: Boolean = false,
     ): Narration {
         val poi = scored.poi
         val relative = relative ?: relativePosition(scored, motion)
@@ -78,10 +81,11 @@ class NarrationComposer(private val random: Random = Random.Default) {
             }
             listOf(transition(companion, relativePosition(companion, motion), mentioned)) + about
         }
-        val closing = closing(relative, motion.mode)
+        val closing = if (afield) null else closing(relative, motion.mode)
+        val opener = if (afield) afieldOpener(poi, relative) else opener(poi, relative, motion.mode)
         return Narration(
             poi,
-            listOf(opener(poi, relative, motion.mode)) + body + extra + listOfNotNull(closing),
+            listOf(opener) + body + extra + listOfNotNull(closing),
             relative,
             companions.map { it.poi },
             bodySize = body.size,
@@ -177,6 +181,39 @@ class NarrationComposer(private val random: Random = Random.Default) {
             }
         }
         // Avoid starting two stories in a row with the same words.
+        val fresh = options.filter { it != lastOpener }.ifEmpty { options }
+        return fresh[random.nextInt(fresh.size)].also { lastOpener = it }
+    }
+
+    /** Opens a story about a place out of sight, further afield (issue #64). */
+    private fun afieldOpener(poi: Poi, relative: RelativePosition): String {
+        val t = poi.title
+        val options: List<String> = when (relative) {
+            RelativePosition.Here -> listOf("All around us lies $t.", "The area we are in is $t.")
+            is RelativePosition.Ahead -> {
+                val d = distancePhrase(relative.distanceM)
+                listOf("Further along the way, some $d ahead, lies $t.", "Out of sight for now, about $d ahead, is $t.")
+            }
+            is RelativePosition.Side -> {
+                val side = if (relative.left) "left" else "right"
+                val d = distancePhrase(relative.distanceM)
+                listOf(
+                    "A little further afield, about $d to your $side, lies $t.",
+                    "Out of sight, some $d off to the $side, is $t.",
+                )
+            }
+            is RelativePosition.Behind -> {
+                val d = distancePhrase(relative.distanceM)
+                listOf("Some $d behind us lies $t.", "Back the way we came, about $d away, is $t.")
+            }
+            is RelativePosition.Compass -> {
+                val d = distancePhrase(relative.distanceM)
+                listOf(
+                    "A little further afield, about $d to the ${relative.direction}, lies $t.",
+                    "Out of sight, some $d to the ${relative.direction}, is $t.",
+                )
+            }
+        }
         val fresh = options.filter { it != lastOpener }.ifEmpty { options }
         return fresh[random.nextInt(fresh.size)].also { lastOpener = it }
     }

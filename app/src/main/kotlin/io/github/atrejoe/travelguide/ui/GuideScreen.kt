@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -316,6 +317,7 @@ private fun StatusCard(
                 else -> "Listening to the road ahead"
             }
             Text(headline, style = MaterialTheme.typography.titleLarge)
+            if (state.running && !state.paused) ActivityLine(state)
             if (state.running) {
                 val mode = state.mode?.let { m ->
                     modeLabel(m) + when {
@@ -334,6 +336,17 @@ private fun StatusCard(
                 state.voiceWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             }
         }
+    }
+}
+
+/** What the guide is doing right now, or what it waits for between stories (issue #65). */
+@Composable
+private fun ActivityLine(state: GuideUiState) {
+    val activity = state.activity
+    val text = activity ?: state.waiting?.takeIf { !state.speaking } ?: return
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (activity != null) CircularProgressIndicator(Modifier.size(14.dp), strokeWidth = 2.dp)
+        Text(text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
