@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
   from its own Wikipedia, with two on-device voices per language: Thorsten and Kerstin (German),
   Tom and Siwis (French), Davefx (Spain) and Ald (Mexico), Paola and Riccardo (Italian), Tugão
   (Portugal) and Faber (Brazil).
+- Natural voices in Spanish, French, Italian and Portuguese ([#73](../../issues/73)): Kokoro's
+  multilingual model, one 132 MB download for Alex, Santa and Dora (Spanish), Siwis (French),
+  Nicola and Sara (Italian), and Alex, Santa and Dora (Brazilian Portuguese). For German, a
+  high-quality Thorsten voice (116 MB) that sounds more natural but renders slower. Kokoro has no
+  Dutch or German voices.
 - Places without an article in the story language are told too, translated
   ([#71](../../issues/71)): the guide also searches the Wikipedia of the country you're in and
   the English one, and translates what it picks from their articles on the phone (ML Kit, free

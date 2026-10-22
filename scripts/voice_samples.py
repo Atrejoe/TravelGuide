@@ -102,13 +102,16 @@ def read_catalog():
         r'NeuralVoice\(\s*"([^"]+)",\s*"([^"]+)",\s*"([^"]+)",\s*'
         r'(?:VoicePackage\("([^"]+)", VoiceEngine\.(\w+), \d+\)|(\w+))'
         r'(?:,\s*speakerId = (\d+))?'
-        r'(?:,\s*lang = "(\w+)")?',
+        r'(?:,\s*lang = "(\w+)")?'
+        r'(?:,\s*espeakLang = "([\w-]+)")?',
         re.S,
     )
-    for vid, name, desc, pkg_id, engine, pkg_ref, sid, lang in pattern.findall(source):
+    for vid, name, desc, pkg_id, engine, pkg_ref, sid, lang, espeak in pattern.findall(source):
         if pkg_ref:
             pkg_id, engine = packages[pkg_ref]
-        voices.append(dict(id=vid, name=name, description=desc, pkg=pkg_id, engine=engine, sid=int(sid or 0), lang=lang or "en"))
+        voices.append(dict(
+            id=vid, name=name, description=desc, pkg=pkg_id, engine=engine, sid=int(sid or 0), lang=lang or "en", espeak=espeak,
+        ))
     declared = len(re.findall(r"\bNeuralVoice\(\s*\"", source))
     if not voices or len(voices) != declared:
         sys.exit(f"Parsed {len(voices)} of {declared} voices in VoiceCatalog.kt; update the parser in voice_samples.py")
@@ -141,7 +144,7 @@ def engine_for(voice, root):
     if voice["engine"] == "KOKORO":
         model_config = sherpa_onnx.OfflineTtsModelConfig(
             kokoro=sherpa_onnx.OfflineTtsKokoroModelConfig(
-                model=str(model), voices=str(voices), tokens=str(tokens), data_dir=str(data)
+                model=str(model), voices=str(voices), tokens=str(tokens), data_dir=str(data), lang=voice["espeak"]
             ),
             num_threads=2,
         )
@@ -169,7 +172,9 @@ def main():
         samples, rate, spent = [], 0, 0.0
         try:
             root = fetch(voice["pkg"], models)
-            tts = engines.get(voice["pkg"]) or engines.setdefault(voice["pkg"], engine_for(voice, root))
+            # The multilingual Kokoro model needs one engine per language it reads.
+            key = (voice["pkg"], voice["espeak"])
+            tts = engines.get(key) or engines.setdefault(key, engine_for(voice, root))
             for sentence in STORIES[voice["lang"]]:
                 start = time.time()
                 audio = tts.generate(sentence, sid=voice["sid"], speed=0.95)
@@ -189,8 +194,9 @@ def main():
         print(f"{voice['id']}: {mp3.name}, RTF {rtf:.2f}", flush=True)
     # Every Kokoro speaker announcing its number, to double-check the speaker ids in the catalog.
     kokoro = next((v for v in read_catalog() if v["engine"] == "KOKORO"), None)
-    if kokoro and kokoro["pkg"] in engines:
-        tts = engines[kokoro["pkg"]]
+    key = kokoro and (kokoro["pkg"], kokoro["espeak"])
+    if key in engines:
+        tts = engines[key]
         roll = []
         for sid in range(tts.num_speakers):
             audio = tts.generate(f"This is speaker number {sid}.", sid=sid, speed=1.0)
