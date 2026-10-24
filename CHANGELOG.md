@@ -7,6 +7,16 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- ElevenLabs voices, with your own API key ([#75](../../issues/75)): Settings → Narrator lists
+  the voices in your ElevenLabs account, which speak every story language, and shows the credits
+  left. Choose Flash v2.5 (fast, half the credits) or Multilingual v2 (most natural). Speech is
+  fetched a few sentences ahead and kept on the phone, so a skipped story costs little and a
+  replay nothing. Without a connection an on-device voice reads on until ElevenLabs is reachable
+  again; when the credits run out or the key is refused, for the rest of the trip, and the guide
+  screen says why.
+
 ## [0.5.0] - 2026-10-24
 
 ### Added

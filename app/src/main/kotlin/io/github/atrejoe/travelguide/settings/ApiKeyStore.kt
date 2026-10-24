@@ -14,11 +14,12 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Keeps the listener's own API key (issue #7), encrypted with a key that never leaves the
+ * Keeps one of the listener's own API keys, under [pref]: Anthropic (issue #7) or ElevenLabs
+ * (issue #75). Encrypted with a key that never leaves the
  * Android Keystore. A backup restored on another phone can't be decrypted there, and then simply
  * reads as no key.
  */
-class ApiKeyStore(context: Context) {
+class ApiKeyStore(context: Context, private val pref: String = ANTHROPIC) {
     private val prefs = context.getSharedPreferences("secrets", Context.MODE_PRIVATE)
 
     private val _hasKey = MutableStateFlow(get() != null)
@@ -27,7 +28,7 @@ class ApiKeyStore(context: Context) {
     val hasKey: StateFlow<Boolean> = _hasKey.asStateFlow()
 
     fun get(): String? {
-        val stored = prefs.getString(PREF, null) ?: return null
+        val stored = prefs.getString(pref, null) ?: return null
         return try {
             val bytes = Base64.decode(stored, Base64.NO_WRAP)
             val cipher = Cipher.getInstance(TRANSFORMATION)
@@ -42,12 +43,12 @@ class ApiKeyStore(context: Context) {
     fun set(key: String?) {
         val trimmed = key?.trim().orEmpty()
         if (trimmed.isEmpty()) {
-            prefs.edit().remove(PREF).apply()
+            prefs.edit().remove(pref).apply()
         } else {
             val cipher = Cipher.getInstance(TRANSFORMATION)
             cipher.init(Cipher.ENCRYPT_MODE, secretKey())
             val sealed = cipher.iv + cipher.doFinal(trimmed.toByteArray(Charsets.UTF_8))
-            prefs.edit().putString(PREF, Base64.encodeToString(sealed, Base64.NO_WRAP)).apply()
+            prefs.edit().putString(pref, Base64.encodeToString(sealed, Base64.NO_WRAP)).apply()
         }
         _hasKey.value = trimmed.isNotEmpty()
     }
@@ -66,12 +67,14 @@ class ApiKeyStore(context: Context) {
         return generator.generateKey()
     }
 
-    private companion object {
-        const val KEYSTORE = "AndroidKeyStore"
-        const val ALIAS = "story-api-key"
-        const val PREF = "anthropic_api_key"
-        const val TRANSFORMATION = "AES/GCM/NoPadding"
-        const val IV_BYTES = 12
-        const val TAG_BITS = 128
+    companion object {
+        const val ANTHROPIC = "anthropic_api_key"
+        const val ELEVENLABS = "elevenlabs_api_key"
+
+        private const val KEYSTORE = "AndroidKeyStore"
+        private const val ALIAS = "story-api-key"
+        private const val TRANSFORMATION = "AES/GCM/NoPadding"
+        private const val IV_BYTES = 12
+        private const val TAG_BITS = 128
     }
 }

@@ -15,6 +15,7 @@ import io.github.atrejoe.travelguide.core.lang.English
 import io.github.atrejoe.travelguide.core.lang.StoryLanguage
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.motion.TravelMode
+import io.github.atrejoe.travelguide.core.voice.ElevenLabsModel
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
@@ -24,7 +25,10 @@ import java.util.Locale
 data class AppSettings(
     /** The language of the stories and voices (issue #68), a [StoryLanguage] code. */
     val language: String = English.code,
-    /** `neural:<id>` for an on-device Piper voice, `system:<name>` for an Android TTS voice. */
+    /**
+     * `neural:<id>` for an on-device voice, `system:<name>` for an Android TTS voice,
+     * `elevenlabs:<id>` for an ElevenLabs voice (issue #75).
+     */
     val voiceId: String = VoiceCatalog.DEFAULT_VOICE_ID,
     /** Below 1 gives a deeper voice; 1 avoids the artefacts of pitch shifting. */
     val pitch: Float = 1.0f,
@@ -44,6 +48,10 @@ data class AppSettings(
     val monthlyBudgetUsd: Float = 2f,
     /** A [LocalModel] id, for the [Storyteller.ON_DEVICE] storyteller. */
     val localModel: String = LocalModels.DEFAULT.id,
+    /** An [ElevenLabsModel] id. */
+    val elevenLabsModel: String = ElevenLabsModel.DEFAULT.id,
+    /** The name of the chosen ElevenLabs voice, to show without asking ElevenLabs. */
+    val elevenLabsVoiceName: String = "",
 )
 
 /** Who tells the stories. The other two retell the built-in story, and fall back to it. */
@@ -76,6 +84,8 @@ class SettingsRepository(private val context: Context) {
         val claudeModel = stringPreferencesKey("claude_model")
         val monthlyBudget = floatPreferencesKey("monthly_budget_usd")
         val localModel = stringPreferencesKey("local_model")
+        val elevenLabsModel = stringPreferencesKey("elevenlabs_model")
+        val elevenLabsVoiceName = stringPreferencesKey("elevenlabs_voice_name")
         val version = intPreferencesKey("version")
     }
 
@@ -115,6 +125,8 @@ class SettingsRepository(private val context: Context) {
             p[Keys.claudeModel] = next.claudeModel
             p[Keys.monthlyBudget] = next.monthlyBudgetUsd
             p[Keys.localModel] = next.localModel
+            p[Keys.elevenLabsModel] = next.elevenLabsModel
+            p[Keys.elevenLabsVoiceName] = next.elevenLabsVoiceName
         }
     }
 
@@ -141,6 +153,8 @@ class SettingsRepository(private val context: Context) {
             claudeModel = p[Keys.claudeModel] ?: defaults.claudeModel,
             monthlyBudgetUsd = p[Keys.monthlyBudget] ?: defaults.monthlyBudgetUsd,
             localModel = p[Keys.localModel] ?: defaults.localModel,
+            elevenLabsModel = p[Keys.elevenLabsModel] ?: defaults.elevenLabsModel,
+            elevenLabsVoiceName = p[Keys.elevenLabsVoiceName] ?: defaults.elevenLabsVoiceName,
         )
     }
 }

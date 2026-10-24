@@ -26,6 +26,7 @@ data class NeuralVoice(
 object VoiceCatalog {
     const val NEURAL_PREFIX = "neural:"
     const val SYSTEM_PREFIX = "system:"
+    const val ELEVENLABS_PREFIX = "elevenlabs:"
 
     /**
      * Kokoro (82M parameters, Apache 2.0): by far the most natural free on-device voices. One
@@ -143,6 +144,10 @@ object VoiceCatalog {
 
     fun neural(voiceId: String): NeuralVoice? =
         neuralVoices.firstOrNull { it.voiceId == voiceId }
+
+    /** The ElevenLabs voice id in an `elevenlabs:` id (issue #75). */
+    fun elevenLabsVoice(voiceId: String): String? =
+        voiceId.takeIf { it.startsWith(ELEVENLABS_PREFIX) }?.removePrefix(ELEVENLABS_PREFIX)?.takeIf { it.isNotEmpty() }
 
     /** The Android voice name for a `system:` id; empty means the engine default. */
     fun systemVoiceName(voiceId: String): String? =

@@ -150,7 +150,8 @@ fun SettingsScreen(onBack: () -> Unit) {
     /** Stories in another language need a voice that speaks it. */
     fun selectLanguage(lang: String) = scope.launch {
         repo.update { s ->
-            val keep = VoiceCatalog.neural(s.voiceId)?.lang == lang
+            // ElevenLabs voices speak every story language (issue #75).
+            val keep = VoiceCatalog.neural(s.voiceId)?.lang == lang || VoiceCatalog.elevenLabsVoice(s.voiceId) != null
             s.copy(language = lang, voiceId = if (keep) s.voiceId else VoiceCatalog.defaultVoiceId(lang))
         }
     }
@@ -266,6 +267,9 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
 
             item { HorizontalDivider() }
+            item { ElevenLabsSettings(settings) }
+
+            item { HorizontalDivider() }
             item {
                 VoiceSlider("Speaking rate", settings.rate, 0.7f..1.2f) { value ->
                     scope.launch { repo.update { it.copy(rate = value) } }
@@ -371,7 +375,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             item {
                 Text(
                     "Stories come from Wikipedia (CC BY-SA 4.0), and for buildings from OpenStreetMap (ODbL) and Wikidata (CC0). Map © OpenStreetMap contributors (ODbL). Roads, railways and buildings: Overpass API. Routing: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
-                        "with sherpa-onnx (Apache 2.0). No AI service is used while guiding, unless you choose Gemini Nano or Claude as the storyteller.",
+                        "with sherpa-onnx (Apache 2.0). No AI service is used while guiding, unless you choose Gemini Nano or Claude as the storyteller, or an ElevenLabs voice.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
