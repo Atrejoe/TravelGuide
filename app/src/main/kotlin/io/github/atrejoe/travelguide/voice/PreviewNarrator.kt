@@ -21,7 +21,7 @@ class PreviewNarrator(private val context: Context, private val models: VoiceMod
     suspend fun get(settings: AppSettings): NarratorChoice = mutex.withLock {
         val loaded = choice
         // A fallback (e.g. the voice wasn't downloaded yet) is retried, it may work by now.
-        val key = "${settings.language}:${settings.voiceId}"
+        val key = "${settings.language}:${settings.voiceId}:${settings.elevenLabsModel}"
         if (loaded != null && voiceId == key && loaded.warning == null) {
             loaded.narrator.adjust(settings.pitch, settings.rate)
             return@withLock loaded

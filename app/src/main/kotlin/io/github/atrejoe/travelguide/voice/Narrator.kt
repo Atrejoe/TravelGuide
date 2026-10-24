@@ -3,8 +3,12 @@ package io.github.atrejoe.travelguide.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.util.Log
+import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.story.SpeechChunker
+import io.github.atrejoe.travelguide.core.voice.ElevenLabsClient
+import io.github.atrejoe.travelguide.core.voice.ElevenLabsModel
+import io.github.atrejoe.travelguide.net.UrlConnectionTransport
 import io.github.atrejoe.travelguide.settings.AppSettings
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -25,6 +29,9 @@ interface Narrator {
      * and there will be pauses between sentences.
      */
     val realTimeFactor: Double? get() = null
+
+    /** What the listener should know about the voice right now, e.g. that another one reads for it. */
+    val notice: String? get() = null
 
     /** Starts rendering [texts] in order, before they are spoken; drops anything else still queued. */
     fun prepare(texts: List<String>) = Unit
@@ -77,9 +84,32 @@ object Narrators {
     /**
      * Creates and warms up the narrator for the configured voice. When the chosen on-device voice
      * is missing or cannot be loaded we fall back to the system voice, and say so: a silent
-     * fallback once made a male voice sound like a robotic female one.
+     * fallback once made a male voice sound like a robotic female one. An ElevenLabs voice has an
+     * on-device voice for [settings]' language to fall back to (issue #75).
      */
     suspend fun create(context: Context, settings: AppSettings, models: VoiceModelManager): NarratorChoice {
+        val cloudVoice = VoiceCatalog.elevenLabsVoice(settings.voiceId)
+        if (cloudVoice != null) {
+            // ElevenLabs speaks every story language; an on-device voice stands in without a connection.
+            val local = settings.copy(voiceId = localVoiceId(settings.language, models))
+            val key = context.app.elevenLabsKeys.get()
+            if (key == null) {
+                val choice = create(context, local, models)
+                return choice.copy(warning = choice.warning ?: "ElevenLabs needs your API key (Settings), so an on-device voice is used.")
+            }
+            val narrator = ElevenLabsNarrator(
+                client = ElevenLabsClient(key, UrlConnectionTransport()),
+                voiceId = cloudVoice,
+                voiceName = settings.elevenLabsVoiceName,
+                model = ElevenLabsModel.byId(settings.elevenLabsModel),
+                lang = settings.language,
+                cache = context.app.speechCache,
+                pitch = settings.pitch,
+                rate = settings.rate,
+                fallback = { create(context, local, models) },
+            )
+            return NarratorChoice(narrator, null)
+        }
         var warning: String? = null
         val language = StoryLanguages.of(settings.language)
         val neural = VoiceCatalog.neural(settings.voiceId)
@@ -114,6 +144,10 @@ object Narrators {
         val systemWarning = system.initialize()
         return NarratorChoice(system, warning ?: systemWarning)
     }
+
+    /** The first downloaded on-device voice for [lang], else the system voice. */
+    private fun localVoiceId(lang: String, models: VoiceModelManager): String =
+        VoiceCatalog.voicesFor(lang).firstOrNull { models.files(it.pkg) != null }?.voiceId ?: VoiceCatalog.SYSTEM_PREFIX
 
     /** The system voice's locale for a story language: British English, as the neural voices. */
     fun locale(lang: String): Locale = if (lang == "en") Locale.UK else Locale.forLanguageTag(lang)

@@ -83,6 +83,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private lateinit var session: MediaSessionCompat
     private lateinit var focus: AudioFocus
     private var narrator: Narrator? = null
+    /** Why the narrator isn't the voice picked, when it isn't. */
+    private var narratorWarning: String? = null
+    /** The narrator's [Narrator.notice] last shown. */
+    private var shownNotice: String? = null
     /** Set when voice settings or installed voices change; the narrator is rebuilt between sentences. */
     private var narratorDirty = true
     private var settings = AppSettings()
@@ -286,7 +290,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 engine.forgetPlaces()
                 narratorDirty = true
             }
-            if (s.voiceId != settings.voiceId || s.language != settings.language) {
+            if (s.voiceId != settings.voiceId || s.language != settings.language ||
+                s.elevenLabsModel != settings.elevenLabsModel || s.elevenLabsVoiceName != settings.elevenLabsVoiceName
+            ) {
                 narratorDirty = true
             } else if (s.pitch != settings.pitch || s.rate != settings.rate) {
                 narrator?.adjust(s.pitch, s.rate)
@@ -308,6 +314,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         existing?.release()
         narratorDirty = false
         val choice = doing("Loading the voice…") { Narrators.create(this, settings, app.voiceModels) }
+        narratorWarning = choice.warning
+        shownNotice = null
         GuideStatus.update { it.copy(voiceLabel = choice.narrator.label, voiceWarning = choice.warning) }
         return choice.narrator.also { narrator = it }
     }
@@ -502,6 +510,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 }
                 val text = pieces[index].text
                 val completed = if (narrator.isPrepared(text)) narrator.speak(text) else doing("Preparing speech…") { narrator.speak(text) }
+                showVoiceNotice(narrator)
                 // Cut off by a pause or by a replay: say the piece again afterwards.
                 if (completed || !(isPaused() || replayRequest != null)) index++
                 // A short breath between sentences sounds more like a person telling a story.
@@ -533,6 +542,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         replayRequest = story
         if (userPaused) setUserPaused(false)
         if (state.speaking || state.replaying != null) narrator?.stop() else wake.trySend(Unit)
+    }
+
+    /** Shows when another voice reads for the chosen one, e.g. ElevenLabs without a connection (issue #75). */
+    private fun showVoiceNotice(narrator: Narrator) {
+        val notice = narrator.notice
+        if (notice == shownNotice) return
+        shownNotice = notice
+        GuideStatus.update { it.copy(voiceWarning = notice ?: narratorWarning) }
     }
 
     /** Tells the user when the chosen voice renders slower than it speaks on this phone. */
