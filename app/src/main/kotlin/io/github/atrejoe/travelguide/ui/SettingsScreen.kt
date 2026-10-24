@@ -83,6 +83,31 @@ private val SAMPLES = mapOf(
         "Onderweg vertel ik je over de plaatsen waar we langskomen: de legendes achter hun namen, " +
             "de veldslagen die ze doorstonden en de mensen die ze vormden.",
     ),
+    "de" to listOf(
+        "Willkommen an Bord.",
+        "Unterwegs erzähle ich Ihnen von den Orten, an denen wir vorbeikommen: von den Legenden hinter ihren Namen, " +
+            "den Schlachten, die sie überstanden haben, und den Menschen, die sie geprägt haben.",
+    ),
+    "fr" to listOf(
+        "Bienvenue à bord.",
+        "En chemin, je vous parlerai des lieux que nous traversons : des légendes derrière leurs noms, " +
+            "des batailles qu'ils ont connues et des gens qui les ont façonnés.",
+    ),
+    "es" to listOf(
+        "Bienvenido a bordo.",
+        "Durante el viaje le hablaré de los lugares por los que pasamos: las leyendas detrás de sus nombres, " +
+            "las batallas que sobrevivieron y las personas que les dieron forma.",
+    ),
+    "it" to listOf(
+        "Benvenuti a bordo.",
+        "Durante il viaggio vi racconterò dei luoghi che attraversiamo: le leggende dietro i loro nomi, " +
+            "le battaglie a cui sono sopravvissuti e le persone che li hanno plasmati.",
+    ),
+    "pt" to listOf(
+        "Bem-vindo a bordo.",
+        "Pelo caminho, vou contar-lhe sobre os lugares por onde passamos: as lendas por trás dos seus nomes, " +
+            "as batalhas a que sobreviveram e as pessoas que os moldaram.",
+    ),
 )
 
 private const val PRELOAD_DELAY_MILLIS = 700L

@@ -22,7 +22,7 @@ class PlaceStoryWriter(
         val facts = poi.facts ?: return emptyList()
         val language = StoryLanguages.of(poi.lang)
         val out = mutableListOf<String>()
-        (theOne(poi, facts, language) ?: identity.identityLine(poi))?.let { out += it }
+        (theOne(poi, facts, language) ?: identity.identityLine(poi) ?: language.kindLine(facts.kind))?.let { out += it }
         facts.formerName?.takeIf { !it.equals(poi.title, ignoreCase = true) }?.let { out += pick(language.formerName(it)) }
         facts.since?.let { out += date(facts.kind, it, language) }
         facts.architects.takeIf { it.isNotEmpty() }?.let { out += pick(language.architectLines(facts.kind, language.joinNames(it.take(2)))) }
