@@ -47,6 +47,10 @@ object German : StoryLanguage("de", "German", "Deutsch") {
             "mittelalterlich|mönch|ritter|heilige|pilger|schatz|ruine)",
         RegexOption.IGNORE_CASE,
     )
+    override val dramatic = Regex(
+        "(?<!\\p{L})(vergift|massaker|mord|ermordet|hingerichtet|enthauptet|hexe|katastroph|unglück|explosion|abgestürzt|schiffbruch|gesunken|erdbeben|lawine|epidemie|seuche|pest|hungersnot|aufstand|aufruhr|meuterei|belagerung|schlacht|überfall|raub|entführ|schmuggel|flucht|skandal|rätsel|geheimnisvoll|spuk|gespenst|fluch|wunder|erscheinung|tragödie)",
+        RegexOption.IGNORE_CASE,
+    )
     override val nameOrigin = Regex("(benannt nach|abgeleitet|geht zurück auf|der name|bedeutet|bedeutung)", RegexOption.IGNORE_CASE)
     override val dated = Regex("(\\b1[0-9]{3}\\b|\\b20[0-2][0-9]\\b|[0-9]{1,2}\\. jahrhundert|v\\. ?chr|n\\. ?chr)", RegexOption.IGNORE_CASE)
     override val administrative = Regex(

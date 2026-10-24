@@ -13,7 +13,10 @@ data class DetailProfile(
     val searchRadiusM: Int,
     /** How far ahead (in time) we predict the route. */
     val lookaheadSeconds: Int,
-    /** Maximum number of article sentences in one story. */
+    /**
+     * Maximum number of article sentences in one story: enough to tell a story rather than a
+     * summary of one (issue #78), short enough to finish before the place is behind you.
+     */
     val maxSentences: Int,
     /** Minimum silence between two stories. */
     val minGapSeconds: Int,
@@ -47,21 +50,21 @@ data class DetailProfile(
 
         fun forMode(mode: TravelMode): DetailProfile = when (mode) {
             TravelMode.STATIONARY -> DetailProfile(
-                searchRadiusM = 1_000, lookaheadSeconds = 0, maxSentences = 6, minGapSeconds = 60,
+                searchRadiusM = 1_000, lookaheadSeconds = 0, maxSentences = 9, minGapSeconds = 60,
                 visibilityM = 400.0, minScore = 0.15,
             )
             TravelMode.WALKING -> DetailProfile(
-                searchRadiusM = 1_000, lookaheadSeconds = 120, maxSentences = 6, minGapSeconds = 30,
+                searchRadiusM = 1_000, lookaheadSeconds = 120, maxSentences = 9, minGapSeconds = 30,
                 visibilityM = 250.0, minScore = 0.12,
                 typeWeights = mapOf(PoiType.REGION to 0.6, PoiType.COUNTRY to 0.4),
             )
             TravelMode.CYCLING -> DetailProfile(
-                searchRadiusM = 2_500, lookaheadSeconds = 180, maxSentences = 5, minGapSeconds = 30,
+                searchRadiusM = 2_500, lookaheadSeconds = 180, maxSentences = 8, minGapSeconds = 30,
                 visibilityM = 600.0, minScore = 0.12,
                 typeWeights = mapOf(PoiType.EDUCATION to 0.6, PoiType.RAILWAY_STATION to 0.6),
             )
             TravelMode.DRIVING -> DetailProfile(
-                searchRadiusM = 10_000, lookaheadSeconds = 300, maxSentences = 4, minGapSeconds = 45,
+                searchRadiusM = 10_000, lookaheadSeconds = 300, maxSentences = 7, minGapSeconds = 45,
                 visibilityM = 2_500.0, minScore = 0.1,
                 typeWeights = mapOf(
                     PoiType.BUILDING to 0.25, PoiType.EDUCATION to 0.2, PoiType.RAILWAY_STATION to 0.2,
@@ -69,7 +72,7 @@ data class DetailProfile(
                 ),
             )
             TravelMode.TRAIN -> DetailProfile(
-                searchRadiusM = 10_000, lookaheadSeconds = 300, maxSentences = 3, minGapSeconds = 60,
+                searchRadiusM = 10_000, lookaheadSeconds = 300, maxSentences = 6, minGapSeconds = 60,
                 visibilityM = 3_500.0, minScore = 0.1,
                 typeWeights = mapOf(
                     PoiType.BUILDING to 0.15, PoiType.EDUCATION to 0.1, PoiType.RAILWAY_STATION to 0.3,
@@ -77,7 +80,7 @@ data class DetailProfile(
                 ),
             )
             TravelMode.FLYING -> DetailProfile(
-                searchRadiusM = 10_000, lookaheadSeconds = 600, maxSentences = 2, minGapSeconds = 120,
+                searchRadiusM = 10_000, lookaheadSeconds = 600, maxSentences = 4, minGapSeconds = 120,
                 visibilityM = 15_000.0, minScore = 0.1,
                 typeWeights = mapOf(
                     PoiType.BUILDING to 0.0, PoiType.EDUCATION to 0.0, PoiType.RAILWAY_STATION to 0.0,

@@ -53,6 +53,12 @@ abstract class StoryLanguage(
     /** Superlatives, legends, disasters, famous people: what makes a sentence worth telling. */
     abstract val remarkable: Regex
 
+    /**
+     * The start of words for dramatic events: poisonings, murders, disasters, battles, riots,
+     * hauntings. An article about one is a story in itself, the best kind to tell.
+     */
+    abstract val dramatic: Regex
+
     /** Where a name comes from. */
     abstract val nameOrigin: Regex
 

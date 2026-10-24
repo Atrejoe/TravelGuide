@@ -47,6 +47,10 @@ object French : StoryLanguage("fr", "French", "Français") {
             "empereur|romain(e)?s?|vikings?|médiéva(l|le|ux|les)|moines?|chevaliers?|saint(e)?s?|pèlerin(s|e|es)?|trésors?|ruines?)(?!\\p{L})",
         RegexOption.IGNORE_CASE,
     )
+    override val dramatic = Regex(
+        "(?<!\\p{L})(empoisonn|intoxication|massacre|meurtre|assassin|exécut|décapit|sorcière|catastrophe|désastre|explosion|naufrage|séisme|tremblement de terre|avalanche|épidémie|peste|famine|émeute|révolte|insurrection|mutinerie|siège|bataille|braquage|enlèvement|contrebande|évasion|scandale|mystère|mystérieu|hanté|fantôme|malédiction|miracle|apparition|tragédie|hystérie)",
+        RegexOption.IGNORE_CASE,
+    )
     override val nameOrigin = Regex(
         "(?<!\\p{L})(doit son nom|tire son nom|nommé(e)? d'après|dérivé|vient du|vient de|le nom|signifie|signification)(?!\\p{L})",
         RegexOption.IGNORE_CASE,

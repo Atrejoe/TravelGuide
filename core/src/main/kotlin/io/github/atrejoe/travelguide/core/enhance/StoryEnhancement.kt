@@ -139,8 +139,9 @@ class StoryEnhancement(
         val request = StoryRequest(
             title = poi.title,
             description = poi.description,
-            // What the template picked from the article, then its lead section, as far as it fits.
-            source = (body.joinToString(" ") + "\n\n" + poi.extract).take(enhancer.maxSourceChars),
+            // The story-worthy part of the article, best first (issue #78); without the article, what
+            // the template picked and the lead section.
+            source = narration.source.ifBlank { body.joinToString(" ") + "\n\n" + poi.extract }.take(enhancer.maxSourceChars),
             opener = narration.sentences.first(),
             mode = mode,
             where = NarrationComposer.label(narration.relative),

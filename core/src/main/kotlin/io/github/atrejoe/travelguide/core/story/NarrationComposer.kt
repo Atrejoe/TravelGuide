@@ -39,6 +39,8 @@ data class Narration(
     val lang: String = poi.lang,
     /** The language each sentence is in: a place's own sentences stay in its article's until translated (issue #71). */
     val sentenceLangs: List<String> = sentences.map { lang },
+    /** The story-worthy part of the article, for a language model to retell (issue #78); empty without one. */
+    val source: String = "",
 ) {
     val text: String get() = sentences.joinToString(" ")
 }
@@ -108,6 +110,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
             bodySize = body.size,
             lang = language.code,
             sentenceLangs = listOf(language.code) + body.map { poi.lang } + extraLangs + listOfNotNull(closing?.let { language.code }),
+            source = if (fromFacts) "" else writer.source(poi, material),
         )
     }
 
