@@ -22,7 +22,7 @@ enum class PoiType(val prominence: Double, val isArea: Boolean = false) {
     RAILWAY_STATION(0.35),
     AIRPORT(0.55),
     EDUCATION(0.4),
-    EVENT(0.6),
+    EVENT(0.9),
     UNKNOWN(0.5),
     ;
 

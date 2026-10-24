@@ -47,6 +47,10 @@ object Italian : StoryLanguage("it", "Italian", "Italiano") {
             "roman[oaie]|vichinghi|medieval[ei]|monaci|monaco|cavalieri|sant[oa]|san|pellegrin[oaie]|tesor[oi]|rovin[ae]|ruder[ei])(?!\\p{L})",
         RegexOption.IGNORE_CASE,
     )
+    override val dramatic = Regex(
+        "(?<!\\p{L})(avvelen|intossicazione|massacro|strage|omicidio|assassin|giustiziat|decapitat|strega|catastrofe|disastro|esplosione|naufragio|terremoto|valanga|frana|epidemia|peste|carestia|rivolta|ribellione|insurrezione|ammutinamento|assedio|battaglia|rapina|rapiment|contrabband|scandalo|mister|infestat|fantasma|maledizione|miracolo|apparizione|tragedia)",
+        RegexOption.IGNORE_CASE,
+    )
     override val nameOrigin = Regex(
         "(?<!\\p{L})(deve il nome|deve il suo nome|prende il nome|chiamat[oa] in onore|deriva da|deriverebbe|proviene da|il nome|significa|significato)(?!\\p{L})",
         RegexOption.IGNORE_CASE,

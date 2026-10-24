@@ -45,6 +45,10 @@ object English : StoryLanguage("en", "English", "English") {
             "monks?|knights?|saint|pilgrim|treasure|ruins?)\\b",
         RegexOption.IGNORE_CASE,
     )
+    override val dramatic = Regex(
+        "(?<!\\p{L})(poison|massacre|murder|assassinat|executed|execution|beheaded|hanged|burned at the stake|witch|disaster|catastroph|explosion|exploded|crash|shipwreck|sank|earthquake|avalanche|landslide|eruption|epidemic|outbreak|plague|famine|riot|uprising|revolt|rebellion|mutiny|siege|battle|ambush|bombing|robbery|heist|kidnap|smuggl|escape|scandal|myster|haunted|ghost|curse|miracle|apparition|hoax|tragedy|hysteria)",
+        RegexOption.IGNORE_CASE,
+    )
     override val nameOrigin = Regex(
         "\\b(named after|derived from|derives from|comes from|the name|meaning|means)\\b",
         RegexOption.IGNORE_CASE,

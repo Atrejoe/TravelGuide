@@ -17,6 +17,16 @@ All notable changes to this project are documented here. The format follows
   again; when the credits run out or the key is refused, for the rest of the trip, and the guide
   screen says why.
 
+### Changed
+
+- Stories, well told ([#78](../../issues/78)): the built-in storyteller now tells one to three
+  whole passages of an article, in their own order, instead of its best sentences from all over
+  it, which lost what they referred to. Events are recognised (poisonings, disasters, battles,
+  crimes, hauntings) and go before places whose article only says where they lie; an event is
+  told as it happened. Stories are longer: about seven sentences while driving, nine on foot. A
+  storyteller that retells stories (Claude, Gemini Nano, the open model) now gets the article's
+  story-worthy sections and is asked for a story with a hook and a payoff, not a summary.
+
 ## [0.5.0] - 2026-10-24
 
 ### Added

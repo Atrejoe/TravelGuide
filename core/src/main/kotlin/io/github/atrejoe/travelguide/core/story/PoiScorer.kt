@@ -31,8 +31,10 @@ class PoiScorer(
         val reach = 1.0 / (1.0 + beyond / visibility)
         val geometry = if (inside) 1.0 else lateral * reach
 
+        // An event's article often has no coordinate type; it is still worth telling from the road.
+        val type = if (StoryWriter.isEvent(poi)) PoiType.EVENT else poi.type
         val score = prominence(poi) *
-            profile.typeWeight(poi.type) *
+            profile.typeWeight(type) *
             InterestClassifier.weight(poi, interestWeights) *
             geometry *
             (if (inside) 1.3 else 1.0)
@@ -58,7 +60,12 @@ class PoiScorer(
             }
             // Longer lead sections usually mean more notable subjects (and better stories).
             p *= (0.6 + poi.extract.length / 1_500.0).coerceAtMost(1.2)
-            return p
+            // Something that happened makes a better story than where something lies (issue #78).
+            if (StoryWriter.isEvent(poi)) p *= EVENT_BOOST
+            return p * StoryWriter.leadValue(poi)
         }
+
+        /** How much more an event is worth than another place of the same standing. */
+        const val EVENT_BOOST = 1.6
     }
 }

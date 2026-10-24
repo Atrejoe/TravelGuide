@@ -50,6 +50,10 @@ object Dutch : StoryLanguage("nl", "Dutch", "Nederlands") {
             "vikingen|middeleeuwse?|monniken|monnik|ridders?|heilige|pelgrims?|schat|ruïnes?)\\b",
         RegexOption.IGNORE_CASE,
     )
+    override val dramatic = Regex(
+        "(?<!\\p{L})(vergiftig|bloedbad|moord|vermoord|terechtgesteld|onthoofd|heks|ramp|catastrofe|ontploffing|explosie|neergestort|schipbreuk|gezonken|aardbeving|lawine|epidemie|uitbraak|pest|hongersnood|oproer|opstand|muiterij|beleg|veldslag|overval|ontvoer|smokkel|ontsnap|schandaal|mysterie|raadsel|spook|vervloek|wonder|verschijning|tragedie)",
+        RegexOption.IGNORE_CASE,
+    )
     override val nameOrigin = Regex(
         "\\b(genoemd naar|vernoemd naar|ontleend aan|afgeleid van|komt van|de naam|betekent|betekenis)\\b",
         RegexOption.IGNORE_CASE,
