@@ -50,7 +50,8 @@ import java.time.format.FormatStyle
 
 /**
  * Settings → Narrator → ElevenLabs (issue #75): voices from the listener's own ElevenLabs account,
- * with their own API key. Credits used and left are shown, as a story costs credits.
+ * with their own API key. Credits used and left are shown, as a story costs credits. What
+ * ElevenLabs is and costs is told by its option in the narrator section (issue #80).
  */
 @Composable
 fun ElevenLabsSettings(settings: AppSettings) {
@@ -93,15 +94,6 @@ fun ElevenLabsSettings(settings: AppSettings) {
     fun update(transform: (AppSettings) -> AppSettings) = scope.launch { repo.update(transform) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("ElevenLabs voices", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "Studio-quality voices that speak every story language, with your own ElevenLabs API key. ElevenLabs " +
-                "charges credits per character; a story is about 600 to 1,000 characters, and a story heard again is " +
-                "free. Needs a connection: without one, or when the credits run out, an on-device voice reads on. " +
-                "The text of the stories is sent to ElevenLabs.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-
         if (!hasKey) {
             OutlinedTextField(
                 value = keyInput,

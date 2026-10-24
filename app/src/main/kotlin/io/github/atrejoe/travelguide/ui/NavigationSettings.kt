@@ -35,7 +35,7 @@ import io.github.atrejoe.travelguide.nav.RouteRepository
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
-/** Settings → Navigation: the planned route, GPX import and optional notification access. */
+/** Settings → Navigation: the planned route, GPX import and optional notification access, in a [SettingsSection]. */
 @Composable
 fun NavigationSettings() {
     val context = LocalContext.current
@@ -75,7 +75,6 @@ fun NavigationSettings() {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Navigation", style = MaterialTheme.typography.titleLarge)
         Text(
             "Let the guide follow your navigation app live (notification access, below), or share a route " +
                 "with Travel Guide, and the stories follow it instead of guessing the way ahead.",

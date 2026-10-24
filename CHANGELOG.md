@@ -19,6 +19,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Changed
 
+- A tidier settings screen ([#80](../../issues/80)): each section (Language, Narrator, Stories,
+  Navigation, Crash reports) folds open and shows what is chosen when folded. The narrator and
+  the storyteller are chosen from a few options, each with what speaks for and against it; the
+  voices, downloads, API keys and models of an option only show once it is chosen.
 - Stories, well told ([#78](../../issues/78)): the built-in storyteller now tells one to three
   whole passages of an article, in their own order, instead of its best sentences from all over
   it, which lost what they referred to. Events are recognised (poisonings, disasters, battles,
