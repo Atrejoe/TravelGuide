@@ -3,6 +3,7 @@ package io.github.atrejoe.travelguide.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.util.Log
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.story.SpeechChunker
 import io.github.atrejoe.travelguide.settings.AppSettings
 import kotlinx.coroutines.delay
@@ -80,8 +81,12 @@ object Narrators {
      */
     suspend fun create(context: Context, settings: AppSettings, models: VoiceModelManager): NarratorChoice {
         var warning: String? = null
+        val language = StoryLanguages.of(settings.language)
         val neural = VoiceCatalog.neural(settings.voiceId)
-        if (neural != null) {
+        if (neural != null && neural.lang != language.code) {
+            // An English voice reading Dutch sounds like nonsense (issue #68).
+            warning = "${neural.name} doesn't speak ${language.name}, so the system voice is used. Pick a ${language.name} voice in Settings."
+        } else if (neural != null) {
             val files = models.files(neural.pkg)
             if (files == null) {
                 warning = "${neural.name} is not downloaded yet, so the system voice is used."
@@ -104,9 +109,12 @@ object Narrators {
             voiceName = VoiceCatalog.systemVoiceName(settings.voiceId)?.takeIf { it.isNotEmpty() },
             pitch = settings.pitch,
             rate = settings.rate,
-            locale = Locale.UK,
+            locale = locale(language.code),
         )
         val systemWarning = system.initialize()
         return NarratorChoice(system, warning ?: systemWarning)
     }
+
+    /** The system voice's locale for a story language: British English, as the neural voices. */
+    fun locale(lang: String): Locale = if (lang == "en") Locale.UK else Locale.forLanguageTag(lang)
 }

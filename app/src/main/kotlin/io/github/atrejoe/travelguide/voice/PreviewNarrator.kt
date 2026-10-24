@@ -21,7 +21,8 @@ class PreviewNarrator(private val context: Context, private val models: VoiceMod
     suspend fun get(settings: AppSettings): NarratorChoice = mutex.withLock {
         val loaded = choice
         // A fallback (e.g. the voice wasn't downloaded yet) is retried, it may work by now.
-        if (loaded != null && voiceId == settings.voiceId && loaded.warning == null) {
+        val key = "${settings.language}:${settings.voiceId}"
+        if (loaded != null && voiceId == key && loaded.warning == null) {
             loaded.narrator.adjust(settings.pitch, settings.rate)
             return@withLock loaded
         }
@@ -30,7 +31,7 @@ class PreviewNarrator(private val context: Context, private val models: VoiceMod
         // Not cancellable: a voice loaded halfway would never be released.
         val fresh = withContext(NonCancellable) { Narrators.create(context, settings, models) }
         if (closed) fresh.narrator.release() else {
-            voiceId = settings.voiceId
+            voiceId = key
             choice = fresh
         }
         fresh

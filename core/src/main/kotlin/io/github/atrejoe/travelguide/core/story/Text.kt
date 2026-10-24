@@ -1,5 +1,8 @@
 package io.github.atrejoe.travelguide.core.story
 
+import io.github.atrejoe.travelguide.core.lang.English
+import io.github.atrejoe.travelguide.core.lang.StoryLanguage
+
 /** Makes encyclopedic text pleasant to listen to. */
 object TextCleaner {
     private val whitespace = Regex("\\s+")
@@ -34,17 +37,9 @@ object TextCleaner {
 }
 
 object SentenceSplitter {
-    private val abbreviations = setOf(
-        "st", "mt", "mr", "mrs", "ms", "dr", "prof", "jr", "sr", "vs", "c", "ca", "approx", "no",
-        "e.g", "i.e", "etc", "u.s", "u.k", "a.d", "b.c", "inc", "ltd", "co", "ft", "km", "fig",
-    )
-    private val sentenceStarters = setOf(
-        "The", "It", "In", "A", "An", "This", "These", "He", "She", "They", "His", "Her", "Its",
-        "After", "Before", "During", "When", "Since", "Today", "However", "On", "At", "By", "From",
-    )
     private val boundary = Regex("(?<=[.!?])[\"”’)]?\\s+(?=[\"“‘(]?[A-Z0-9À-Ý])")
 
-    fun split(text: String): List<String> {
+    fun split(text: String, language: StoryLanguage = English): List<String> {
         val sentences = mutableListOf<String>()
         val current = StringBuilder()
         var last = 0
@@ -54,8 +49,8 @@ object SentenceSplitter {
             val lastWord = current.trimEnd().split(' ').last().trimEnd('.', '!', '?').lowercase()
             val nextWord = text.substring(last).takeWhile { it.isLetterOrDigit() }
             // "J. van Campen" is an initial, but in "Henry V. The tower" a new sentence starts.
-            val isInitial = lastWord.length == 1 && lastWord[0].isLetter() && nextWord !in sentenceStarters
-            val isAbbreviation = lastWord in abbreviations || isInitial
+            val isInitial = lastWord.length == 1 && lastWord[0].isLetter() && nextWord !in language.sentenceStarters
+            val isAbbreviation = lastWord in language.abbreviations || isInitial
             if (isAbbreviation) {
                 current.append(' ')
             } else {

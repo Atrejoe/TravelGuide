@@ -60,8 +60,9 @@ class SystemTtsNarrator(
             label = "System voice ${wanted.name}"
             return null
         }
-        tts.language = locale
+        val supported = tts.setLanguage(locale) >= TextToSpeech.LANG_AVAILABLE
         label = "System voice (default)"
+        if (!supported) return "The phone has no ${locale.getDisplayLanguage(Locale.ENGLISH)} system voice; install one in Android's text-to-speech settings."
         return voiceName?.let { "System voice $it is not installed on this phone; using the default voice." }
     }
 
@@ -114,14 +115,14 @@ object SystemVoices {
     fun isInstalled(voice: Voice): Boolean =
         TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED !in voice.features.orEmpty()
 
-    /** Lists installed English voices, best quality first. */
-    suspend fun load(context: Context): List<SystemVoice> {
+    /** Lists installed voices for the story language [lang], best quality first. */
+    suspend fun load(context: Context, lang: String): List<SystemVoice> {
         val ready = CompletableDeferred<Boolean>()
         val tts = TextToSpeech(context.applicationContext) { ready.complete(it == TextToSpeech.SUCCESS) }
         return try {
             if (!ready.await()) return emptyList()
             tts.voices.orEmpty()
-                .filter { it.locale.language == "en" && isInstalled(it) }
+                .filter { it.locale.language == lang && isInstalled(it) }
                 .sortedWith(compareBy<Voice>({ it.isNetworkConnectionRequired }, { -it.quality }, { it.name }))
                 .map { v ->
                     val where = if (v.isNetworkConnectionRequired) "online" else "offline"

@@ -1,6 +1,9 @@
 package io.github.atrejoe.travelguide.core.story
 
 import io.github.atrejoe.travelguide.core.geo.GeoMath
+import io.github.atrejoe.travelguide.core.lang.English
+import io.github.atrejoe.travelguide.core.lang.StoryLanguage
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.motion.MotionState
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import kotlin.math.abs
@@ -14,7 +17,10 @@ sealed interface RelativePosition {
     data class Side(val left: Boolean, val distanceM: Double) : RelativePosition
     data class Behind(val distanceM: Double) : RelativePosition
     /** Used when we do not know the direction of travel. */
-    data class Compass(val direction: String, val distanceM: Double) : RelativePosition
+    data class Compass(val bearingDeg: Double, val distanceM: Double) : RelativePosition {
+        /** In English, for screens. */
+        val direction: String get() = English.compassName(bearingDeg)
+    }
 }
 
 /** A story ready to be spoken, split into sentences so playback can pause and resume cleanly. */
@@ -62,6 +68,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
         afield: Boolean = false,
     ): Narration {
         val poi = scored.poi
+        val language = StoryLanguages.of(poi.lang)
         val relative = relative ?: relativePosition(scored, motion)
         val material = sections?.takeIf { it.isNotEmpty() }
             ?: listOf(ArticleSection("", SectionKind.INTRO, poi.extract))
@@ -79,10 +86,10 @@ class NarrationComposer(private val random: Random = Random.Default) {
             } else {
                 writer.companion(companion.poi, count)
             }
-            listOf(transition(companion, relativePosition(companion, motion), mentioned)) + about
+            listOf(transition(companion, relativePosition(companion, motion), mentioned, language)) + about
         }
-        val closing = if (afield) null else closing(relative, motion.mode)
-        val opener = if (afield) afieldOpener(poi, relative) else opener(poi, relative, motion.mode)
+        val closing = if (afield) null else closing(relative, motion.mode, language)
+        val opener = pickOpener(if (afield) language.afieldOpeners(poi.title, relative) else openers(poi, relative, motion.mode, language))
         return Narration(
             poi,
             listOf(opener) + body + extra + listOfNotNull(closing),
@@ -93,18 +100,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
     }
 
     /** Leads from the main story into a nearby place, preferably via a real connection. */
-    private fun transition(companion: ScoredPoi, relative: RelativePosition, mentioned: Boolean): String {
-        val t = companion.poi.title
-        val where = where(relative)
-        val options = if (mentioned) {
-            listOf("Which brings us to $t, $where.", "And that story continues at $t, $where.")
-        } else {
-            listOf(
-                "A little further along, $where, you'll find $t.",
-                "Not far from there, $where, lies $t.",
-                "And while we're here: $where is $t.",
-            )
-        }
+    private fun transition(companion: ScoredPoi, relative: RelativePosition, mentioned: Boolean, language: StoryLanguage): String {
+        val options = language.transitions(companion.poi.title, language.where(relative), mentioned)
         return options[random.nextInt(options.size)]
     }
 
@@ -117,7 +114,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
         val heading = motion.headingDeg
         val bearing = GeoMath.bearing(motion.fix.point, poi.point)
         if (heading == null || motion.mode == TravelMode.STATIONARY) {
-            return RelativePosition.Compass(compassName(bearing), distance)
+            return RelativePosition.Compass(bearing, distance)
         }
         val angle = GeoMath.angleDiff(heading, bearing)
         return when {
@@ -127,107 +124,32 @@ class NarrationComposer(private val random: Random = Random.Default) {
         }
     }
 
-    private fun opener(poi: Poi, relative: RelativePosition, mode: TravelMode): String {
+    private fun openers(poi: Poi, relative: RelativePosition, mode: TravelMode, language: StoryLanguage): List<String> {
         val t = poi.title
-        val options: List<String> = when (relative) {
-            RelativePosition.Here -> when {
-                poi.type.isArea && mode == TravelMode.FLYING ->
-                    listOf("Below us now lies $t.", "We are flying over $t.")
-                poi.type.isArea -> listOf(
-                    "Welcome to $t.",
-                    "We've just arrived in $t.",
-                    "You are now travelling through $t.",
-                    "And here we are, in $t.",
-                )
-                else -> listOf(
-                    "Take a look around: you are right next to $t.",
-                    "Right here is $t.",
-                    "Stop for a moment. This is $t.",
-                )
-            }
-            is RelativePosition.Ahead -> {
-                val d = distancePhrase(relative.distanceM)
-                listOf(
-                    "Coming up ahead, about $d away, is $t.",
-                    "Keep your eyes on the road ahead: in about $d we reach $t.",
-                    "Just ahead, some $d from here, lies $t.",
-                )
-            }
-            is RelativePosition.Side -> {
-                val side = if (relative.left) "left" else "right"
-                val d = distancePhrase(relative.distanceM)
-                when (mode) {
-                    TravelMode.TRAIN, TravelMode.FLYING -> listOf(
-                        "Look out of the $side-hand window. About $d away lies $t.",
-                        "If you have a $side-hand window seat, look out now: about $d away is $t.",
-                    )
-                    else -> listOf(
-                        "Look to your $side. About $d away is $t.",
-                        "Over on your $side, roughly $d away, lies $t.",
-                        "Off to the $side, about $d from here, you'll find $t.",
-                    )
-                }
-            }
-            is RelativePosition.Behind -> {
-                val d = distancePhrase(relative.distanceM)
-                listOf("Just behind us, about $d away, is $t.", "We have just passed $t, about $d behind us.")
-            }
-            is RelativePosition.Compass -> {
-                val d = distancePhrase(relative.distanceM)
-                listOf(
-                    "About $d to the ${relative.direction} lies $t.",
-                    "Not far from here, $d to the ${relative.direction}, is $t.",
-                )
-            }
+        return when (relative) {
+            RelativePosition.Here -> language.hereOpeners(t, poi.type.isArea, mode == TravelMode.FLYING)
+            is RelativePosition.Ahead -> language.aheadOpeners(t, language.distance(relative.distanceM))
+            is RelativePosition.Side -> language.sideOpeners(
+                t,
+                relative.left,
+                language.distance(relative.distanceM),
+                window = mode == TravelMode.TRAIN || mode == TravelMode.FLYING,
+            )
+            is RelativePosition.Behind -> language.behindOpeners(t, language.distance(relative.distanceM))
+            is RelativePosition.Compass ->
+                language.compassOpeners(t, language.compassName(relative.bearingDeg), language.distance(relative.distanceM))
         }
-        // Avoid starting two stories in a row with the same words.
+    }
+
+    /** One of [options], avoiding starting two stories in a row with the same words. */
+    private fun pickOpener(options: List<String>): String {
         val fresh = options.filter { it != lastOpener }.ifEmpty { options }
         return fresh[random.nextInt(fresh.size)].also { lastOpener = it }
     }
 
-    /** Opens a story about a place out of sight, further afield (issue #64). */
-    private fun afieldOpener(poi: Poi, relative: RelativePosition): String {
-        val t = poi.title
-        val options: List<String> = when (relative) {
-            RelativePosition.Here -> listOf("All around us lies $t.", "The area we are in is $t.")
-            is RelativePosition.Ahead -> {
-                val d = distancePhrase(relative.distanceM)
-                listOf("Further along the way, some $d ahead, lies $t.", "Out of sight for now, about $d ahead, is $t.")
-            }
-            is RelativePosition.Side -> {
-                val side = if (relative.left) "left" else "right"
-                val d = distancePhrase(relative.distanceM)
-                listOf(
-                    "A little further afield, about $d to your $side, lies $t.",
-                    "Out of sight, some $d off to the $side, is $t.",
-                )
-            }
-            is RelativePosition.Behind -> {
-                val d = distancePhrase(relative.distanceM)
-                listOf("Some $d behind us lies $t.", "Back the way we came, about $d away, is $t.")
-            }
-            is RelativePosition.Compass -> {
-                val d = distancePhrase(relative.distanceM)
-                listOf(
-                    "A little further afield, about $d to the ${relative.direction}, lies $t.",
-                    "Out of sight, some $d to the ${relative.direction}, is $t.",
-                )
-            }
-        }
-        val fresh = options.filter { it != lastOpener }.ifEmpty { options }
-        return fresh[random.nextInt(fresh.size)].also { lastOpener = it }
-    }
-
-    private fun closing(relative: RelativePosition, mode: TravelMode): String? {
+    private fun closing(relative: RelativePosition, mode: TravelMode, language: StoryLanguage): String? {
         if (random.nextDouble() > 0.4) return null
-        val options = when {
-            relative is RelativePosition.Behind -> return null
-            mode == TravelMode.WALKING || mode == TravelMode.STATIONARY ->
-                listOf("Take a moment to look around.", "Worth a closer look, if you have the time.")
-            mode == TravelMode.CYCLING -> listOf("Worth a stop, if your legs agree.", "Something to look out for as you ride.")
-            relative is RelativePosition.Here -> listOf("Keep your eyes open as we pass through.")
-            else -> listOf("Keep an eye out as we pass.", "Something to remember for a future visit.")
-        }
+        val options = language.closings(relative, mode).ifEmpty { return null }
         return options[random.nextInt(options.size)]
     }
 
@@ -239,15 +161,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
             return Regex("\\b${Regex.escape(name)}\\b", RegexOption.IGNORE_CASE).containsMatchIn(text)
         }
 
-        /** Spoken location, e.g. "on your left, about 800 metres away". */
-        fun where(relative: RelativePosition): String = when (relative) {
-            RelativePosition.Here -> "right here"
-            is RelativePosition.Ahead -> "straight ahead, about ${distancePhrase(relative.distanceM)} away"
-            is RelativePosition.Side ->
-                "on your ${if (relative.left) "left" else "right"}, about ${distancePhrase(relative.distanceM)} away"
-            is RelativePosition.Behind -> "just behind us"
-            is RelativePosition.Compass -> "${distancePhrase(relative.distanceM)} to the ${relative.direction}"
-        }
+        /** Spoken location in English, e.g. "on your left, about 800 metres away". */
+        fun where(relative: RelativePosition): String = English.where(relative)
 
         /** Short label for screens, e.g. "left · 800 m". */
         fun label(relative: RelativePosition): String {
@@ -261,20 +176,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
             }
         }
 
-        fun distancePhrase(meters: Double): String = when {
-            meters < 950 -> "${((meters / 100).roundToInt() * 100).coerceAtLeast(100)} metres"
-            meters < 1_050 -> "a kilometre"
-            meters < 9_950 -> {
-                val km = (meters / 100).roundToInt() / 10.0
-                val text = if (km % 1.0 == 0.0) km.toInt().toString() else km.toString()
-                "$text kilometres"
-            }
-            else -> "${(meters / 1000).roundToInt()} kilometres"
-        }
+        fun distancePhrase(meters: Double): String = English.distance(meters)
 
-        fun compassName(bearing: Double): String {
-            val names = listOf("north", "northeast", "east", "southeast", "south", "southwest", "west", "northwest")
-            return names[((GeoMath.normalizeBearing(bearing) + 22.5) / 45).toInt() % 8]
-        }
+        fun compassName(bearing: Double): String = English.compassName(bearing)
     }
 }

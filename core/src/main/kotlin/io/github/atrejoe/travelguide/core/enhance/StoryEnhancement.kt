@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide.core.enhance
 
 import io.github.atrejoe.travelguide.core.interest.Interest
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
@@ -119,7 +120,7 @@ class StoryEnhancement(
         if (poi.extract.isBlank() || narration.bodySize == 0) return narration.also { lastOutcome = EnhanceOutcome.SKIPPED }
         val key = "${enhancer.id}:${poi.lang}:${poi.pageId}"
         store.story(key)?.let { cached ->
-            sentencesOf(cached)?.let {
+            sentencesOf(cached, poi.lang)?.let {
                 lastOutcome = EnhanceOutcome.CACHED
                 return narration.withBody(it)
             }
@@ -157,14 +158,14 @@ class StoryEnhancement(
             return narration.also { lastOutcome = EnhanceOutcome.FAILED }
         }
         store.addSpent(month, retold.costUsd)
-        val sentences = sentencesOf(retold.text) ?: return narration.also { lastOutcome = EnhanceOutcome.FAILED }
+        val sentences = sentencesOf(retold.text, poi.lang) ?: return narration.also { lastOutcome = EnhanceOutcome.FAILED }
         store.putStory(key, sentences.joinToString(" "))
         lastOutcome = EnhanceOutcome.RETOLD
         return narration.withBody(sentences)
     }
 
-    private fun sentencesOf(text: String): List<String>? =
-        SentenceSplitter.split(TextCleaner.clean(text)).filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
+    private fun sentencesOf(text: String, lang: String): List<String>? =
+        SentenceSplitter.split(TextCleaner.clean(text), StoryLanguages.of(lang)).filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }
 
     private fun Narration.withBody(body: List<String>): Narration =
         copy(sentences = listOf(sentences.first()) + body + sentences.drop(1 + bodySize), bodySize = body.size)

@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide.ui
 
 import android.widget.Toast
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -50,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.CrashReporting
 import io.github.atrejoe.travelguide.app
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.NeuralVoice
 import io.github.atrejoe.travelguide.voice.Narrators
@@ -67,10 +71,18 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import java.util.Locale
 
-private val SAMPLE = listOf(
-    "Welcome aboard.",
-    "As we travel, I'll tell you about the places we pass: the legends behind their names, " +
-        "the battles they survived, and the people who shaped them.",
+/** What the voice preview says, per story language. */
+private val SAMPLES = mapOf(
+    "en" to listOf(
+        "Welcome aboard.",
+        "As we travel, I'll tell you about the places we pass: the legends behind their names, " +
+            "the battles they survived, and the people who shaped them.",
+    ),
+    "nl" to listOf(
+        "Welkom aan boord.",
+        "Onderweg vertel ik je over de plaatsen waar we langskomen: de legendes achter hun namen, " +
+            "de veldslagen die ze doorstonden en de mensen die ze vormden.",
+    ),
 )
 
 private const val PRELOAD_DELAY_MILLIS = 700L
@@ -96,19 +108,27 @@ fun SettingsScreen(onBack: () -> Unit) {
     var previewJob by remember { mutableStateOf<Job?>(null) }
     var previewInfo by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) { systemVoices = SystemVoices.load(context) }
+    LaunchedEffect(settings.language) { systemVoices = SystemVoices.load(context, settings.language) }
 
     // Load the selected voice in the background, so "Preview voice" can start speaking at once.
     val preview = remember { PreviewNarrator(context, models) }
     DisposableEffect(preview) { onDispose { preview.release() } }
     LaunchedEffect(preview) {
-        repo.settings.distinctUntilChangedBy { it.voiceId }.collectLatest { s ->
+        repo.settings.distinctUntilChangedBy { it.voiceId to it.language }.collectLatest { s ->
             delay(PRELOAD_DELAY_MILLIS) // Skip voices only passed by while choosing.
             preview.get(s)
         }
     }
 
     fun select(voiceId: String) = scope.launch { repo.update { it.copy(voiceId = voiceId) } }
+
+    /** Stories in another language need a voice that speaks it. */
+    fun selectLanguage(lang: String) = scope.launch {
+        repo.update { s ->
+            val keep = VoiceCatalog.neural(s.voiceId)?.lang == lang
+            s.copy(language = lang, voiceId = if (keep) s.voiceId else VoiceCatalog.defaultVoiceId(lang))
+        }
+    }
 
     fun download(pkg: VoicePackage, then: NeuralVoice) = scope.launch {
         try {
@@ -119,8 +139,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
     }
 
-    val kokoro = VoiceCatalog.neuralVoices.filter { it.pkg.engine == VoiceEngine.KOKORO }
-    val piper = VoiceCatalog.neuralVoices.filter { it.pkg.engine == VoiceEngine.PIPER }
+    val voices = VoiceCatalog.voicesFor(settings.language)
+    val kokoro = voices.filter { it.pkg.engine == VoiceEngine.KOKORO }
+    val piper = voices.filter { it.pkg.engine == VoiceEngine.PIPER }
 
     Scaffold(
         topBar = {
@@ -139,6 +160,17 @@ fun SettingsScreen(onBack: () -> Unit) {
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            item { Text("Language", style = MaterialTheme.typography.titleLarge) }
+            item { LanguagePicker(settings.language, ::selectLanguage) }
+            item {
+                Text(
+                    "Stories come from the Wikipedia in this language and are told by a voice that speaks it. " +
+                        "The app's own screens stay in English.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            item { HorizontalDivider() }
+
             item { Text("Narrator", style = MaterialTheme.typography.titleLarge) }
             item {
                 Text(
@@ -147,7 +179,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            item {
+            if (kokoro.isNotEmpty()) item {
                 PackageHeader(
                     title = "Natural voices",
                     subtitle = "Kokoro · one ${VoiceCatalog.KOKORO_EN.approxSizeMb} MB download for all four voices. " +
@@ -161,11 +193,16 @@ fun SettingsScreen(onBack: () -> Unit) {
             }
             voiceRows(kokoro, settings.voiceId, enabled = VoiceCatalog.KOKORO_EN.id in installed) { select(it.voiceId) }
 
-            item { HorizontalDivider() }
-            item {
+            if (kokoro.isNotEmpty()) item { HorizontalDivider() }
+            if (piper.isNotEmpty()) item {
                 Column {
-                    Text("Lite voices", style = MaterialTheme.typography.titleMedium)
-                    Text("Piper · smaller and faster, but less natural.", style = MaterialTheme.typography.bodySmall)
+                    if (kokoro.isNotEmpty()) {
+                        Text("Lite voices", style = MaterialTheme.typography.titleMedium)
+                        Text("Piper · smaller and faster, but less natural.", style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        Text("On-device voices", style = MaterialTheme.typography.titleMedium)
+                        Text("Piper · about ${piper.first().pkg.approxSizeMb} MB each.", style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
             items(piper, key = { it.id }) { voice ->
@@ -227,7 +264,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                                     try {
                                         val choice = preview.get(settings)
                                         previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
-                                        val pieces = Narrators.pieces(choice.narrator, SAMPLE)
+                                        val sample = SAMPLES[settings.language] ?: SAMPLES.getValue("en")
+                                        val pieces = Narrators.pieces(choice.narrator, sample)
                                         choice.narrator.prepare(pieces.map { it.text })
                                         for (piece in pieces) {
                                             if (!choice.narrator.speak(piece.text)) break
@@ -289,6 +327,23 @@ fun SettingsScreen(onBack: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+        }
+    }
+}
+
+/** The story languages (issue #68), each in its own name. */
+@Composable
+private fun LanguagePicker(selected: String, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        StoryLanguages.all.forEach { language ->
+            FilterChip(
+                selected = language.code == selected,
+                onClick = { onSelect(language.code) },
+                label = { Text(language.nativeName) },
+            )
         }
     }
 }

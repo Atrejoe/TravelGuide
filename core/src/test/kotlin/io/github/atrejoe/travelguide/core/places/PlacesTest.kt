@@ -1,5 +1,6 @@
 package io.github.atrejoe.travelguide.core.places
 
+import io.github.atrejoe.travelguide.core.lang.English
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.nav.NominatimClient
 import io.github.atrejoe.travelguide.core.rail.OverpassClient
@@ -150,7 +151,7 @@ class PlacesTest {
         assertEquals(2, PlaceStoryWriter(Random(1)).write(poi, maxSentences = 2).size)
         assertEquals(500, PlaceStoryWriter.roundedAge(538))
         assertEquals(150, PlaceStoryWriter.roundedAge(160))
-        assertEquals("the municipal council", PlaceStoryWriter.withThe("municipal council"))
+        assertEquals("the municipal council", English.withThe("municipal council"))
     }
 
     @Test

@@ -15,6 +15,8 @@ data class NeuralVoice(
     val description: String,
     val pkg: VoicePackage,
     val speakerId: Int = 0,
+    /** The language it speaks, a StoryLanguage code. */
+    val lang: String = "en",
 ) {
     val voiceId: String get() = "${VoiceCatalog.NEURAL_PREFIX}$id"
 }
@@ -51,11 +53,30 @@ object VoiceCatalog {
             "piper-alan", "Alan", "British, soft-spoken · lite",
             VoicePackage("vits-piper-en_GB-alan-medium-fp16", VoiceEngine.PIPER, 34),
         ),
+        // Dutch (issue #68). The fp16 exports of these models don't load in onnxruntime.
+        NeuralVoice(
+            "piper-nl-pim", "Pim", "Dutch (Netherlands), male",
+            VoicePackage("vits-piper-nl_NL-pim-medium", VoiceEngine.PIPER, 67), lang = "nl",
+        ),
+        NeuralVoice(
+            "piper-nl-ronnie", "Ronnie", "Dutch (Netherlands), male",
+            VoicePackage("vits-piper-nl_NL-ronnie-medium", VoiceEngine.PIPER, 67), lang = "nl",
+        ),
+        NeuralVoice(
+            "piper-nl-nathalie", "Nathalie", "Flemish (Belgium), female",
+            VoicePackage("vits-piper-nl_BE-nathalie-medium", VoiceEngine.PIPER, 67), lang = "nl",
+        ),
     )
 
     val packages: List<VoicePackage> = neuralVoices.map { it.pkg }.distinct()
 
     val DEFAULT_VOICE_ID = neuralVoices.first().voiceId
+
+    /** On-device voices that speak [lang]. */
+    fun voicesFor(lang: String): List<NeuralVoice> = neuralVoices.filter { it.lang == lang }
+
+    /** The first on-device voice for [lang], or the default system voice when there is none. */
+    fun defaultVoiceId(lang: String): String = voicesFor(lang).firstOrNull()?.voiceId ?: SYSTEM_PREFIX
 
     fun neural(voiceId: String): NeuralVoice? =
         neuralVoices.firstOrNull { it.voiceId == voiceId }
