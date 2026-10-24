@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-10-24
+
 ### Added
 
 - Stories in Dutch ([#68](../../issues/68)): pick the language in Settings → Language. Places
@@ -54,6 +56,16 @@ All notable changes to this project are documented here. The format follows
 - The lite voices (Piper: Norman, Ryan, Alan) crashed the app as soon as a story started
   ([#53](../../issues/53)): their 22 050 Hz audio got a buffer size the phone refuses. A voice
   that can't play now skips the story instead of crashing the app.
+
+### Known issues
+
+- The app's own screens are in English only; only the stories and voices follow the chosen
+  language.
+- There are no Kokoro (natural) voices for Dutch and German; those languages have Piper voices
+  and, for German, the slower high-quality Thorsten.
+- The open model may still be too slow on a mid-range phone to retell a story in the 20 seconds it
+  gets; you then hear the built-in story. Retelling ahead of time is planned
+  ([#54](../../issues/54)).
 
 ## [0.4.0] - 2026-10-20
 
