@@ -110,6 +110,8 @@ class NeuralNarrator(
                     voices = requireNotNull(files.voices) { "voices.bin missing" }.absolutePath,
                     tokens = files.tokens.absolutePath,
                     dataDir = files.dataDir.absolutePath,
+                    // The multilingual model reads other languages than English with espeak-ng (issue #73).
+                    lang = voice.espeakLang,
                 ),
                 numThreads = threads,
                 debug = false,

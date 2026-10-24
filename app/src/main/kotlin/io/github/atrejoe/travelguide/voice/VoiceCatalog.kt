@@ -17,6 +17,8 @@ data class NeuralVoice(
     val speakerId: Int = 0,
     /** The language it speaks, a StoryLanguage code. */
     val lang: String = "en",
+    /** The espeak-ng language a multilingual Kokoro model reads with, e.g. "pt-br"; empty otherwise. */
+    val espeakLang: String = "",
 ) {
     val voiceId: String get() = "${VoiceCatalog.NEURAL_PREFIX}$id"
 }
@@ -33,11 +35,28 @@ object VoiceCatalog {
      */
     val KOKORO_EN = VoicePackage("kokoro-int8-en-v0_19", VoiceEngine.KOKORO, 99)
 
+    /**
+     * Kokoro v1.0, multilingual (issue #73): natural voices for Spanish, French, Italian and
+     * Brazilian Portuguese in one 132 MB download, read with espeak-ng in their language. Speaker
+     * ids follow the model's metadata: 28 ef_dora, 29 em_alex, 30 ff_siwis, 35 if_sara,
+     * 36 im_nicola, 42 pf_dora, 43 pm_alex, 44 pm_santa, 53 em_santa. It has no Dutch or German.
+     */
+    val KOKORO_MULTI = VoicePackage("kokoro-int8-multi-lang-v1_0", VoiceEngine.KOKORO, 132)
+
     val neuralVoices = listOf(
         NeuralVoice("kokoro-bm_george", "George", "Deep, warm British storyteller", KOKORO_EN, speakerId = 9),
         NeuralVoice("kokoro-bm_lewis", "Lewis", "Mature, resonant British voice", KOKORO_EN, speakerId = 10),
         NeuralVoice("kokoro-am_michael", "Michael", "Warm, relaxed American voice", KOKORO_EN, speakerId = 6),
         NeuralVoice("kokoro-am_adam", "Adam", "Low, calm American voice", KOKORO_EN, speakerId = 5),
+        NeuralVoice("kokoro-em_alex", "Alex", "Spanish, male", KOKORO_MULTI, speakerId = 29, lang = "es", espeakLang = "es"),
+        NeuralVoice("kokoro-em_santa", "Santa", "Spanish, deep male", KOKORO_MULTI, speakerId = 53, lang = "es", espeakLang = "es"),
+        NeuralVoice("kokoro-ef_dora", "Dora", "Spanish, female", KOKORO_MULTI, speakerId = 28, lang = "es", espeakLang = "es"),
+        NeuralVoice("kokoro-ff_siwis", "Siwis", "French, female", KOKORO_MULTI, speakerId = 30, lang = "fr", espeakLang = "fr"),
+        NeuralVoice("kokoro-im_nicola", "Nicola", "Italian, male", KOKORO_MULTI, speakerId = 36, lang = "it", espeakLang = "it"),
+        NeuralVoice("kokoro-if_sara", "Sara", "Italian, female", KOKORO_MULTI, speakerId = 35, lang = "it", espeakLang = "it"),
+        NeuralVoice("kokoro-pm_alex", "Alex", "Portuguese (Brazil), male", KOKORO_MULTI, speakerId = 43, lang = "pt", espeakLang = "pt-br"),
+        NeuralVoice("kokoro-pm_santa", "Santa", "Portuguese (Brazil), deep male", KOKORO_MULTI, speakerId = 44, lang = "pt", espeakLang = "pt-br"),
+        NeuralVoice("kokoro-pf_dora", "Dora", "Portuguese (Brazil), female", KOKORO_MULTI, speakerId = 42, lang = "pt", espeakLang = "pt-br"),
         // Piper: less natural, but small and fast on older phones.
         NeuralVoice(
             "piper-norman", "Norman", "American narrator · lite",
@@ -69,6 +88,10 @@ object VoiceCatalog {
         NeuralVoice(
             "piper-de-thorsten", "Thorsten", "German, male",
             VoicePackage("vits-piper-de_DE-thorsten-medium", VoiceEngine.PIPER, 67), lang = "de",
+        ),
+        NeuralVoice(
+            "piper-de-thorsten-high", "Thorsten (high quality)", "German, male · more natural, renders slower",
+            VoicePackage("vits-piper-de_DE-thorsten-high", VoiceEngine.PIPER, 116), lang = "de",
         ),
         NeuralVoice(
             "piper-de-kerstin", "Kerstin", "German, female",

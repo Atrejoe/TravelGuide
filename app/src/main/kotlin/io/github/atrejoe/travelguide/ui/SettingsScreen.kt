@@ -204,19 +204,22 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
 
-            if (kokoro.isNotEmpty()) item {
+            // One Kokoro package per language: English, or the multilingual one (issue #73).
+            val kokoroPkg = kokoro.firstOrNull()?.pkg
+            if (kokoroPkg != null) item {
+                val count = if (kokoro.size == 1) "the voice" else "all ${kokoro.size} voices"
                 PackageHeader(
                     title = "Natural voices",
-                    subtitle = "Kokoro · one ${VoiceCatalog.KOKORO_EN.approxSizeMb} MB download for all four voices. " +
+                    subtitle = "Kokoro · one ${kokoroPkg.approxSizeMb} MB download for $count. " +
                         "Most lifelike; needs a reasonably recent phone.",
-                    pkg = VoiceCatalog.KOKORO_EN,
-                    installed = VoiceCatalog.KOKORO_EN.id in installed,
-                    progress = progress[VoiceCatalog.KOKORO_EN.id],
-                    onDownload = { download(VoiceCatalog.KOKORO_EN, kokoro.first()) },
-                    onRemove = { models.delete(VoiceCatalog.KOKORO_EN) },
+                    pkg = kokoroPkg,
+                    installed = kokoroPkg.id in installed,
+                    progress = progress[kokoroPkg.id],
+                    onDownload = { download(kokoroPkg, kokoro.first()) },
+                    onRemove = { models.delete(kokoroPkg) },
                 )
             }
-            voiceRows(kokoro, settings.voiceId, enabled = VoiceCatalog.KOKORO_EN.id in installed) { select(it.voiceId) }
+            voiceRows(kokoro, settings.voiceId, enabled = kokoroPkg != null && kokoroPkg.id in installed) { select(it.voiceId) }
 
             if (kokoro.isNotEmpty()) item { HorizontalDivider() }
             if (piper.isNotEmpty()) item {
