@@ -35,6 +35,10 @@ data class Narration(
      * [companions] and a closing remark. A retold story (see StoryEnhancement) replaces just these.
      */
     val bodySize: Int = (sentences.size - 1).coerceAtLeast(0),
+    /** The language the story is told in. */
+    val lang: String = poi.lang,
+    /** The language each sentence is in: a place's own sentences stay in its article's until translated (issue #71). */
+    val sentenceLangs: List<String> = sentences.map { lang },
 ) {
     val text: String get() = sentences.joinToString(" ")
 }
@@ -57,6 +61,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
      * we are walking in).
      * @param afield true for a place further away than we would normally tell about, which you
      * probably can't see (issue #64).
+     * @param storyLanguage the language to tell in: openers, transitions and closings are in it,
+     * while what the article says stays in the article's language, to be translated (issue #71).
      */
     fun compose(
         scored: ScoredPoi,
@@ -66,9 +72,10 @@ class NarrationComposer(private val random: Random = Random.Default) {
         companions: List<ScoredPoi> = emptyList(),
         relative: RelativePosition? = null,
         afield: Boolean = false,
+        storyLanguage: StoryLanguage = StoryLanguages.of(scored.poi.lang),
     ): Narration {
         val poi = scored.poi
-        val language = StoryLanguages.of(poi.lang)
+        val language = storyLanguage
         val relative = relative ?: relativePosition(scored, motion)
         val material = sections?.takeIf { it.isNotEmpty() }
             ?: listOf(ArticleSection("", SectionKind.INTRO, poi.extract))
@@ -78,6 +85,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
         val body = if (fromFacts) placeWriter.write(poi, budget) else writer.write(poi, material, budget)
 
         val articleText = material.joinToString(" ") { it.text }
+        val extraLangs = mutableListOf<String>()
         val extra = companions.flatMap { companion ->
             val mentioned = mentions(articleText, companion.poi.title)
             val count = if (profile.maxSentences >= 4) 2 else 1
@@ -86,6 +94,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
             } else {
                 writer.companion(companion.poi, count)
             }
+            extraLangs += language.code
+            extraLangs += about.map { companion.poi.lang }
             listOf(transition(companion, relativePosition(companion, motion), mentioned, language)) + about
         }
         val closing = if (afield) null else closing(relative, motion.mode, language)
@@ -96,6 +106,8 @@ class NarrationComposer(private val random: Random = Random.Default) {
             relative,
             companions.map { it.poi },
             bodySize = body.size,
+            lang = language.code,
+            sentenceLangs = listOf(language.code) + body.map { poi.lang } + extraLangs + listOfNotNull(closing?.let { language.code }),
         )
     }
 

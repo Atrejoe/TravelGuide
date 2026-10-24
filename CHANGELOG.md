@@ -18,6 +18,11 @@ All notable changes to this project are documented here. The format follows
   from its own Wikipedia, with two on-device voices per language: Thorsten and Kerstin (German),
   Tom and Siwis (French), Davefx (Spain) and Ald (Mexico), Paola and Riccardo (Italian), Tugão
   (Portugal) and Faber (Brazil).
+- Places without an article in the story language are told too, translated
+  ([#71](../../issues/71)): the guide also searches the Wikipedia of the country you're in and
+  the English one, and translates what it picks from their articles on the phone (ML Kit, free
+  and offline after a one-time download of about 30 MB per language). The opening line and
+  remarks are written in the story language directly. Can be switched off in Settings → Stories.
 - Stories about the wider area when nothing nearby is worth one ([#64](../../issues/64)): after
   two minutes without a story the guide looks three times further, after four minutes nine times
   (up to 10 km), and tells about places out of sight ("A little further afield, about 6 km to

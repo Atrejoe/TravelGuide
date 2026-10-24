@@ -34,6 +34,8 @@ data class AppSettings(
     val modeOverride: TravelMode? = null,
     /** Tell about the town, its buildings and institutions while walking (OpenStreetMap, Wikidata). */
     val walkingPlaces: Boolean = true,
+    /** Also tell about places only the English or local Wikipedia knows, translated (issue #71). */
+    val translatePlaces: Boolean = true,
     /** Who tells the stories (issue #7); the built-in storyteller by default. */
     val storyteller: Storyteller = Storyteller.BUILT_IN,
     /** A [ClaudeModel] id. */
@@ -69,6 +71,7 @@ class SettingsRepository(private val context: Context) {
         val rate = floatPreferencesKey("rate")
         val mode = stringPreferencesKey("mode_override")
         val walkingPlaces = booleanPreferencesKey("walking_places")
+        val translatePlaces = booleanPreferencesKey("translate_places")
         val storyteller = stringPreferencesKey("storyteller")
         val claudeModel = stringPreferencesKey("claude_model")
         val monthlyBudget = floatPreferencesKey("monthly_budget_usd")
@@ -107,6 +110,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.rate] = next.rate
             if (next.modeOverride == null) p.remove(Keys.mode) else p[Keys.mode] = next.modeOverride.name
             p[Keys.walkingPlaces] = next.walkingPlaces
+            p[Keys.translatePlaces] = next.translatePlaces
             p[Keys.storyteller] = next.storyteller.name
             p[Keys.claudeModel] = next.claudeModel
             p[Keys.monthlyBudget] = next.monthlyBudgetUsd
@@ -132,6 +136,7 @@ class SettingsRepository(private val context: Context) {
             rate = p[Keys.rate] ?: defaults.rate,
             modeOverride = p[Keys.mode]?.let { name -> TravelMode.entries.firstOrNull { it.name == name } },
             walkingPlaces = p[Keys.walkingPlaces] ?: defaults.walkingPlaces,
+            translatePlaces = p[Keys.translatePlaces] ?: defaults.translatePlaces,
             storyteller = p[Keys.storyteller]?.let { name -> Storyteller.entries.firstOrNull { it.name == name } } ?: defaults.storyteller,
             claudeModel = p[Keys.claudeModel] ?: defaults.claudeModel,
             monthlyBudgetUsd = p[Keys.monthlyBudget] ?: defaults.monthlyBudgetUsd,

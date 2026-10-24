@@ -28,9 +28,13 @@ import io.github.atrejoe.travelguide.core.enhance.ClaudeStoryEnhancer
 import io.github.atrejoe.travelguide.core.enhance.LocalModels
 import io.github.atrejoe.travelguide.core.enhance.LocalStoryEnhancer
 import io.github.atrejoe.travelguide.core.enhance.StoryEnhancement
+import io.github.atrejoe.travelguide.core.geo.GeoMath
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
+import io.github.atrejoe.travelguide.core.lang.CountryLanguages
+import io.github.atrejoe.travelguide.core.lang.MultilingualPoiSource
+import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.nav.NominatimClient
 import io.github.atrejoe.travelguide.core.nav.OsrmClient
 import io.github.atrejoe.travelguide.core.nav.TowardRouter
@@ -51,9 +55,11 @@ import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.settings.Storyteller
 import io.github.atrejoe.travelguide.story.LlamaModel
 import io.github.atrejoe.travelguide.story.LocalOnDevice
+import io.github.atrejoe.travelguide.story.MlKitTranslator
 import io.github.atrejoe.travelguide.story.NanoStoryEnhancer
 import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -99,9 +105,41 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private val overpass = OverpassClient(fetcher)
     private val nominatim = NominatimClient(fetcher)
 
+    /** One client per Wikipedia: the story language's, and others for places it lacks (issue #71). */
+    private val wikipedias = HashMap<String, WikipediaClient>()
+
+    private fun wikipedia(lang: String) = wikipedias.getOrPut(lang) { WikipediaClient(fetcher, lang = lang) }
+
+    private val translator = MlKitTranslator()
+
+    /** The language of the country we are in, looked up again after moving [COUNTRY_RECHECK_M]. */
+    private var localLanguage: Pair<GeoPoint, String?>? = null
+
+    private suspend fun localLanguage(point: GeoPoint): String? {
+        val last = localLanguage
+        if (last != null && GeoMath.distance(last.first, point) < COUNTRY_RECHECK_M) return last.second
+        val lang = try {
+            CountryLanguages.of(nominatim.country(point))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Try again a little further on; until then, keep what we knew.
+            return last?.second
+        }
+        localLanguage = point to lang
+        return lang
+    }
+
+    /** The other Wikipedias to search: English and the local language's, unless switched off. */
+    private suspend fun fallbackWikipedias(point: GeoPoint): List<WikipediaClient> {
+        if (!settings.translatePlaces) return emptyList()
+        return listOfNotNull("en", localLanguage(point)).distinct().filter { it != sources.lang }.map(::wikipedia)
+    }
+
     /** Wikipedia and Wikidata in the story language (issue #68). */
     private inner class Sources(val lang: String) {
-        val wikipedia = WikipediaClient(fetcher, lang = lang)
+        val wikipedia = wikipedia(lang)
+        val places = MultilingualPoiSource(wikipedia) { point -> fallbackWikipedias(point) }
         private val wikidata = WikidataClient(fetcher, lang = lang)
         val buildings = OsmPlaceSource(overpass, wikidata, lang = lang)
         val towns = TownLookup(nominatim, wikidata, wikipedia, lang = lang)
@@ -113,8 +151,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         super.onCreate()
         // The sources are looked up on every call, so a change of language takes effect at once.
         engine = GuideEngine(
-            { center, radius -> sources.wikipedia.nearby(center, radius) },
-            articles = { poi -> sources.wikipedia.article(poi) },
+            { center, radius -> sources.places.nearby(center, radius) },
+            // From the Wikipedia the place was found in.
+            articles = { poi -> wikipedia(poi.lang).article(poi) },
             rails = overpass,
             // Road networks can be large: parse them off the main thread.
             roads = RoadSource { center, major, minor, cycleways ->
@@ -126,6 +165,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             towns = { point -> sources.towns.town(point) },
         )
         engine.onActivity = { what -> GuideStatus.update { it.copy(activity = what) } }
+        engine.translator = translator
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
         session = MediaSessionCompat(this, "TravelGuide").apply {
@@ -234,6 +274,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     override fun onDestroy() {
         if (guideJob != null) stopGuide()
         session.release()
+        translator.close()
         super.onDestroy()
     }
 
@@ -253,6 +294,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             settings = s
             engine.motion.modeOverride = s.modeOverride
             engine.walkingPlaces = s.walkingPlaces
+            // Always set: places found in another Wikipedia must be told in this language, or not at all.
+            engine.language = StoryLanguages.of(s.language)
+            engine.translator = translator.takeIf { s.translatePlaces }
         }
     }
 
@@ -625,6 +669,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     companion object {
         private const val TAG = "GuideService"
+        /** Countries are large: look up which one we are in about every 25 km. */
+        private const val COUNTRY_RECHECK_M = 25_000.0
         private const val TICK_MILLIS = 3_000L
         private const val SENTENCE_PAUSE_MILLIS = 250L
         private const val SLOW_VOICE_FACTOR = 1.1
