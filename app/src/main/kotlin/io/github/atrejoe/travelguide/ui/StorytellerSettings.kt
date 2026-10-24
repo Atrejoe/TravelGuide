@@ -54,9 +54,6 @@ fun StorytellerSettings(settings: AppSettings) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repo = context.app.settings
-    val keys = context.app.apiKeys
-    val hasKey by keys.hasKey.collectAsState()
-    var keyInput by remember { mutableStateOf("") }
     var spent by remember { mutableDoubleStateOf(0.0) }
 
     var nano by remember { mutableStateOf<NanoStoryEnhancer.Availability?>(null) }
@@ -89,38 +86,21 @@ fun StorytellerSettings(settings: AppSettings) {
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        CrashNotice()
         Text("Storyteller", style = MaterialTheme.typography.titleMedium)
-        StorytellerRow(
-            "Built-in",
-            "Stories from Wikipedia text with hand-written phrasing. Free, and works everywhere.",
+        OptionRow(
+            storytellerLabel(Storyteller.BUILT_IN),
+            "Tells passages of the Wikipedia article as they are written. Free, instant and works everywhere, but " +
+                "it can't retell: a story is only as well told as the article.",
             settings.storyteller == Storyteller.BUILT_IN,
-        ) { choose(Storyteller.BUILT_IN) }
-        StorytellerRow(
-            "Gemini Nano, on this phone",
-            "Retells each story from its Wikipedia article on the phone itself, through Android AICore. Free and " +
-                "private, but only on some recent phones (e.g. Pixel 9 and later).",
-            settings.storyteller == Storyteller.GEMINI_NANO,
-        ) { choose(Storyteller.GEMINI_NANO) }
-        StorytellerRow(
-            "Open model, on this phone",
-            "Retells each story with a small open model that the app runs itself. Free and private, on any recent " +
-                "phone; needs a download of about 1 GB, and is slower and less accurate than Claude. Experimental.",
-            settings.storyteller == Storyteller.ON_DEVICE,
-        ) { choose(Storyteller.ON_DEVICE) }
-        StorytellerRow(
-            "Claude, with your own key",
-            "Retells each story from its Wikipedia article with your own Anthropic API key. Anthropic bills you per " +
-                "story; a place is paid for only once.",
-            settings.storyteller == Storyteller.CLAUDE,
-        ) { choose(Storyteller.CLAUDE) }
-        Text(
-            "When a story can't be retold, you hear the built-in one.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            { choose(Storyteller.BUILT_IN) },
         )
-
-        if (settings.storyteller == Storyteller.GEMINI_NANO) {
+        OptionRow(
+            storytellerLabel(Storyteller.GEMINI_NANO),
+            "Retells each story on the phone itself, through Android AICore. Free and private, but only on some " +
+                "recent phones (e.g. Pixel 9 and later), and plainer than Claude.",
+            settings.storyteller == Storyteller.GEMINI_NANO,
+            { choose(Storyteller.GEMINI_NANO) },
+        ) {
             val status = nanoProgress ?: when (nano) {
                 null -> "Checking whether this phone has Gemini Nano…"
                 NanoStoryEnhancer.Availability.AVAILABLE -> "Gemini Nano is ready."
@@ -133,85 +113,108 @@ fun StorytellerSettings(settings: AppSettings) {
                 Button(onClick = { downloadNano() }) { Text("Download Gemini Nano") }
             }
         }
-        if (settings.storyteller == Storyteller.ON_DEVICE) OnDeviceSettings(settings)
-        if (settings.storyteller != Storyteller.CLAUDE) return@Column
-
-        if (hasKey) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("API key stored, encrypted on this phone.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                OutlinedButton(onClick = { keys.set(null) }) { Text("Remove key") }
-            }
-        } else {
-            OutlinedTextField(
-                value = keyInput,
-                onValueChange = { keyInput = it },
-                label = { Text("Anthropic API key") },
-                placeholder = { Text("sk-ant-…") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Button(
-                onClick = {
-                    keys.set(keyInput)
-                    keyInput = ""
-                },
-                enabled = keyInput.isNotBlank(),
-            ) { Text("Save key") }
-            Text(
-                "Create a key at console.anthropic.com. It is only sent to the Anthropic API.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Text("Model", style = MaterialTheme.typography.titleMedium)
-        ClaudeModel.entries.forEach { model ->
-            val selected = model.id == settings.claudeModel
-            Row(
-                Modifier.fillMaxWidth().selectable(
-                    selected = selected,
-                    onClick = { scope.launch { repo.update { it.copy(claudeModel = model.id) } } },
-                    role = Role.RadioButton,
-                ),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                RadioButton(selected = selected, onClick = null)
-                Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                    Text(model.label, style = MaterialTheme.typography.bodyLarge)
-                    Text("About ${dollars(perStory(model))} per new place", style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-
-        var budget by remember(settings.monthlyBudgetUsd) { mutableFloatStateOf(settings.monthlyBudgetUsd) }
+        OptionRow(
+            storytellerLabel(Storyteller.ON_DEVICE),
+            "Retells each story with a small open model that the app runs itself. Free and private on any recent " +
+                "phone, but it needs a download of about 1 GB, is slow on mid-range phones and less accurate. Experimental.",
+            settings.storyteller == Storyteller.ON_DEVICE,
+            { choose(Storyteller.ON_DEVICE) },
+        ) { OnDeviceSettings(settings) }
+        OptionRow(
+            storytellerLabel(Storyteller.CLAUDE),
+            "Retells each story the way a good guide would: the best told stories. Needs your own Anthropic API " +
+                "key and a connection. Anthropic bills you per story, a place is paid for only once, and a monthly " +
+                "budget caps the cost.",
+            settings.storyteller == Storyteller.CLAUDE,
+            { choose(Storyteller.CLAUDE) },
+        ) { ClaudeSettings(settings, spent) }
         Text(
-            "Monthly budget: ${dollars(budget.toDouble())} · spent this month: ${dollars(spent)}",
-            style = MaterialTheme.typography.bodyMedium,
-        )
-        Slider(
-            value = budget,
-            onValueChange = { budget = it },
-            onValueChangeFinished = { scope.launch { repo.update { it.copy(monthlyBudgetUsd = budget) } } },
-            valueRange = 1f..20f,
-            steps = 18,
+            "When a story can't be retold, you hear the built-in one.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
+/** What the storyteller is called in the settings. */
+fun storytellerLabel(storyteller: Storyteller): String = when (storyteller) {
+    Storyteller.BUILT_IN -> "Built-in"
+    Storyteller.GEMINI_NANO -> "Gemini Nano, on this phone"
+    Storyteller.ON_DEVICE -> "Open model, on this phone"
+    Storyteller.CLAUDE -> "Claude, with your own key"
+}
+
+/** Claude's settings: the key, the model and the monthly budget. */
 @Composable
-private fun StorytellerRow(title: String, description: String, selected: Boolean, onSelect: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().selectable(selected = selected, onClick = onSelect, role = Role.RadioButton),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        RadioButton(selected = selected, onClick = null)
-        Column(Modifier.weight(1f).padding(start = 8.dp)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
-            Text(description, style = MaterialTheme.typography.bodySmall)
+private fun ClaudeSettings(settings: AppSettings, spent: Double) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repo = context.app.settings
+    val keys = context.app.apiKeys
+    val hasKey by keys.hasKey.collectAsState()
+    var keyInput by remember { mutableStateOf("") }
+
+    if (hasKey) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("API key stored, encrypted on this phone.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = { keys.set(null) }) { Text("Remove key") }
+        }
+    } else {
+        OutlinedTextField(
+            value = keyInput,
+            onValueChange = { keyInput = it },
+            label = { Text("Anthropic API key") },
+            placeholder = { Text("sk-ant-…") },
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Button(
+            onClick = {
+                keys.set(keyInput)
+                keyInput = ""
+            },
+            enabled = keyInput.isNotBlank(),
+        ) { Text("Save key") }
+        Text(
+            "Create a key at console.anthropic.com. It is only sent to the Anthropic API.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+
+    Text("Model", style = MaterialTheme.typography.titleSmall)
+    ClaudeModel.entries.forEach { model ->
+        val selected = model.id == settings.claudeModel
+        Row(
+            Modifier.fillMaxWidth().selectable(
+                selected = selected,
+                onClick = { scope.launch { repo.update { it.copy(claudeModel = model.id) } } },
+                role = Role.RadioButton,
+            ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RadioButton(selected = selected, onClick = null)
+            Column(Modifier.weight(1f).padding(start = 8.dp)) {
+                Text(model.label, style = MaterialTheme.typography.bodyLarge)
+                Text("About ${dollars(perStory(model))} per new place", style = MaterialTheme.typography.bodySmall)
+            }
         }
     }
+
+    var budget by remember(settings.monthlyBudgetUsd) { mutableFloatStateOf(settings.monthlyBudgetUsd) }
+    Text(
+        "Monthly budget: ${dollars(budget.toDouble())} · spent this month: ${dollars(spent)}",
+        style = MaterialTheme.typography.bodyMedium,
+    )
+    Slider(
+        value = budget,
+        onValueChange = { budget = it },
+        onValueChangeFinished = { scope.launch { repo.update { it.copy(monthlyBudgetUsd = budget) } } },
+        valueRange = 1f..20f,
+        steps = 18,
+    )
 }
 
 /** A typical story: the article's lead and the picked sentences in, a short story and some thinking out. */

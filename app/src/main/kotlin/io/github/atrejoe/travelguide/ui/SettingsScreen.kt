@@ -10,16 +10,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyListScope
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -44,6 +40,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -54,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.CrashReporting
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
+import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.voice.NeuralVoice
 import io.github.atrejoe.travelguide.voice.Narrators
@@ -168,6 +166,37 @@ fun SettingsScreen(onBack: () -> Unit) {
     val voices = VoiceCatalog.voicesFor(settings.language)
     val kokoro = voices.filter { it.pkg.engine == VoiceEngine.KOKORO }
     val piper = voices.filter { it.pkg.engine == VoiceEngine.PIPER }
+    // One Kokoro package per language: English, or the multilingual one (issue #73).
+    val kokoroPkg = kokoro.firstOrNull()?.pkg
+    val language = StoryLanguages.of(settings.language)
+
+    // Which sections are open, and which kind of narrator shows its voices (issue #80).
+    var open by rememberSaveable { mutableStateOf(setOf<String>()) }
+    fun toggle(section: String) {
+        open = if (section in open) open - section else open + section
+    }
+    val activeKind = NarratorKind.of(settings.voiceId)
+    var shownKind by rememberSaveable(activeKind) { mutableStateOf(activeKind) }
+
+    /** Shows the voices of [kind], and switches to it at once when one of them can speak already. */
+    fun chooseKind(kind: NarratorKind) {
+        shownKind = kind
+        if (kind == activeKind) return
+        val ready = when (kind) {
+            NarratorKind.NATURAL -> kokoro.firstOrNull { it.pkg.id in installed }?.voiceId
+            NarratorKind.LITE -> piper.firstOrNull { it.pkg.id in installed }?.voiceId
+            NarratorKind.SYSTEM -> VoiceCatalog.SYSTEM_PREFIX
+            NarratorKind.ELEVENLABS -> null // A voice from the account has to be picked.
+        }
+        ready?.let(::select)
+    }
+
+    val voiceSummary = when (activeKind) {
+        NarratorKind.NATURAL, NarratorKind.LITE -> VoiceCatalog.neural(settings.voiceId)?.let { "${it.name}, on this phone" }
+        NarratorKind.SYSTEM -> VoiceCatalog.systemVoiceName(settings.voiceId)?.takeIf { it.isNotEmpty() }
+            ?.let { name -> systemVoices.firstOrNull { it.name == name }?.label ?: name } ?: "The phone's own voice"
+        NarratorKind.ELEVENLABS -> "${settings.elevenLabsVoiceName.ifBlank { "A voice" }}, ElevenLabs"
+    }
 
     Scaffold(
         topBar = {
@@ -184,104 +213,104 @@ fun SettingsScreen(onBack: () -> Unit) {
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { Text("Language", style = MaterialTheme.typography.titleLarge) }
-            item { LanguagePicker(settings.language, ::selectLanguage) }
+            item { CrashNotice() }
+
             item {
-                Text(
-                    "Stories come from the Wikipedia in this language and are told by a voice that speaks it. " +
-                        "The app's own screens stay in English.",
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-            item { HorizontalDivider() }
-
-            item { Text("Narrator", style = MaterialTheme.typography.titleLarge) }
-            item {
-                Text(
-                    "On-device voices sound natural, work offline and cost nothing to use. They are downloaded once.",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-            }
-
-            // One Kokoro package per language: English, or the multilingual one (issue #73).
-            val kokoroPkg = kokoro.firstOrNull()?.pkg
-            if (kokoroPkg != null) item {
-                val count = if (kokoro.size == 1) "the voice" else "all ${kokoro.size} voices"
-                PackageHeader(
-                    title = "Natural voices",
-                    subtitle = "Kokoro · one ${kokoroPkg.approxSizeMb} MB download for $count. " +
-                        "Most lifelike; needs a reasonably recent phone.",
-                    pkg = kokoroPkg,
-                    installed = kokoroPkg.id in installed,
-                    progress = progress[kokoroPkg.id],
-                    onDownload = { download(kokoroPkg, kokoro.first()) },
-                    onRemove = { models.delete(kokoroPkg) },
-                )
-            }
-            voiceRows(kokoro, settings.voiceId, enabled = kokoroPkg != null && kokoroPkg.id in installed) { select(it.voiceId) }
-
-            if (kokoro.isNotEmpty()) item { HorizontalDivider() }
-            if (piper.isNotEmpty()) item {
-                Column {
-                    if (kokoro.isNotEmpty()) {
-                        Text("Lite voices", style = MaterialTheme.typography.titleMedium)
-                        Text("Piper · smaller and faster, but less natural.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        Text("On-device voices", style = MaterialTheme.typography.titleMedium)
-                        Text("Piper · about ${piper.first().pkg.approxSizeMb} MB each.", style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-            items(piper, key = { it.id }) { voice ->
-                val pkgInstalled = voice.pkg.id in installed
-                Column {
-                    VoiceRow(voice, selected = settings.voiceId == voice.voiceId, enabled = pkgInstalled) { select(voice.voiceId) }
-                    PackageActions(
-                        pkg = voice.pkg,
-                        installed = pkgInstalled,
-                        progress = progress[voice.pkg.id],
-                        onDownload = { download(voice.pkg, voice) },
-                        onRemove = { models.delete(voice.pkg) },
+                SettingsSection("Language", language.nativeName, "language" in open, { toggle("language") }) {
+                    Text(
+                        "Stories come from the Wikipedia in this language and are told by a voice that speaks it. " +
+                            "The app's own screens stay in English.",
+                        style = MaterialTheme.typography.bodySmall,
                     )
+                    LanguagePicker(settings.language, ::selectLanguage)
                 }
             }
 
-            item { HorizontalDivider() }
-            item { Text("System voices", style = MaterialTheme.typography.titleMedium) }
-            val systemOptions = listOf(SystemVoice("", "Default system voice")) + systemVoices
-            items(systemOptions, key = { "system:" + it.name }) { voice ->
-                val id = VoiceCatalog.SYSTEM_PREFIX + voice.name
-                Row(
-                    Modifier.fillMaxWidth().selectable(
-                        selected = settings.voiceId == id,
-                        onClick = { select(id) },
-                        role = Role.RadioButton,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = settings.voiceId == id, onClick = null)
-                    Text(voice.label, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
-                }
-            }
+            item {
+                SettingsSection("Narrator", voiceSummary, "narrator" in open, { toggle("narrator") }) {
+                    if (kokoroPkg != null) {
+                        OptionRow(
+                            "Natural voices, on this phone",
+                            "Kokoro. The most lifelike of the free voices, and they work offline. One " +
+                                "${kokoroPkg.approxSizeMb} MB download for all of them. A slower phone may pause " +
+                                "between sentences while it renders.",
+                            selected = shownKind == NarratorKind.NATURAL,
+                            onSelect = { chooseKind(NarratorKind.NATURAL) },
+                        ) {
+                            PackageActions(
+                                pkg = kokoroPkg,
+                                installed = kokoroPkg.id in installed,
+                                progress = progress[kokoroPkg.id],
+                                onDownload = { download(kokoroPkg, kokoro.first()) },
+                                onRemove = { models.delete(kokoroPkg) },
+                            )
+                            kokoro.forEach { voice ->
+                                VoiceRow(voice, selected = settings.voiceId == voice.voiceId, enabled = kokoroPkg.id in installed) {
+                                    select(voice.voiceId)
+                                }
+                            }
+                        }
+                    }
+                    if (piper.isNotEmpty()) {
+                        OptionRow(
+                            if (kokoroPkg != null) "Lite voices, on this phone" else "Voices on this phone",
+                            "Piper. Free and offline, small downloads (${piper.minOf { it.pkg.approxSizeMb }} to " +
+                                "${piper.maxOf { it.pkg.approxSizeMb }} MB each) and fast on any phone, but they " +
+                                "sound less natural.",
+                            selected = shownKind == NarratorKind.LITE,
+                            onSelect = { chooseKind(NarratorKind.LITE) },
+                        ) {
+                            piper.forEach { voice ->
+                                val pkgInstalled = voice.pkg.id in installed
+                                VoiceRow(voice, selected = settings.voiceId == voice.voiceId, enabled = pkgInstalled) { select(voice.voiceId) }
+                                PackageActions(
+                                    pkg = voice.pkg,
+                                    installed = pkgInstalled,
+                                    progress = progress[voice.pkg.id],
+                                    onDownload = { download(voice.pkg, voice) },
+                                    onRemove = { models.delete(voice.pkg) },
+                                )
+                            }
+                        }
+                    }
+                    OptionRow(
+                        "The phone's own voice",
+                        "Android's text-to-speech: nothing to download, and offline once the phone has the " +
+                            "${language.name} voice data. How it sounds depends on the phone; often robotic.",
+                        selected = shownKind == NarratorKind.SYSTEM,
+                        onSelect = { chooseKind(NarratorKind.SYSTEM) },
+                    ) {
+                        (listOf(SystemVoice("", "Default system voice")) + systemVoices).forEach { voice ->
+                            val id = VoiceCatalog.SYSTEM_PREFIX + voice.name
+                            Row(
+                                Modifier.fillMaxWidth().selectable(selected = settings.voiceId == id, onClick = { select(id) }, role = Role.RadioButton),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(selected = settings.voiceId == id, onClick = null)
+                                Text(voice.label, Modifier.padding(start = 8.dp), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                    OptionRow(
+                        "ElevenLabs, with your own key",
+                        "Studio quality, and one voice speaks every story language. ElevenLabs charges credits per " +
+                            "character, about 600 to 1,000 a story; a story heard again is free. Needs a connection, " +
+                            "and the stories' text is sent to ElevenLabs. Without a connection an on-device voice reads on.",
+                        selected = shownKind == NarratorKind.ELEVENLABS,
+                        onSelect = { chooseKind(NarratorKind.ELEVENLABS) },
+                    ) {
+                        ElevenLabsSettings(settings)
+                    }
 
-            item { HorizontalDivider() }
-            item { ElevenLabsSettings(settings) }
-
-            item { HorizontalDivider() }
-            item {
-                VoiceSlider("Speaking rate", settings.rate, 0.7f..1.2f) { value ->
-                    scope.launch { repo.update { it.copy(rate = value) } }
-                }
-            }
-            item {
-                VoiceSlider("Pitch (1.00 sounds most natural)", settings.pitch, 0.8f..1.2f) { value ->
-                    scope.launch { repo.update { it.copy(pitch = value) } }
-                }
-            }
-            item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HorizontalDivider()
+                    VoiceSlider("Speaking rate", settings.rate, 0.7f..1.2f) { value ->
+                        scope.launch { repo.update { it.copy(rate = value) } }
+                    }
+                    VoiceSlider("Pitch (1.00 sounds most natural)", settings.pitch, 0.8f..1.2f) { value ->
+                        scope.launch { repo.update { it.copy(pitch = value) } }
+                    }
                     Button(
                         onClick = {
                             val playing = previewJob
@@ -318,60 +347,42 @@ fun SettingsScreen(onBack: () -> Unit) {
                 }
             }
 
-            item { HorizontalDivider() }
-            item { Text("Stories", style = MaterialTheme.typography.titleLarge) }
             item {
-                Row(
-                    Modifier.fillMaxWidth().toggleable(
-                        value = settings.walkingPlaces,
-                        onValueChange = { on -> scope.launch { repo.update { it.copy(walkingPlaces = on) } } },
-                        role = Role.Switch,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Buildings and institutions while walking", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "On foot, also tell about the town you enter and the town hall, churches, museums and " +
-                                "listed buildings you pass, from OpenStreetMap and Wikidata.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Switch(checked = settings.walkingPlaces, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
+                SettingsSection("Stories", storytellerLabel(settings.storyteller), "stories" in open, { toggle("stories") }) {
+                    SwitchRow(
+                        "Buildings and institutions while walking",
+                        "On foot, also tell about the town you enter and the town hall, churches, museums and " +
+                            "listed buildings you pass, from OpenStreetMap and Wikidata.",
+                        settings.walkingPlaces,
+                    ) { on -> scope.launch { repo.update { it.copy(walkingPlaces = on) } } }
+                    SwitchRow(
+                        "Translate places without a ${language.name} article",
+                        "Also tell about places only the Wikipedia of the country you're in, or the English one, " +
+                            "knows, translated on the phone. The first time per language this downloads about 30 MB.",
+                        settings.translatePlaces,
+                    ) { on -> scope.launch { repo.update { it.copy(translatePlaces = on) } } }
+                    HorizontalDivider()
+                    StorytellerSettings(settings)
                 }
             }
+
             item {
-                val language = StoryLanguages.of(settings.language).name
-                Row(
-                    Modifier.fillMaxWidth().toggleable(
-                        value = settings.translatePlaces,
-                        onValueChange = { on -> scope.launch { repo.update { it.copy(translatePlaces = on) } } },
-                        role = Role.Switch,
-                    ),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Translate places without a $language article", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "Also tell about places only the Wikipedia of the country you're in, or the English one, " +
-                                "knows, translated on the phone. The first time per language this downloads about 30 MB.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Switch(checked = settings.translatePlaces, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
+                val route by RouteRepository.route.collectAsStateWithLifecycle()
+                SettingsSection(
+                    "Navigation",
+                    route?.let { "Following " + it.summary() } ?: "Guessing the way ahead",
+                    "navigation" in open,
+                    { toggle("navigation") },
+                ) { NavigationSettings() }
+            }
+
+            if (CrashReporting.available) item {
+                val enabled by CrashReporting.enabled.collectAsStateWithLifecycle()
+                SettingsSection("Crash reports", if (enabled) "Sent" else "Not sent", "crashes" in open, { toggle("crashes") }) {
+                    CrashReportSettings()
                 }
             }
-            item { StorytellerSettings(settings) }
 
-            item { HorizontalDivider() }
-            item { NavigationSettings() }
-
-            if (CrashReporting.available) {
-                item { HorizontalDivider() }
-                item { CrashReportSettings() }
-            }
-
-            item { HorizontalDivider() }
             item {
                 Text(
                     "Stories come from Wikipedia (CC BY-SA 4.0), and for buildings from OpenStreetMap (ODbL) and Wikidata (CC0). Map © OpenStreetMap contributors (ODbL). Roads, railways and buildings: Overpass API. Routing: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
@@ -381,6 +392,41 @@ fun SettingsScreen(onBack: () -> Unit) {
                 )
             }
         }
+    }
+}
+
+/** The kinds of narrator to choose from (issue #80); the voice id says which one is in use. */
+private enum class NarratorKind {
+    NATURAL,
+    LITE,
+    SYSTEM,
+    ELEVENLABS,
+    ;
+
+    companion object {
+        fun of(voiceId: String): NarratorKind = when {
+            VoiceCatalog.elevenLabsVoice(voiceId) != null -> ELEVENLABS
+            else -> when (VoiceCatalog.neural(voiceId)?.pkg?.engine) {
+                VoiceEngine.KOKORO -> NATURAL
+                VoiceEngine.PIPER -> LITE
+                null -> SYSTEM
+            }
+        }
+    }
+}
+
+/** A setting that is on or off, with what it does. */
+@Composable
+private fun SwitchRow(title: String, description: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().toggleable(value = checked, onValueChange = onChange, role = Role.Switch),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Switch(checked = checked, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
     }
 }
 
@@ -401,12 +447,6 @@ private fun LanguagePicker(selected: String, onSelect: (String) -> Unit) {
     }
 }
 
-private fun LazyListScope.voiceRows(voices: List<NeuralVoice>, selectedId: String, enabled: Boolean, onSelect: (NeuralVoice) -> Unit) {
-    items(voices, key = { it.id }) { voice ->
-        VoiceRow(voice, selected = selectedId == voice.voiceId, enabled = enabled) { onSelect(voice) }
-    }
-}
-
 @Composable
 private fun VoiceRow(voice: NeuralVoice, selected: Boolean, enabled: Boolean, onSelect: () -> Unit) {
     Row(
@@ -417,25 +457,6 @@ private fun VoiceRow(voice: NeuralVoice, selected: Boolean, enabled: Boolean, on
         Column(Modifier.weight(1f).padding(start = 8.dp)) {
             Text(voice.name, style = MaterialTheme.typography.titleMedium)
             Text(voice.description, style = MaterialTheme.typography.bodySmall)
-        }
-    }
-}
-
-@Composable
-private fun PackageHeader(
-    title: String,
-    subtitle: String,
-    pkg: VoicePackage,
-    installed: Boolean,
-    progress: Float?,
-    onDownload: () -> Unit,
-    onRemove: () -> Unit,
-) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(12.dp)) {
-            Text("$title · recommended", style = MaterialTheme.typography.titleMedium)
-            Text(subtitle, style = MaterialTheme.typography.bodySmall)
-            PackageActions(pkg, installed, progress, onDownload, onRemove)
         }
     }
 }
