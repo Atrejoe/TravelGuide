@@ -78,13 +78,48 @@ object Spanish : StoryLanguage("es", "Spanish", "Español") {
     override fun kindLine(kind: PlaceKind) = "Es ${placeNoun(kind)}."
 
     override fun leads(kind: SectionKind): List<String> = when (kind) {
-        SectionKind.NAME -> listOf("¿Se ha preguntado de dónde viene el nombre?", "El nombre tiene su propia historia.")
-        SectionKind.LEGEND -> listOf("También hay una leyenda.", "Y luego está la historia que cuenta la gente.")
-        SectionKind.HISTORY -> listOf("Un poco de historia.", "Viajemos atrás en el tiempo.", "La historia ha dejado aquí su huella.")
-        SectionKind.CULTURE -> listOf("La cultura tiene aquí raíces profundas.", "Algo sobre la vida local.")
-        SectionKind.LANDMARKS -> listOf("Fíjese bien y notará esto.", "Un detalle que vale la pena conocer.")
-        SectionKind.NATURE -> listOf("Ahora, sobre el paisaje.", "La naturaleza tiene aquí su propia historia.")
-        SectionKind.CLIMATE -> listOf("En cuanto al clima.")
+        SectionKind.NAME -> listOf(
+            "¿Se ha preguntado de dónde viene el nombre?",
+            "El nombre tiene su propia historia.",
+            "Primero, el nombre.",
+            "¿De dónde vendrá un nombre así?",
+            "El nombre ya da una pista.",
+        )
+        SectionKind.LEGEND -> listOf(
+            "También hay una leyenda.",
+            "Y luego está la historia que cuenta la gente.",
+            "La tradición tiene su propia versión.",
+            "Aquí se cuenta una historia curiosa.",
+            "Ahora, la leyenda.",
+        )
+        SectionKind.HISTORY -> listOf(
+            "Un poco de historia.",
+            "Viajemos atrás en el tiempo.",
+            "La historia ha dejado aquí su huella.",
+            "Aquí el pasado nunca queda lejos.",
+            "Todo esto viene de muy atrás.",
+            "Imagine este lugar hace siglos.",
+            "Así empezó todo.",
+        )
+        SectionKind.CULTURE -> listOf(
+            "La cultura tiene aquí raíces profundas.",
+            "Algo sobre la vida local.",
+            "Pregunte a la gente de aquí y le contará esto.",
+            "Hay más de lo que parece.",
+        )
+        SectionKind.LANDMARKS -> listOf(
+            "Fíjese bien y notará esto.",
+            "Un detalle que vale la pena conocer.",
+            "Preste atención a esto.",
+            "Aquí hay algo que buscar.",
+        )
+        SectionKind.NATURE -> listOf(
+            "Ahora, sobre el paisaje.",
+            "La naturaleza tiene aquí su propia historia.",
+            "Tómese un momento para mirar el paisaje.",
+            "La propia tierra cuenta aquí una historia.",
+        )
+        SectionKind.CLIMATE -> listOf("En cuanto al clima.", "Una palabra sobre el clima.")
         else -> emptyList()
     }
 
@@ -115,17 +150,31 @@ object Spanish : StoryLanguage("es", "Spanish", "Español") {
     override val notPlaceNouns = setOf("iglesia", "castillo", "fuerte", "molino")
 
     override fun hereOpeners(title: String, area: Boolean, flying: Boolean): List<String> = when {
-        area && flying -> listOf("Bajo nosotros se extiende ahora $title.", "Estamos sobrevolando $title.")
+        area && flying -> listOf(
+            "Bajo nosotros se extiende ahora $title.",
+            "Estamos sobrevolando $title.",
+            "Mire hacia abajo: ahí está $title.",
+            "Muy por debajo de nosotros pasa $title.",
+            "Justo debajo de nosotros está $title.",
+        )
         area -> listOf(
             "Bienvenido a $title.",
             "Acabamos de llegar a $title.",
             "Ahora atraviesa $title.",
             "Y aquí estamos, en $title.",
+            "Esto es $title.",
+            "Ya estamos en $title.",
+            "A nuestro alrededor está ahora $title.",
+            "Estamos pasando por $title.",
         )
         else -> listOf(
             "Mire a su alrededor: está justo al lado de $title.",
             "Justo aquí se encuentra $title.",
             "Deténgase un momento. Esto es $title.",
+            "Está justo junto a $title.",
+            "Mire: esto es $title.",
+            "Aquí mismo, a su lado, está $title.",
+            "Aquí está: $title.",
         )
     }
 
@@ -134,6 +183,11 @@ object Spanish : StoryLanguage("es", "Spanish", "Español") {
         "Más adelante, a $distance, se encuentra $title.",
         "No pierda de vista la carretera: a $distance de aquí está $title.",
         "Justo delante, a $distance de aquí, está $title.",
+        "Todo recto, a $distance, está $title.",
+        "Dentro de $distance llegaremos a $title.",
+        "Ya no queda lejos: a $distance está $title.",
+        "Mire hacia delante: a $distance de aquí se encuentra $title.",
+        "Más allá, a $distance por delante, nos espera $title.",
     )
 
     override fun sideOpeners(title: String, left: Boolean, distance: String, window: Boolean): List<String> {
@@ -143,63 +197,166 @@ object Spanish : StoryLanguage("es", "Spanish", "Español") {
             listOf(
                 "Mire por la ventanilla de la $side. A $distance se encuentra $title.",
                 "Si va sentado en el lado $sideAdjective, mire ahora: a $distance está $title.",
+                "Por la ventanilla, a la $side, a $distance, verá $title.",
+                "En el lado $sideAdjective, a $distance, se encuentra $title.",
+                "Eche un vistazo afuera, a la $side: a $distance está $title.",
             )
         } else {
             listOf(
                 "Mire a su $side. A $distance se encuentra $title.",
                 "A su $side, a $distance, está $title.",
                 "Hacia la $side, a $distance de aquí, encontrará $title.",
+                "A su $side, un poco más allá, a $distance, está $title.",
+                "Si mira a la $side, verá $title a $distance.",
+                "A nuestro lado, a la $side, a $distance, se encuentra $title.",
+                "Un poco hacia la $side, a $distance, está $title.",
             )
         }
     }
 
-    override fun behindOpeners(title: String, distance: String) =
-        listOf("Justo detrás de nosotros, a $distance, está $title.", "Acabamos de pasar $title, a $distance detrás de nosotros.")
+    override fun behindOpeners(title: String, distance: String) = listOf(
+        "Justo detrás de nosotros, a $distance, está $title.",
+        "Acabamos de pasar $title, a $distance detrás de nosotros.",
+        "Detrás de nosotros, ahora a $distance, se encuentra $title.",
+        "Acabamos de dejar atrás $title, a $distance.",
+        "Hace un momento pasamos junto a $title, ahora a $distance detrás de nosotros.",
+    )
 
     override fun compassOpeners(title: String, direction: String, distance: String) = listOf(
         "A $distance hacia el $direction se encuentra $title.",
         "No lejos de aquí, a $distance hacia el $direction, está $title.",
+        "A $distance al $direction de aquí está $title.",
+        "Si sigue hacia el $direction, a $distance llegará a $title.",
+        "Hacia el $direction, a $distance, se encuentra $title.",
     )
 
     override fun afieldOpeners(title: String, relative: RelativePosition): List<String> = when (relative) {
-        RelativePosition.Here -> listOf("A nuestro alrededor se extiende $title.", "La zona en la que estamos es $title.")
+        RelativePosition.Here -> listOf(
+            "A nuestro alrededor se extiende $title.",
+            "La zona en la que estamos es $title.",
+            "Toda esta comarca es $title.",
+            "Estamos en algún lugar de $title.",
+        )
         is RelativePosition.Ahead -> {
             val d = distance(relative.distanceM)
-            listOf("Más adelante en el camino, a $d, se encuentra $title.", "Todavía fuera de la vista, a $d por delante, está $title.")
+            listOf(
+                "Más adelante en el camino, a $d, se encuentra $title.",
+                "Todavía fuera de la vista, a $d por delante, está $title.",
+                "En algún punto por delante, a $d, se encuentra $title.",
+                "Más allá del horizonte, a $d por delante, está $title.",
+            )
         }
         is RelativePosition.Side -> {
             val d = distance(relative.distanceM)
             val side = if (relative.left) "izquierda" else "derecha"
-            listOf("Un poco más lejos, a $d a su $side, se encuentra $title.", "Fuera de la vista, a $d hacia la $side, está $title.")
+            listOf(
+                "Un poco más lejos, a $d a su $side, se encuentra $title.",
+                "Fuera de la vista, a $d hacia la $side, está $title.",
+                "Demasiado lejos para verse, pero a $d hacia la $side está $title.",
+                "Lejos de la vista, a $d a su $side, se encuentra $title.",
+            )
         }
         is RelativePosition.Behind -> {
             val d = distance(relative.distanceM)
-            listOf("A $d detrás de nosotros se encuentra $title.", "Volviendo por donde vinimos, a $d, está $title.")
+            listOf(
+                "A $d detrás de nosotros se encuentra $title.",
+                "Volviendo por donde vinimos, a $d, está $title.",
+                "Ya bastante atrás, a $d, se encuentra $title.",
+            )
         }
         is RelativePosition.Compass -> {
             val d = distance(relative.distanceM)
             val direction = compassName(relative.bearingDeg)
-            listOf("Un poco más lejos, a $d hacia el $direction, se encuentra $title.", "Fuera de la vista, a $d hacia el $direction, está $title.")
+            listOf(
+                "Un poco más lejos, a $d hacia el $direction, se encuentra $title.",
+                "Fuera de la vista, a $d hacia el $direction, está $title.",
+                "Demasiado lejos para verse, a $d hacia el $direction, está $title.",
+            )
         }
     }
 
     override fun transitions(title: String, where: String, mentioned: Boolean): List<String> = if (mentioned) {
-        listOf("Lo que nos lleva a $title, $where.", "Y la historia continúa en $title, $where.")
+        listOf(
+            "Lo que nos lleva a $title, $where.",
+            "Y la historia continúa en $title, $where.",
+            "Eso nos lleva directamente a $title, $where.",
+            "Hablando de $title: está $where.",
+            "La historia no termina ahí: $where está $title.",
+        )
     } else {
         listOf(
             "Un poco más allá, $where, encontrará $title.",
             "No lejos de allí, $where, se encuentra $title.",
             "Y ya que estamos aquí: $where está $title.",
+            "Algo más por aquí cerca: $where está $title.",
+            "Muy cerca, $where, se encuentra $title.",
+            "Antes de seguir: $where está $title.",
+            "Y $where encontrará $title.",
         )
     }
 
     override fun closings(relative: RelativePosition, mode: TravelMode): List<String> = when {
         relative is RelativePosition.Behind -> emptyList()
-        mode == TravelMode.WALKING || mode == TravelMode.STATIONARY ->
-            listOf("Tómese un momento para mirar a su alrededor.", "Merece una mirada más de cerca, si tiene tiempo.")
-        mode == TravelMode.CYCLING -> listOf("Merece una parada, si las piernas lo permiten.", "Algo en lo que fijarse mientras pedalea.")
-        relative is RelativePosition.Here -> listOf("Mantenga los ojos abiertos mientras lo atravesamos.")
-        else -> listOf("Esté atento al pasar.", "Algo para recordar en una próxima visita.")
+        mode == TravelMode.WALKING || mode == TravelMode.STATIONARY -> listOf(
+            "Tómese un momento para mirar a su alrededor.",
+            "Merece una mirada más de cerca, si tiene tiempo.",
+            "Mire bien a su alrededor.",
+            "Échele un vistazo usted mismo.",
+            "Quizá merezca un pequeño desvío.",
+        )
+        mode == TravelMode.CYCLING -> listOf(
+            "Merece una parada, si las piernas lo permiten.",
+            "Algo en lo que fijarse mientras pedalea.",
+            "Quizá un buen sitio para un descanso.",
+            "Esté atento al pasar en bicicleta.",
+        )
+        relative is RelativePosition.Here -> listOf(
+            "Mantenga los ojos abiertos mientras lo atravesamos.",
+            "Mire a su alrededor mientras avanzamos.",
+            "A ver qué descubre por el camino.",
+        )
+        else -> listOf(
+            "Esté atento al pasar.",
+            "Algo para recordar en una próxima visita.",
+            "Quizá un lugar al que volver algún día.",
+            "Ahora ya lo sabe, para la próxima vez que pase por aquí.",
+            "Uno más para la lista de lugares que visitar.",
+        )
+    }
+
+    override fun greetings(dayPart: DayPart): List<String> {
+        val hello = when (dayPart) {
+            DayPart.MORNING -> listOf("¡Buenos días!", "¡Hola!")
+            DayPart.AFTERNOON -> listOf("¡Buenas tardes!", "¡Hola!")
+            DayPart.EVENING -> listOf("¡Buenas tardes!", "¡Buenas noches!")
+            DayPart.NIGHT -> listOf("¡Buenas noches!", "¡Hola, trasnochador!")
+        }
+        val then = listOf(
+            "Soy su guía de viaje. Le hablaré de los lugares por los que pasemos.",
+            "Vamos allá. Le contaré las historias de los lugares del camino.",
+            "Su guía está listo. Cuando pasemos junto a algo con historia, se la contaré.",
+            "Póngase cómodo; le avisaré cuando haya algo que contar.",
+            "Estoy pendiente de dónde estamos, y le contaré las historias a medida que surjan.",
+            "En marcha. Le señalaré lo que merece la pena conocer por el camino.",
+        )
+        return hello.flatMap { h -> then.map { "$h $it" } }
+    }
+
+    override fun patience(wait: Wait): List<String> = when (wait) {
+        Wait.RETELLING -> listOf(
+            "Un momento, estoy leyendo sobre el próximo lugar.",
+            "Paciencia, viene una buena historia.",
+            "Un instante, estoy preparando la próxima historia.",
+            "Sigo aquí. La próxima historia está casi lista.",
+            "Un momento, busco la mejor parte para contarle.",
+        )
+        Wait.PREPARING -> listOf(
+            "Un momento.",
+            "Paciencia, ya llega.",
+            "Ya casi está.",
+            "Un instante, por favor.",
+            "Sigo aquí, solo un segundo.",
+        )
     }
 
     override fun where(relative: RelativePosition): String = when (relative) {

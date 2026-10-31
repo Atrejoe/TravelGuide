@@ -29,7 +29,7 @@ data class Candidate(
  * statistics and administration are left out. Works in the language of the place's article (see
  * [StoryLanguage]).
  */
-class StoryWriter(private val random: Random = Random.Default) {
+class StoryWriter(private val random: Random = Random.Default, private val phrases: PhrasePicker = PhrasePicker(random)) {
 
     fun write(poi: Poi, sections: List<ArticleSection>, maxSentences: Int): List<String> {
         val budget = maxSentences.coerceAtLeast(1)
@@ -224,7 +224,7 @@ class StoryWriter(private val random: Random = Random.Default) {
         val options = language.leads(kind).ifEmpty { return null }
         // Not every change of topic needs an announcement.
         if (random.nextDouble() < 0.35) return null
-        return options[random.nextInt(options.size)]
+        return phrases.pick("${language.code}:lead:$kind", options)
     }
 
     companion object {

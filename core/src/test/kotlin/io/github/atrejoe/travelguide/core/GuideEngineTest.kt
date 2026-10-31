@@ -4,6 +4,7 @@ import io.github.atrejoe.travelguide.core.geo.GeoMath
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
+import io.github.atrejoe.travelguide.core.lang.English
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.core.story.DetailProfile
 import io.github.atrejoe.travelguide.core.story.Poi
@@ -107,7 +108,10 @@ class GuideEngineTest {
         val narration = assertNotNull(engine.nextNarration(now))
         assertEquals("Castle Rock", narration.poi.title)
         assertEquals(setOf("Old Mill", "Abbey of Saint Bavo"), narration.companions.map { it.title }.toSet())
-        assertTrue(narration.sentences.any { "Which brings us to Abbey of Saint Bavo" in it || "continues at Abbey of Saint Bavo" in it })
+        // One of the transitions for a place the article mentions, wherever it is.
+        val mentioned = English.transitions("Abbey of Saint Bavo", "\u0000", mentioned = true)
+            .map { Regex(it.split("\u0000").joinToString(".+") { part -> Regex.escape(part) }) }
+        assertTrue(narration.sentences.any { s -> mentioned.any { it.matches(s) } }, "${narration.sentences}")
         // All three are told now, so nothing is left for later.
         engine.onNarrationFinished(now)
         assertNull(engine.nextNarration(now + 600_000))
@@ -194,7 +198,7 @@ class GuideEngineTest {
 
         val narration = assertNotNull(engine.nextNarration(step2))
         assertEquals("Silver Lake", narration.poi.title)
-        assertTrue(Regex("afield|Out of sight").containsMatchIn(narration.sentences.first()), narration.sentences.first())
+        assertTrue(narration.sentences.first() in English.afieldOpeners("Silver Lake", narration.relative), narration.sentences.first())
 
         // After a story, nearby comes first again.
         engine.onNarrationFinished(step2)

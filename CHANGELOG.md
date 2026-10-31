@@ -7,6 +7,19 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The guide says hello when it starts ([#82](../../issues/82)), fitting the time of day and
+  never twice in a row the same way, and while a story keeps you waiting (a storyteller retelling
+  it, or a slow voice rendering a long sentence), it says now and then that it is still at it.
+  These words are rendered ahead, so they play at once.
+
+### Changed
+
+- Much more varied phrasing ([#82](../../issues/82)): two to three times as many ways to open a
+  story, lead into another place, change topic and close, in every language, and a phrasing isn't
+  used again until the others have had their turn.
+
 ## [0.6.0] - 2026-10-31
 
 ### Added

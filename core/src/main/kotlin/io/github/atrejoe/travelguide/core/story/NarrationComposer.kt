@@ -51,8 +51,9 @@ data class Narration(
  * No language model involved: variety comes from phrasing pools and sentence selection.
  */
 class NarrationComposer(private val random: Random = Random.Default) {
-    private val writer = StoryWriter(random)
-    private var lastOpener: String? = null
+    /** Remembers the phrasings used lately, across stories, so they don't come back soon (issue #82). */
+    private val phrases = PhrasePicker(random)
+    private val writer = StoryWriter(random, phrases)
 
     private val placeWriter = PlaceStoryWriter(random)
 
@@ -101,7 +102,12 @@ class NarrationComposer(private val random: Random = Random.Default) {
             listOf(transition(companion, relativePosition(companion, motion), mentioned, language)) + about
         }
         val closing = if (afield) null else closing(relative, motion.mode, language)
-        val opener = pickOpener(if (afield) language.afieldOpeners(poi.title, relative) else openers(poi, relative, motion.mode, language))
+        val window = motion.mode == TravelMode.TRAIN || motion.mode == TravelMode.FLYING
+        val openerPool = "${language.code}:opener:${if (afield) "afield" else "near"}:${relative::class.simpleName}:${poi.type.isArea}:$window"
+        val opener = phrases.pick(
+            openerPool,
+            if (afield) language.afieldOpeners(poi.title, relative) else openers(poi, relative, motion.mode, language),
+        )
         return Narration(
             poi,
             listOf(opener) + body + extra + listOfNotNull(closing),
@@ -116,8 +122,7 @@ class NarrationComposer(private val random: Random = Random.Default) {
 
     /** Leads from the main story into a nearby place, preferably via a real connection. */
     private fun transition(companion: ScoredPoi, relative: RelativePosition, mentioned: Boolean, language: StoryLanguage): String {
-        val options = language.transitions(companion.poi.title, language.where(relative), mentioned)
-        return options[random.nextInt(options.size)]
+        return phrases.pick("${language.code}:transition:$mentioned", language.transitions(companion.poi.title, language.where(relative), mentioned))
     }
 
     fun relativePosition(scored: ScoredPoi, motion: MotionState): RelativePosition {
@@ -156,16 +161,10 @@ class NarrationComposer(private val random: Random = Random.Default) {
         }
     }
 
-    /** One of [options], avoiding starting two stories in a row with the same words. */
-    private fun pickOpener(options: List<String>): String {
-        val fresh = options.filter { it != lastOpener }.ifEmpty { options }
-        return fresh[random.nextInt(fresh.size)].also { lastOpener = it }
-    }
-
     private fun closing(relative: RelativePosition, mode: TravelMode, language: StoryLanguage): String? {
         if (random.nextDouble() > 0.4) return null
         val options = language.closings(relative, mode).ifEmpty { return null }
-        return options[random.nextInt(options.size)]
+        return phrases.pick("${language.code}:closing:${relative::class.simpleName}:$mode", options)
     }
 
     companion object {

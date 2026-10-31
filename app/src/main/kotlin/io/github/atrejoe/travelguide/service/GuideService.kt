@@ -33,8 +33,10 @@ import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
 import io.github.atrejoe.travelguide.core.lang.CountryLanguages
+import io.github.atrejoe.travelguide.core.lang.DayPart
 import io.github.atrejoe.travelguide.core.lang.MultilingualPoiSource
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
+import io.github.atrejoe.travelguide.core.lang.Wait
 import io.github.atrejoe.travelguide.core.nav.NominatimClient
 import io.github.atrejoe.travelguide.core.nav.OsrmClient
 import io.github.atrejoe.travelguide.core.nav.TowardRouter
@@ -46,6 +48,8 @@ import io.github.atrejoe.travelguide.core.road.RoadSource
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
+import io.github.atrejoe.travelguide.core.story.PhrasePicker
+import io.github.atrejoe.travelguide.core.story.SentenceSplitter
 import io.github.atrejoe.travelguide.core.wiki.WikidataClient
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
 import io.github.atrejoe.travelguide.nav.NavigationState
@@ -63,6 +67,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -70,6 +75,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
+import java.time.LocalTime
 
 /**
  * Runs the guide in the foreground: follows the location, picks stories and narrates them, and
@@ -95,6 +101,12 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private var userPaused = false
     private var focusPaused = false
     private var abortStory = false
+
+    /** Greeted the listener since the guide started (issue #82). */
+    private var greeted = false
+
+    /** What the guide says while the listener waits, varied (issue #82). */
+    private val phrases = PhrasePicker()
 
     /** A story the user asked to hear again; played before anything else, then the guide goes on. */
     private var replayRequest: StoryItem? = null
@@ -255,6 +267,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private fun stopGuide() {
         guideJob?.cancel()
         guideJob = null
+        greeted = false
         narrator?.release()
         narrator = null
         closeEnhancement()
@@ -317,7 +330,56 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         narratorWarning = choice.warning
         shownNotice = null
         GuideStatus.update { it.copy(voiceLabel = choice.narrator.label, voiceWarning = choice.warning) }
+        // Rendered now, so they can play at once while the listener waits (issue #82).
+        val language = StoryLanguages.of(settings.language)
+        choice.narrator.prepareAside(Wait.entries.flatMap { language.patience(it) })
         return choice.narrator.also { narrator = it }
+    }
+
+    /** Says hello when the guide starts, a little differently each time (issue #82). */
+    private suspend fun greet() {
+        greeted = true
+        val narrator = currentNarrator()
+        if (!focus.request()) return
+        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
+        val language = StoryLanguages.of(settings.language)
+        val options = language.greetings(DayPart.of(LocalTime.now().hour))
+        val last = prefs.getString(LAST_GREETING, null)
+        val greeting = options.filter { it != last }.ifEmpty { options }.random()
+        prefs.edit().putString(LAST_GREETING, greeting).apply()
+        try {
+            val pieces = Narrators.pieces(narrator, SentenceSplitter.split(greeting, language))
+            narrator.prepare(pieces.map { it.text })
+            for (piece in pieces) {
+                if (!narrator.speak(piece.text)) break
+            }
+            narrator.drain()
+        } finally {
+            focus.abandon()
+        }
+    }
+
+    /**
+     * Runs [block]; when it keeps the listener waiting, says up to [times] times that the guide is
+     * still at it (issue #82), with words the voice has ready, so they don't add to the wait.
+     */
+    private suspend fun <T> reassuring(wait: Wait, times: Int, block: suspend () -> T): T = coroutineScope {
+        val reassurance = launch {
+            delay(PATIENCE_AFTER_MILLIS)
+            repeat(times) { i ->
+                if (i > 0) delay(PATIENCE_AGAIN_MILLIS)
+                val narrator = narrator ?: return@launch
+                if (isPaused()) return@launch
+                val ready = StoryLanguages.of(settings.language).patience(wait).filter(narrator::isPrepared)
+                if (ready.isEmpty() || !focus.request()) return@launch
+                narrator.speak(phrases.pick("patience:$wait", ready))
+            }
+        }
+        try {
+            block()
+        } finally {
+            reassurance.cancel()
+        }
     }
 
     private suspend fun runGuide() {
@@ -332,6 +394,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             }
             // Load (or reload) the voice ahead of the first story so problems show up early.
             if (narratorDirty) currentNarrator()
+            if (!greeted) greet()
             val now = System.currentTimeMillis()
             try {
                 if (engine.refreshIfNeeded(now)) {
@@ -376,7 +439,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             ?: return narration
         val mode = engine.motion.state?.mode ?: return narration
         val story = doing("Retelling ${narration.poi.title} with $storyteller…") {
-            withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
+            reassuring(Wait.RETELLING, times = 2) {
+                withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
+            }
         }
         enhancement.lastError?.let { Log.w(TAG, "Could not retell ${narration.poi.title}", it) }
         Log.i(TAG, "Story of ${narration.poi.title}: ${enhancement.lastOutcome}")
@@ -483,6 +548,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         // Start rendering the whole story right away, also while waiting for audio focus.
         first.prepare(pieces.map { it.text })
         var prepared: Narrator? = first
+        var reassured = false
         try {
             var index = 0
             while (index < pieces.size && !abortStory) {
@@ -509,7 +575,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                     prepared = narrator
                 }
                 val text = pieces[index].text
-                val completed = if (narrator.isPrepared(text)) narrator.speak(text) else doing("Preparing speech…") { narrator.speak(text) }
+                val completed = if (narrator.isPrepared(text)) {
+                    narrator.speak(text)
+                } else {
+                    // Once per story at most: a slow voice would otherwise keep apologising.
+                    val times = if (reassured) 0 else 1
+                    reassured = true
+                    doing("Preparing speech…") { reassuring(Wait.PREPARING, times) { narrator.speak(text) } }
+                }
                 showVoiceNotice(narrator)
                 // Cut off by a pause or by a replay: say the piece again afterwards.
                 if (completed || !(isPaused() || replayRequest != null)) index++
@@ -690,6 +763,13 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         private const val COUNTRY_RECHECK_M = 25_000.0
         private const val TICK_MILLIS = 3_000L
         private const val SENTENCE_PAUSE_MILLIS = 250L
+
+        /** How long the listener waits before the guide says it is still at it (issue #82). */
+        private const val PATIENCE_AFTER_MILLIS = 5_000L
+        private const val PATIENCE_AGAIN_MILLIS = 15_000L
+
+        private const val PREFS = "guide"
+        private const val LAST_GREETING = "last_greeting"
         private const val SLOW_VOICE_FACTOR = 1.1
 
         const val ACTION_START = "io.github.atrejoe.travelguide.START"
