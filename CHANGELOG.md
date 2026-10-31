@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-10-31
+
 ### Added
 
 - ElevenLabs voices, with your own API key ([#75](../../issues/75)): Settings → Narrator lists
@@ -30,6 +32,17 @@ All notable changes to this project are documented here. The format follows
   told as it happened. Stories are longer: about seven sentences while driving, nine on foot. A
   storyteller that retells stories (Claude, Gemini Nano, the open model) now gets the article's
   story-worthy sections and is asked for a story with a hook and a payoff, not a summary.
+
+### Known issues
+
+- The app's own screens are in English only; only the stories and voices follow the chosen
+  language.
+- The ElevenLabs integration was built from ElevenLabs' published SDK and hasn't been tried with
+  every plan: if voices or credits don't show, check that the key may read Voices and User.
+- While driving, the guide asks Wikipedia for at most 20 places within 10 km, so where articles
+  are dense an interesting event further away can be missed.
+- The open model may still be too slow on a mid-range phone to retell a story in the 20 seconds it
+  gets; you then hear the built-in story ([#54](../../issues/54)).
 
 ## [0.5.0] - 2026-10-24
 
