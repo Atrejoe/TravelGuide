@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.CrashReporting
 import io.github.atrejoe.travelguide.app
+import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.settings.AppSettings
@@ -364,6 +365,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                     HorizontalDivider()
                     StorytellerSettings(settings)
                 }
+            }
+
+            item {
+                val remembered by context.app.storyHistory.count.collectAsStateWithLifecycle()
+                val retention = HistoryRetention.byName(settings.historyRetention)
+                SettingsSection(
+                    "Story history",
+                    when (retention) {
+                        HistoryRetention.TRIP -> "Only during the trip"
+                        HistoryRetention.ALWAYS -> "$remembered remembered"
+                        else -> "$remembered remembered, for ${retentionLabel(retention).lowercase()}"
+                    },
+                    "history" in open,
+                    { toggle("history") },
+                ) { HistorySettings(settings) }
             }
 
             item {

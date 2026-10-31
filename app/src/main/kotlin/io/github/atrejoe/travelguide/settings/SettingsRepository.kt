@@ -11,6 +11,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.core.enhance.LocalModel
 import io.github.atrejoe.travelguide.core.enhance.LocalModels
+import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.core.lang.English
 import io.github.atrejoe.travelguide.core.lang.StoryLanguage
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
@@ -52,6 +53,8 @@ data class AppSettings(
     val elevenLabsModel: String = ElevenLabsModel.DEFAULT.id,
     /** The name of the chosen ElevenLabs voice, to show without asking ElevenLabs. */
     val elevenLabsVoiceName: String = "",
+    /** How long told stories are remembered (issue #84), a [HistoryRetention] name. */
+    val historyRetention: String = HistoryRetention.DEFAULT.name,
 )
 
 /** Who tells the stories. The other two retell the built-in story, and fall back to it. */
@@ -86,6 +89,7 @@ class SettingsRepository(private val context: Context) {
         val localModel = stringPreferencesKey("local_model")
         val elevenLabsModel = stringPreferencesKey("elevenlabs_model")
         val elevenLabsVoiceName = stringPreferencesKey("elevenlabs_voice_name")
+        val historyRetention = stringPreferencesKey("history_retention")
         val version = intPreferencesKey("version")
     }
 
@@ -127,6 +131,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.localModel] = next.localModel
             p[Keys.elevenLabsModel] = next.elevenLabsModel
             p[Keys.elevenLabsVoiceName] = next.elevenLabsVoiceName
+            p[Keys.historyRetention] = next.historyRetention
         }
     }
 
@@ -155,6 +160,7 @@ class SettingsRepository(private val context: Context) {
             localModel = p[Keys.localModel] ?: defaults.localModel,
             elevenLabsModel = p[Keys.elevenLabsModel] ?: defaults.elevenLabsModel,
             elevenLabsVoiceName = p[Keys.elevenLabsVoiceName] ?: defaults.elevenLabsVoiceName,
+            historyRetention = p[Keys.historyRetention] ?: defaults.historyRetention,
         )
     }
 }
