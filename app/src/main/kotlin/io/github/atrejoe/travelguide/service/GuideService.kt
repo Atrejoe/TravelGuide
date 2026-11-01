@@ -32,6 +32,7 @@ import io.github.atrejoe.travelguide.core.geo.GeoMath
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.geo.LocationFix
 import io.github.atrejoe.travelguide.core.guide.GuideEngine
+import io.github.atrejoe.travelguide.core.guide.ToldStory
 import io.github.atrejoe.travelguide.core.lang.CountryLanguages
 import io.github.atrejoe.travelguide.core.lang.DayPart
 import io.github.atrejoe.travelguide.core.lang.MultilingualPoiSource
@@ -49,6 +50,7 @@ import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
 import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.story.PhrasePicker
+import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.SentenceSplitter
 import io.github.atrejoe.travelguide.core.wiki.WikidataClient
 import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
@@ -179,6 +181,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             // Buildings in an old town centre make a sizeable answer: parse it off the main thread.
             places = PlaceSource { center, radius -> withContext(Dispatchers.Default) { sources.buildings.places(center, radius) } },
             towns = { point -> sources.towns.town(point) },
+            // Not told again on a later trip (issue #84).
+            history = app.storyHistory,
         )
         engine.onActivity = { what -> GuideStatus.update { it.copy(activity = what) } }
         engine.translator = translator
@@ -513,7 +517,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             places = (listOf(poi) + narration.companions).map { MapPlace(it.title, it.point) },
             sentences = narration.sentences,
         )
-        GuideStatus.update { it.copy(current = item, speaking = true, waiting = null, history = (listOf(item) + it.history).take(50)) }
+        GuideStatus.update { it.copy(current = item, speaking = true, waiting = null, history = (listOf(item) + it.history).take(GuideStatus.HISTORY_SIZE)) }
+        remember(narration, item.timeMillis)
         updateSession()
         abortStory = false
         try {
@@ -524,6 +529,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             updateSession()
             warnIfVoiceTooSlow()
         }
+    }
+
+    /** Keeps the story told and the places woven into it in the history (issue #84). */
+    private fun remember(narration: Narration, timeMillis: Long) {
+        fun told(poi: Poi, sentences: List<String>) =
+            ToldStory(poi.title, poi.lang, poi.pageId, poi.wikidataId, timeMillis, poi.url, sentences, poi.point)
+        val stories = listOf(told(narration.poi, narration.sentences)) + narration.companions.map { told(it, emptyList()) }
+        lifecycleScope.launch(Dispatchers.IO) { app.storyHistory.record(stories) }
     }
 
     /** Plays a story again while no other story is being told. */

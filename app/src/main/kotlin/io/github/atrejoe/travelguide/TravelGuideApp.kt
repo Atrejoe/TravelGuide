@@ -1,15 +1,20 @@
 package io.github.atrejoe.travelguide
 
 import android.app.Application
+import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.core.voice.SpeechCache
 import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.settings.ApiKeyStore
+import io.github.atrejoe.travelguide.settings.FileStoryHistory
 import io.github.atrejoe.travelguide.settings.FileStoryStore
 import io.github.atrejoe.travelguide.settings.SettingsRepository
 import io.github.atrejoe.travelguide.story.LocalModelManager
 import io.github.atrejoe.travelguide.voice.VoiceModelManager
 import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.io.File
 
@@ -25,6 +30,9 @@ class TravelGuideApp : Application() {
         private set
     /** Speech fetched from ElevenLabs, so a replay costs nothing. */
     lateinit var speechCache: SpeechCache
+        private set
+    /** Stories told on earlier trips (issue #84). */
+    lateinit var storyHistory: FileStoryHistory
         private set
     lateinit var retoldStories: FileStoryStore
         private set
@@ -42,10 +50,32 @@ class TravelGuideApp : Application() {
         elevenLabsKeys = ApiKeyStore(this, ApiKeyStore.ELEVENLABS)
         speechCache = SpeechCache(File(cacheDir, "speech"))
         retoldStories = FileStoryStore(this)
+        storyHistory = FileStoryHistory(this)
         localModels = LocalModelManager(this)
         GlobalScope.launch { settings.migrate() }
         GlobalScope.launch { RouteRepository.load(this@TravelGuideApp) }
+        GlobalScope.launch(Dispatchers.IO) { restoreHistory() }
     }
+}
+
+/**
+ * Reads the stories told on earlier trips, shows the latest on the guide screen, and keeps the
+ * history to the retention the listener chose (issue #84).
+ */
+private suspend fun TravelGuideApp.restoreHistory() {
+    storyHistory.load()
+    val earlier = storyHistory.recent(GuideStatus.HISTORY_SIZE).map { s ->
+        StoryItem(
+            title = s.title,
+            text = s.sentences.joinToString(" "),
+            url = s.url,
+            timeMillis = s.timeMillis,
+            places = listOfNotNull(s.point?.let { MapPlace(s.title, it) }),
+            sentences = s.sentences,
+        )
+    }
+    GuideStatus.update { state -> if (state.history.isEmpty()) state.copy(history = earlier) else state }
+    settings.settings.map { HistoryRetention.byName(it.historyRetention) }.distinctUntilChanged().collect { storyHistory.setRetention(it) }
 }
 
 val android.content.Context.app: TravelGuideApp get() = applicationContext as TravelGuideApp

@@ -67,6 +67,8 @@ class GuideEngine(
     private val places: PlaceSource? = null,
     /** The town we are walking in, to tell its story once per visit; optional. */
     private val towns: TownSource? = null,
+    /** Stories told on earlier trips, not to be told again (issue #84); optional. */
+    private val history: StoryHistory? = null,
     random: Random = Random.Default,
     private val refreshIntervalMillis: Long = 15 * 60_000,
     private val forgetDistanceM: Double = 30_000.0,
@@ -417,7 +419,8 @@ class GuideEngine(
         if (!isTold(town)) pendingTown = town
     }
 
-    private fun isTold(poi: Poi) = poi.pageId in told || (poi.wikidataId != null && poi.wikidataId in toldItems)
+    private fun isTold(poi: Poi) =
+        poi.pageId in told || (poi.wikidataId != null && poi.wikidataId in toldItems) || history?.wasTold(poi) == true
 
     private fun markTold(poi: Poi) {
         told += poi.pageId

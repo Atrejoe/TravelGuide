@@ -70,4 +70,7 @@ object GuideStatus {
     val state: StateFlow<GuideUiState> = mutable.asStateFlow()
 
     fun update(transform: (GuideUiState) -> GuideUiState) = mutable.update(transform)
+
+    /** How many earlier stories the guide screen lists. */
+    const val HISTORY_SIZE = 50
 }

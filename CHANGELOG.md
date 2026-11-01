@@ -13,6 +13,10 @@ All notable changes to this project are documented here. The format follows
   never twice in a row the same way, and while a story keeps you waiting (a storyteller retelling
   it, or a slow voice rendering a long sentence), it says now and then that it is still at it.
   These words are rendered ahead, so they play at once.
+- The guide remembers the stories it told ([#84](../../issues/84)): a later trip doesn't tell them
+  again, and the guide screen lists them, to play again, also after a restart. Settings → Story
+  history chooses how long they are kept (only during the trip, a week, a month, three months, a
+  year, or always) and erases them. The history stays on the phone.
 
 ### Changed
 
