@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-01
+
 ### Added
 
 - The guide says hello when it starts ([#82](../../issues/82)), fitting the time of day and
@@ -23,6 +25,16 @@ All notable changes to this project are documented here. The format follows
 - Much more varied phrasing ([#82](../../issues/82)): two to three times as many ways to open a
   story, lead into another place, change topic and close, in every language, and a phrasing isn't
   used again until the others have had their turn.
+- Android Gradle Plugin 9.5.0 and DataStore 1.3.0.
+
+### Known issues
+
+- The app's own screens are in English only; only the stories and voices follow the chosen
+  language.
+- While driving, the guide asks Wikipedia for at most 20 places within 10 km, so where articles
+  are dense an interesting event further away can be missed.
+- The open model may still be too slow on a mid-range phone to retell a story in the 20 seconds it
+  gets; you then hear the built-in story ([#54](../../issues/54)).
 
 ## [0.6.0] - 2026-10-31
 
