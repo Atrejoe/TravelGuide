@@ -58,6 +58,9 @@ class ElevenLabsNarrator(
     /** Speech fetched or being fetched. Only touched from the caller's thread. */
     private val fetched = HashMap<String, Deferred<FloatArray>>()
 
+    /** Lines kept at hand for the whole trip, see [prepareAside]. Only touched from the caller's thread. */
+    private val asides = HashMap<String, Deferred<FloatArray>>()
+
     /** The piece spoken last, kept to repeat it after a pause. Only touched from the caller's thread. */
     private var last: Pair<String, FloatArray>? = null
 
@@ -88,8 +91,17 @@ class ElevenLabsNarrator(
         if (online) fetchAhead(0) else local?.prepare(texts)
     }
 
-    override fun isPrepared(text: String): Boolean =
-        if (online) last?.first == text || fetched[text]?.isCompleted == true else local?.isPrepared(text) == true
+    /** Fetched once and cached on the phone, so they cost credits only the first time. */
+    override fun prepareAside(texts: List<String>) {
+        if (!online) return
+        for (text in texts) if (text !in asides) asides[text] = fetch(text, null, null)
+    }
+
+    override fun isPrepared(text: String): Boolean = if (online) {
+        last?.first == text || fetched[text]?.isCompleted == true || asides[text]?.let { it.isCompleted && !it.isCancelled } == true
+    } else {
+        local?.isPrepared(text) == true
+    }
 
     private fun fetchAhead(from: Int) {
         for (index in from until minOf(from + LOOKAHEAD, pieces.size)) {
@@ -124,7 +136,8 @@ class ElevenLabsNarrator(
             val index = pieces.indexOf(text)
             if (index >= 0) fetchAhead(index)
             val samples = try {
-                last?.takeIf { it.first == text }?.second
+                asides[text]?.takeIf { it.isCompleted && !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() }
+                    ?: last?.takeIf { it.first == text }?.second
                     ?: (fetched.remove(text) ?: fetch(text, null, null)).await().also { last = text to it }
             } catch (e: CancellationException) {
                 coroutineContext.ensureActive()
@@ -209,6 +222,7 @@ class ElevenLabsNarrator(
         released = true
         stop()
         fetched.clear()
+        asides.clear()
         last = null
         scope.cancel()
         stream.release()

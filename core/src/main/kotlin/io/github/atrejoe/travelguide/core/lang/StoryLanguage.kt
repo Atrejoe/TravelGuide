@@ -8,6 +8,33 @@ import io.github.atrejoe.travelguide.core.story.PlaceKind
 import io.github.atrejoe.travelguide.core.story.RelativePosition
 import io.github.atrejoe.travelguide.core.story.SectionKind
 
+/** The part of the day, for a greeting that fits it. */
+enum class DayPart {
+    MORNING,
+    AFTERNOON,
+    EVENING,
+    NIGHT,
+    ;
+
+    companion object {
+        fun of(hour: Int): DayPart = when (hour) {
+            in 5..11 -> MORNING
+            in 12..17 -> AFTERNOON
+            in 18..22 -> EVENING
+            else -> NIGHT
+        }
+    }
+}
+
+/** What the guide is busy with while it tells the listener to bear with it (issue #82). */
+enum class Wait {
+    /** A language model is retelling the next story. */
+    RETELLING,
+
+    /** The voice is still rendering the next sentence. */
+    PREPARING,
+}
+
 /** How a building is protected, put into words by [StoryLanguage.heritage]. */
 sealed interface Heritage {
     data object WorldHeritage : Heritage
@@ -114,6 +141,12 @@ abstract class StoryLanguage(
 
     /** Closing remarks; empty for none. */
     abstract fun closings(relative: RelativePosition, mode: TravelMode): List<String>
+
+    /** What the guide says when it starts (issue #82): a greeting, and what is going to happen. */
+    abstract fun greetings(dayPart: DayPart): List<String>
+
+    /** Comforting words while the listener waits for the guide (issue #82); short, so they can be ready at once. */
+    abstract fun patience(wait: Wait): List<String>
 
     /** Spoken location, e.g. "on your left, about 800 metres away". */
     abstract fun where(relative: RelativePosition): String

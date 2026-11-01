@@ -36,6 +36,12 @@ interface Narrator {
     /** Starts rendering [texts] in order, before they are spoken; drops anything else still queued. */
     fun prepare(texts: List<String>) = Unit
 
+    /**
+     * Renders short lines to keep at hand for the whole trip, such as what the guide says while
+     * the listener waits (issue #82); unlike [prepare], later calls don't drop them.
+     */
+    fun prepareAside(texts: List<String>) = Unit
+
     /** False while [text] is still being rendered, so speaking it would have to wait. */
     fun isPrepared(text: String): Boolean = true
 

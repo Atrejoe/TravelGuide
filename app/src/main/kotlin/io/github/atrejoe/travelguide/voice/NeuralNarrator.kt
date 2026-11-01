@@ -54,6 +54,9 @@ class NeuralNarrator(
     /** Audio rendered or being rendered, in speaking order. Only touched from the caller's thread. */
     private val queued = LinkedHashMap<String, Deferred<GeneratedAudio>>()
 
+    /** Lines kept at hand for the whole trip, see [prepareAside]. Only touched from the caller's thread. */
+    private val asides = HashMap<String, Deferred<GeneratedAudio>>()
+
     /** The piece spoken last, kept to repeat it after a pause. Only touched from the caller's thread. */
     private var last: Pair<String, GeneratedAudio>? = null
 
@@ -131,15 +134,20 @@ class NeuralNarrator(
         for (text in texts) if (text !in queued) queued[text] = synthesize(text)
     }
 
+    override fun prepareAside(texts: List<String>) {
+        for (text in texts) if (text !in asides) asides[text] = synthesize(text)
+    }
+
     override fun isPrepared(text: String): Boolean =
-        last?.first == text || queued[text]?.isCompleted == true
+        last?.first == text || queued[text]?.isCompleted == true || asides[text]?.let { it.isCompleted && !it.isCancelled } == true
 
     override suspend fun speak(text: String): Boolean {
         if (released) return false
         stopped = false
         stream.resume()
         val audio = try {
-            last?.takeIf { it.first == text }?.second
+            asides[text]?.takeIf { it.isCompleted && !it.isCancelled }?.let { runCatching { it.await() }.getOrNull() }
+                ?: last?.takeIf { it.first == text }?.second
                 ?: (queued.remove(text) ?: synthesize(text)).await().also { last = text to it }
         } catch (t: Throwable) {
             coroutineContext.ensureActive()
@@ -168,6 +176,7 @@ class NeuralNarrator(
         released = true
         stop()
         queued.clear()
+        asides.clear()
         last = null
         scope.cancel()
         stream.release()
