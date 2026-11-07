@@ -25,11 +25,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.CrashReport
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
+import io.github.atrejoe.travelguide.core.enhance.LocalModel
 import io.github.atrejoe.travelguide.core.enhance.LocalModels
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.story.LocalStoryBenchmark
@@ -53,12 +56,12 @@ fun OnDeviceSettings(settings: AppSettings) {
     val selected = LocalModels.byId(settings.localModel)
 
     if (!LocalStoryBenchmark.supported) {
-        Text("Open models need a 64-bit ARM phone; this one isn't.", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.open_needs_arm), style = MaterialTheme.typography.bodyMedium)
         return
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Model", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.model), style = MaterialTheme.typography.titleMedium)
         LocalModels.all.forEach { model ->
             val isSelected = model.id == selected.id
             val downloading = progress[model.id]
@@ -73,12 +76,12 @@ fun OnDeviceSettings(settings: AppSettings) {
                 ) {
                     RadioButton(selected = isSelected, onClick = null)
                     Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text("${model.name} · ${model.sizeMb} MB", style = MaterialTheme.typography.bodyLarge)
-                        Text(model.description, style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.model_size, model.name, model.sizeMb), style = MaterialTheme.typography.bodyLarge)
+                        Text(localModelDescription(model), style = MaterialTheme.typography.bodySmall)
                     }
                     when {
                         downloading != null -> {}
-                        model.id in installed -> OutlinedButton(onClick = { models.delete(model) }) { Text("Delete") }
+                        model.id in installed -> OutlinedButton(onClick = { models.delete(model) }) { Text(stringResource(R.string.delete)) }
                         else -> OutlinedButton(onClick = {
                             scope.launch {
                                 try {
@@ -86,10 +89,10 @@ fun OnDeviceSettings(settings: AppSettings) {
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, context.getString(R.string.download_failed, e.message.orEmpty()), Toast.LENGTH_LONG).show()
                                 }
                             }
-                        }) { Text("Download") }
+                        }) { Text(stringResource(R.string.download)) }
                     }
                 }
                 if (downloading != null) {
@@ -104,7 +107,7 @@ fun OnDeviceSettings(settings: AppSettings) {
 
         if (selected.id !in installed) {
             Text(
-                "Download ${selected.name} to use it. Until then you hear the built-in stories.",
+                stringResource(R.string.open_download_first, selected.name),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -118,22 +121,22 @@ fun OnDeviceSettings(settings: AppSettings) {
                     return@Button
                 }
                 benchmarkJob = scope.launch {
-                    benchmark = "Loading ${selected.name}…"
+                    benchmark = context.getString(R.string.open_loading, selected.name)
                     try {
                         benchmark = LocalStoryBenchmark.run(context, selected) { benchmark = it }
                     } catch (e: CancellationException) {
                         benchmark = null
                         throw e
                     } catch (e: Exception) {
-                        benchmark = "${selected.name} could not run here: ${e.message}"
+                        benchmark = context.getString(R.string.open_cannot_run, selected.name, e.message.orEmpty())
                     } finally {
                         benchmarkJob = null
                     }
                 }
             },
-        ) { Text(if (benchmarkJob != null) "Stop" else "Measure speed") }
+        ) { Text(stringResource(if (benchmarkJob != null) R.string.stop else R.string.measure_speed)) }
         Text(
-            "Retells a sample story about the Grote Kerk in Haarlem and shows how fast this phone is.",
+            stringResource(R.string.measure_speed_help),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -149,18 +152,27 @@ fun CrashNotice() {
     LaunchedEffect(Unit) { report = withContext(Dispatchers.IO) { CrashReport.last(context) } }
     val text = report ?: return
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("The app crashed last time", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
+        Text(stringResource(R.string.crashed_last_time), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.error)
         Text(text, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = {
                 context.getSystemService(ClipboardManager::class.java)
                     ?.setPrimaryClip(ClipData.newPlainText("TravelGuide crash", text))
-                Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
-            }) { Text("Copy") }
+                Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
+            }) { Text(stringResource(R.string.copy)) }
             OutlinedButton(onClick = {
                 CrashReport.clear()
                 report = null
-            }) { Text("Dismiss") }
+            }) { Text(stringResource(R.string.dismiss)) }
         }
     }
+}
+
+/** What an open model is like, in the app's language. */
+@Composable
+private fun localModelDescription(model: LocalModel): String = when (model.id) {
+    "qwen3-1.7b-q4km" -> stringResource(R.string.local_model_qwen)
+    "gemma3-1b-q4km" -> stringResource(R.string.local_model_gemma)
+    "smollm2-1.7b-q4km" -> stringResource(R.string.local_model_smollm)
+    else -> model.description
 }

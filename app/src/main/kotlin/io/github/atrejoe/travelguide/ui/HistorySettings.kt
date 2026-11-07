@@ -13,8 +13,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.GuideStatus
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.settings.AppSettings
@@ -23,14 +25,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** What the history keeps for, in the settings. */
-fun retentionLabel(retention: HistoryRetention): String = when (retention) {
-    HistoryRetention.TRIP -> "Only during the trip"
-    HistoryRetention.WEEK -> "A week"
-    HistoryRetention.MONTH -> "A month"
-    HistoryRetention.THREE_MONTHS -> "Three months"
-    HistoryRetention.YEAR -> "A year"
-    HistoryRetention.ALWAYS -> "Always"
-}
+@Composable
+fun retentionLabel(retention: HistoryRetention): String = stringResource(
+    when (retention) {
+        HistoryRetention.TRIP -> R.string.retention_trip
+        HistoryRetention.WEEK -> R.string.retention_week
+        HistoryRetention.MONTH -> R.string.retention_month
+        HistoryRetention.THREE_MONTHS -> R.string.retention_three_months
+        HistoryRetention.YEAR -> R.string.retention_year
+        HistoryRetention.ALWAYS -> R.string.retention_always
+    },
+)
 
 /** Settings → Story history (issue #84): how long told stories are remembered, and erasing them. */
 @Composable
@@ -43,18 +48,17 @@ fun HistorySettings(settings: AppSettings) {
     var confirming by remember { mutableStateOf(false) }
 
     Text(
-        "The guide remembers the stories it told, so it doesn't tell them again on a later trip, and lists " +
-            "them on the guide screen to play again. They stay on this phone.",
+        stringResource(R.string.history_help),
         style = MaterialTheme.typography.bodySmall,
     )
-    Text("Remember stories for", style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(R.string.history_remember_for), style = MaterialTheme.typography.titleSmall)
     HistoryRetention.entries.forEach { option ->
         OptionRow(
             retentionLabel(option),
             when (option) {
-                HistoryRetention.TRIP -> "Nothing is kept: after a restart, the same stories can come again."
-                HistoryRetention.ALWAYS -> "Until you erase the history."
-                else -> "Then a story may be told again."
+                HistoryRetention.TRIP -> stringResource(R.string.retention_trip_help)
+                HistoryRetention.ALWAYS -> stringResource(R.string.retention_always_help)
+                else -> stringResource(R.string.retention_other_help)
             },
             selected = option == retention,
             onSelect = { scope.launch { context.app.settings.update { it.copy(historyRetention = option.name) } } },
@@ -64,13 +68,13 @@ fun HistorySettings(settings: AppSettings) {
         onClick = { confirming = true },
         enabled = count > 0,
         colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-    ) { Text("Erase history") }
+    ) { Text(stringResource(R.string.history_erase)) }
 
     if (confirming) {
         AlertDialog(
             onDismissRequest = { confirming = false },
-            title = { Text("Erase the story history?") },
-            text = { Text("The $count stories remembered are forgotten, and the guide may tell them again.") },
+            title = { Text(stringResource(R.string.history_erase_title)) },
+            text = { Text(stringResource(R.string.history_erase_text, count)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirming = false
@@ -78,9 +82,9 @@ fun HistorySettings(settings: AppSettings) {
                         withContext(Dispatchers.IO) { history.clear() }
                         GuideStatus.update { it.copy(history = listOfNotNull(it.current)) }
                     }
-                }) { Text("Erase") }
+                }) { Text(stringResource(R.string.erase)) }
             },
-            dismissButton = { TextButton(onClick = { confirming = false }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { confirming = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

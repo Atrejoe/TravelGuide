@@ -35,6 +35,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -42,6 +43,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.GuideUiState
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
@@ -77,8 +79,13 @@ fun GuideMap(
     navigatingWith: String? = null,
 ) {
     val labels = RouteLabels(
-        planned = "Route from " + (routeFrom ?: "navigation"),
-        navigation = "Following " + (navigatingWith ?: "navigation") + " directions",
+        planned = routeFrom?.let { stringResource(R.string.map_route_from, it) } ?: stringResource(R.string.map_route_from_navigation),
+        navigation = navigatingWith?.let { stringResource(R.string.following_directions, it) } ?: stringResource(R.string.following_navigation),
+        railway = stringResource(R.string.map_railway),
+        road = stringResource(R.string.following_road),
+        estimated = stringResource(R.string.map_estimated),
+        inStory = stringResource(R.string.map_in_story),
+        you = stringResource(R.string.map_you),
     )
     val context = LocalContext.current
     val density = LocalDensity.current.density
@@ -123,7 +130,7 @@ fun GuideMap(
             if (state.position == null) {
                 // Same size as the map, which has nothing to show yet.
                 Box(Modifier.matchParentSize().background(scheme.surfaceVariant), contentAlignment = Alignment.Center) {
-                    Text("Waiting for your location…", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.map_waiting_location), style = MaterialTheme.typography.bodyMedium)
                 }
             }
             if (!follow) {
@@ -162,7 +169,15 @@ private fun createMap(context: Context, offline: Boolean, onUserPan: () -> Unit)
 }
 
 /** Legend and map labels for routes whose name depends on where they came from. */
-private data class RouteLabels(val planned: String, val navigation: String)
+private data class RouteLabels(
+    val planned: String,
+    val navigation: String,
+    val railway: String,
+    val road: String,
+    val estimated: String,
+    val inStory: String,
+    val you: String,
+)
 
 /** How the stretch ahead is drawn: the better founded, the bolder and the less dashed. */
 private data class LineStyle(val guessed: Boolean, val widthDp: Float, val dashDp: Pair<Float, Float>?)
@@ -178,9 +193,9 @@ private fun lineStyle(source: PathSource): LineStyle = when (source) {
 private fun routeTitle(source: PathSource, labels: RouteLabels): String = when (source) {
     PathSource.PLANNED_ROUTE -> labels.planned
     PathSource.NAVIGATION -> labels.navigation
-    PathSource.RAILWAY -> "Following the railway"
-    PathSource.ROAD -> "Following the road"
-    PathSource.DEAD_RECKONING, PathSource.NONE -> "Estimated direction"
+    PathSource.RAILWAY -> labels.railway
+    PathSource.ROAD -> labels.road
+    PathSource.DEAD_RECKONING, PathSource.NONE -> labels.estimated
 }
 
 private fun render(map: MapView, state: GuideUiState, colors: MapColors, density: Float, follow: Boolean, labels: RouteLabels) {
@@ -206,10 +221,10 @@ private fun render(map: MapView, state: GuideUiState, colors: MapColors, density
         map.overlays += dot(map, item.point, colors.upcoming, 9, density, item.title, item.where)
     }
     state.current?.places?.forEachIndexed { index, place ->
-        map.overlays += dot(map, place.point, colors.story, if (index == 0) 13 else 10, density, place.title, "In the current story")
+        map.overlays += dot(map, place.point, colors.story, if (index == 0) 13 else 10, density, place.title, labels.inStory)
     }
     state.position?.let { here ->
-        map.overlays += dot(map, here, colors.you, 14, density, "You", null)
+        map.overlays += dot(map, here, colors.you, 14, density, labels.you, null)
         if (map.tag != CENTERED) {
             // Jump to the first position instead of sliding there from the middle of the ocean.
             map.controller.setCenter(here.osm())
@@ -252,16 +267,16 @@ private fun MapLegend(source: PathSource, colors: MapColors, labels: RouteLabels
             when (source) {
                 PathSource.PLANNED_ROUTE -> LegendLine(Color(colors.route), dashed = false) { LegendLabel(labels.planned) }
                 PathSource.NAVIGATION -> LegendLine(Color(colors.route), dashed = false) { LegendLabel(labels.navigation) }
-                PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { LegendLabel("Following the railway") }
-                PathSource.ROAD -> LegendLine(Color(colors.route), dashed = true) { LegendLabel("Following the road") }
-                PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { LegendLabel("Direction guessed from your movement") }
-                PathSource.NONE -> LegendLabel("Direction not known yet")
+                PathSource.RAILWAY -> LegendLine(Color(colors.route), dashed = true) { LegendLabel(labels.railway) }
+                PathSource.ROAD -> LegendLine(Color(colors.route), dashed = true) { LegendLabel(labels.road) }
+                PathSource.DEAD_RECKONING -> LegendLine(Color(colors.guess), dashed = true) { LegendLabel(stringResource(R.string.map_guessed)) }
+                PathSource.NONE -> LegendLabel(stringResource(R.string.map_unknown))
             }
         }
         Row(Modifier.height(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            LegendDot(Color(colors.you)) { LegendLabel("You") }
-            LegendDot(Color(colors.story)) { LegendLabel("Current story") }
-            LegendDot(Color(colors.upcoming)) { LegendLabel("Coming up") }
+            LegendDot(Color(colors.you)) { LegendLabel(labels.you) }
+            LegendDot(Color(colors.story)) { LegendLabel(stringResource(R.string.map_current_story)) }
+            LegendDot(Color(colors.upcoming)) { LegendLabel(stringResource(R.string.map_coming_up)) }
         }
     }
 }

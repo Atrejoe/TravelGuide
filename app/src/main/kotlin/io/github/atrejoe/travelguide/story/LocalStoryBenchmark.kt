@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide.story
 
 import android.content.Context
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.enhance.LocalModel
 import io.github.atrejoe.travelguide.core.enhance.LocalStoryEnhancer
@@ -20,15 +21,15 @@ object LocalStoryBenchmark {
         val llama = LlamaModel.load(context, file, model.name)
         try {
             val loadSeconds = loadStart.elapsedNow().inWholeMilliseconds / 1000.0
-            onStatus("Loaded in ${seconds(loadSeconds)}. Retelling the sample story…")
+            onStatus(context.getString(R.string.bench_loaded, seconds(loadSeconds)))
             val story = LocalStoryEnhancer(llama, model).retell(LocalStoryEnhancer.SAMPLE)
             val stats = llama.lastStats ?: error("No timings")
             return buildString {
-                appendLine("${model.name}, ${LlamaEngine.threads()} threads:")
-                appendLine("• Loading: ${seconds(loadSeconds)}")
-                appendLine("• Reading the prompt: ${stats.promptTokens} tokens in ${seconds(stats.promptSeconds)} (${perSecond(stats.readPerSecond)})")
-                appendLine("• Writing the story: ${stats.storyTokens} tokens in ${seconds(stats.storySeconds)} (${perSecond(stats.writePerSecond)})")
-                appendLine("• A story takes about ${seconds(stats.promptSeconds + stats.storySeconds)} here.")
+                appendLine(context.getString(R.string.bench_threads, model.name, LlamaEngine.threads()))
+                appendLine(context.getString(R.string.bench_loading, seconds(loadSeconds)))
+                appendLine(context.getString(R.string.bench_reading, stats.promptTokens, seconds(stats.promptSeconds), perSecond(stats.readPerSecond)))
+                appendLine(context.getString(R.string.bench_writing, stats.storyTokens, seconds(stats.storySeconds), perSecond(stats.writePerSecond)))
+                appendLine(context.getString(R.string.bench_total, seconds(stats.promptSeconds + stats.storySeconds)))
                 appendLine()
                 append(story.text)
             }
