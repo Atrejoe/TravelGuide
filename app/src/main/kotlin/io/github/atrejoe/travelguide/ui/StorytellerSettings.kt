@@ -27,6 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
@@ -54,6 +55,7 @@ import java.util.Locale
 @Composable
 fun StorytellerSettings(settings: AppSettings) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val repo = context.app.settings
     var spent by remember { mutableDoubleStateOf(0.0) }
@@ -72,9 +74,9 @@ fun StorytellerSettings(settings: AppSettings) {
         try {
             NanoStoryEnhancer.download().collect { status ->
                 nanoProgress = when (status) {
-                    is DownloadStatus.DownloadStarted -> context.getString(R.string.nano_downloading)
-                    is DownloadStatus.DownloadProgress -> context.getString(R.string.nano_downloading_mb, (status.totalBytesDownloaded / 1_000_000).toInt())
-                    is DownloadStatus.DownloadFailed -> context.getString(R.string.download_failed, status.e.message.orEmpty())
+                    is DownloadStatus.DownloadStarted -> resources.getString(R.string.nano_downloading)
+                    is DownloadStatus.DownloadProgress -> resources.getString(R.string.nano_downloading_mb, (status.totalBytesDownloaded / 1_000_000).toInt())
+                    is DownloadStatus.DownloadFailed -> resources.getString(R.string.download_failed, status.e.message.orEmpty())
                     is DownloadStatus.DownloadCompleted -> null
                     else -> nanoProgress
                 }
@@ -82,7 +84,7 @@ fun StorytellerSettings(settings: AppSettings) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            nanoProgress = context.getString(R.string.download_failed, e.message.orEmpty())
+            nanoProgress = resources.getString(R.string.download_failed, e.message.orEmpty())
         }
         nano = NanoStoryEnhancer.status()
     }

@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
@@ -60,6 +61,7 @@ import java.time.format.FormatStyle
 @Composable
 fun ElevenLabsSettings(settings: AppSettings) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val repo = context.app.settings
     val keys = context.app.elevenLabsKeys
@@ -91,9 +93,9 @@ fun ElevenLabsSettings(settings: AppSettings) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: ElevenLabsException) {
-            problem = context.getString(R.string.elevenlabs_refused, e.message.orEmpty())
+            problem = resources.getString(R.string.elevenlabs_refused, e.message.orEmpty())
         } catch (e: Exception) {
-            problem = context.getString(R.string.elevenlabs_unreachable, e.message ?: e.javaClass.simpleName)
+            problem = resources.getString(R.string.elevenlabs_unreachable, e.message ?: e.javaClass.simpleName)
         }
     }
 

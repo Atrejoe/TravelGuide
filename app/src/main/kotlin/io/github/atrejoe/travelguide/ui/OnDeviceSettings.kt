@@ -25,6 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -46,6 +47,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun OnDeviceSettings(settings: AppSettings) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val repo = context.app.settings
     val models = context.app.localModels
@@ -89,7 +91,7 @@ fun OnDeviceSettings(settings: AppSettings) {
                                 } catch (e: CancellationException) {
                                     throw e
                                 } catch (e: Exception) {
-                                    Toast.makeText(context, context.getString(R.string.download_failed, e.message.orEmpty()), Toast.LENGTH_LONG).show()
+                                    Toast.makeText(context, resources.getString(R.string.download_failed, e.message.orEmpty()), Toast.LENGTH_LONG).show()
                                 }
                             }
                         }) { Text(stringResource(R.string.download)) }
@@ -121,14 +123,14 @@ fun OnDeviceSettings(settings: AppSettings) {
                     return@Button
                 }
                 benchmarkJob = scope.launch {
-                    benchmark = context.getString(R.string.open_loading, selected.name)
+                    benchmark = resources.getString(R.string.open_loading, selected.name)
                     try {
                         benchmark = LocalStoryBenchmark.run(context, selected) { benchmark = it }
                     } catch (e: CancellationException) {
                         benchmark = null
                         throw e
                     } catch (e: Exception) {
-                        benchmark = context.getString(R.string.open_cannot_run, selected.name, e.message.orEmpty())
+                        benchmark = resources.getString(R.string.open_cannot_run, selected.name, e.message.orEmpty())
                     } finally {
                         benchmarkJob = null
                     }
@@ -148,6 +150,7 @@ fun OnDeviceSettings(settings: AppSettings) {
 @Composable
 fun CrashNotice() {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var report by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) { report = withContext(Dispatchers.IO) { CrashReport.last(context) } }
     val text = report ?: return
@@ -158,7 +161,7 @@ fun CrashNotice() {
             Button(onClick = {
                 context.getSystemService(ClipboardManager::class.java)
                     ?.setPrimaryClip(ClipData.newPlainText("TravelGuide crash", text))
-                Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, resources.getString(R.string.copied), Toast.LENGTH_SHORT).show()
             }) { Text(stringResource(R.string.copy)) }
             OutlinedButton(onClick = {
                 CrashReport.clear()

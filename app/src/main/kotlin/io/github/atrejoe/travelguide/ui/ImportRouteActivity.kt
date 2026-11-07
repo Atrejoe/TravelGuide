@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -116,9 +117,10 @@ internal sealed interface ImportRequest {
 @Composable
 private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onStartGuide: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var summary by rememberSaveable { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf<String?>(null) }
-    var error by rememberSaveable { mutableStateOf(if (request == null) context.getString(R.string.import_nothing) else null) }
+    var error by rememberSaveable { mutableStateOf(if (request == null) resources.getString(R.string.import_nothing) else null) }
 
     LaunchedEffect(request) {
         if (request == null || summary != null || error != null) return@LaunchedEffect
@@ -135,7 +137,7 @@ private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onSt
             error = e.message
         } catch (e: Exception) {
             Log.w("ImportRoute", "Import failed", e)
-            error = context.getString(R.string.route_import_failed_reason, e.message ?: e.javaClass.simpleName)
+            error = resources.getString(R.string.route_import_failed_reason, e.message ?: e.javaClass.simpleName)
         }
     }
 
