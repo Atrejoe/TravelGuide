@@ -47,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -118,7 +119,7 @@ private const val PRELOAD_DELAY_MILLIS = 700L
 
 /** How fast a voice renders on this phone, measured during the preview. */
 private fun speedInfo(context: Context, label: String, factor: Double): String {
-    val seconds = String.format(Locale.getDefault(), "%.1f", factor)
+    val seconds = String.format(context.resources.configuration.locales[0], "%.1f", factor)
     return context.getString(if (factor > 1.1) R.string.speed_slow else R.string.speed_fast, label, seconds)
 }
 
@@ -131,6 +132,7 @@ private fun languageName(code: String): String =
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val repo = context.app.settings
     val models = context.app.voiceModels
@@ -176,7 +178,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             models.download(pkg)
             select(then.voiceId)
         } catch (e: Exception) {
-            Toast.makeText(context, context.getString(R.string.download_failed, e.message.orEmpty()), Toast.LENGTH_LONG).show()
+            Toast.makeText(context, resources.getString(R.string.download_failed, e.message.orEmpty()), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -356,11 +358,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 playing.cancel()
                                 previewJob = null
                             } else {
-                                previewInfo = context.getString(R.string.loading_voice)
+                                previewInfo = resources.getString(R.string.loading_voice)
                                 previewJob = scope.launch {
                                     try {
                                         val choice = preview.get(settings)
-                                        previewInfo = choice.warning ?: context.getString(R.string.speaking_with, choice.narrator.label)
+                                        previewInfo = choice.warning ?: resources.getString(R.string.speaking_with, choice.narrator.label)
                                         val sample = SAMPLES[settings.language] ?: SAMPLES.getValue("en")
                                         val pieces = Narrators.pieces(choice.narrator, sample)
                                         choice.narrator.prepare(pieces.map { it.text })
@@ -546,7 +548,7 @@ private fun PackageActions(
 private fun VoiceSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     var current by remember(value) { mutableFloatStateOf(value) }
     Column {
-        Text("$label: ${String.format(Locale.getDefault(), "%.2f", current)}", style = MaterialTheme.typography.bodyMedium)
+        Text("$label: ${String.format(LocalConfiguration.current.locales[0], "%.2f", current)}", style = MaterialTheme.typography.bodyMedium)
         Slider(
             value = current,
             onValueChange = { current = it },

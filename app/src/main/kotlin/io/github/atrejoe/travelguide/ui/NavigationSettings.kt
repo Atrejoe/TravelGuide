@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
@@ -41,6 +42,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun NavigationSettings() {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val route by RouteRepository.route.collectAsStateWithLifecycle()
     val navigation by NavigationState.status.collectAsStateWithLifecycle()
@@ -62,13 +64,13 @@ fun NavigationSettings() {
         importing = true
         scope.launch {
             val message = try {
-                context.getString(R.string.route_imported, routeSummary(context, RouteImports.importUri(context, uri)))
+                resources.getString(R.string.route_imported, routeSummary(context, RouteImports.importUri(context, uri)))
             } catch (e: RouteImportException) {
-                e.message ?: context.getString(R.string.route_import_failed)
+                e.message ?: resources.getString(R.string.route_import_failed)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                context.getString(R.string.route_import_failed_reason, e.message ?: e.javaClass.simpleName)
+                resources.getString(R.string.route_import_failed_reason, e.message ?: e.javaClass.simpleName)
             } finally {
                 importing = false
             }
@@ -115,7 +117,7 @@ fun NavigationSettings() {
             try {
                 context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             } catch (e: ActivityNotFoundException) {
-                Toast.makeText(context, context.getString(R.string.nav_settings_unavailable), Toast.LENGTH_LONG).show()
+                Toast.makeText(context, resources.getString(R.string.nav_settings_unavailable), Toast.LENGTH_LONG).show()
             }
         }) {
             Text(stringResource(if (listenerEnabled) R.string.nav_change_access else R.string.nav_enable))
