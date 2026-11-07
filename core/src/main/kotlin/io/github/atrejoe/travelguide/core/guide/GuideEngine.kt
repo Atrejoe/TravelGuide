@@ -74,6 +74,10 @@ class GuideEngine(
     private val forgetDistanceM: Double = 30_000.0,
 ) {
     val motion = MotionTracker()
+
+    /** What it says on screen about what it is doing, in the app's language (issue #92). */
+    var texts: GuideTexts = GuideTexts.English
+
     val extrapolator = RouteExtrapolator()
     private val composer = NarrationComposer(random)
 
@@ -156,7 +160,7 @@ class GuideEngine(
         if (nowMillis - lastRailAttemptMillis < RAIL_RETRY_MILLIS) return
         lastRailAttemptMillis = nowMillis
         try {
-            railNetwork = doing("Looking up railway lines…") { source.around(here, RAIL_RADIUS_M) }.also { extrapolator.railGraph = RailGraph(it) }
+            railNetwork = doing(texts.railways()) { source.around(here, RAIL_RADIUS_M) }.also { extrapolator.railGraph = RailGraph(it) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -229,7 +233,7 @@ class GuideEngine(
         if (nowMillis - lastRoadAttemptMillis < backoff) return
         lastRoadAttemptMillis = nowMillis
         try {
-            val network = doing("Looking up the roads…") {
+            val network = doing(texts.roads()) {
                 source.roads(here, ROAD_MAJOR_RADIUS_M, if (minor) ROAD_MINOR_RADIUS_M else 0, cycleways = cycling)
             }
             roadNetwork = network
@@ -259,7 +263,7 @@ class GuideEngine(
         if (nowMillis - lastTowardAttemptMillis < TOWARD_RETRY_MILLIS) return
         lastTowardAttemptMillis = nowMillis
         val computed = try {
-            doing("Planning the route towards $name…") { router.route(here, name, state.mode) }
+            doing(texts.routeTowards(name)) { router.route(here, name, state.mode) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -305,7 +309,7 @@ class GuideEngine(
             nowMillis - lastFetchMillis > refreshIntervalMillis
         if (!due) return placesFetched
 
-        val articles = doing("Searching Wikipedia within ${radiusText(profile.searchRadiusM)}…") {
+        val articles = doing(texts.searching(texts.radius(profile.searchRadiusM))) {
             source.nearby(center, profile.searchRadiusM)
         }
         lastFetchCenter = center
@@ -342,7 +346,7 @@ class GuideEngine(
         if (nowMillis - lastPlacesAttemptMillis < backoff) return false
         lastPlacesAttemptMillis = nowMillis
         val found = try {
-            doing("Looking up buildings nearby…") { source.places(center, PLACES_RADIUS_M) }
+            doing(texts.buildings()) { source.places(center, PLACES_RADIUS_M) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -405,7 +409,7 @@ class GuideEngine(
         if (nowMillis - lastTownAttemptMillis < backoff) return
         lastTownAttemptMillis = nowMillis
         val town = try {
-            doing("Looking up which town this is…") { source.town(here) }
+            doing(texts.town()) { source.town(here) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -492,16 +496,16 @@ class GuideEngine(
         val profile = DetailProfile.forMode(state.mode)
         lastNarrationEnd?.let { end ->
             val left = end + profile.minGapSeconds * 1000L - nowMillis
-            if (left > 0) return "Next story in ${durationText(left)}"
+            if (left > 0) return texts.nextStoryIn(texts.duration(left))
         }
         val level = widening(nowMillis)
         val since = lastNarrationEnd ?: quietSince ?: nowMillis
         val nextStep = since + profile.minGapSeconds * 1000L + (level + 1) * WIDEN_AFTER_MILLIS - nowMillis
-        val radius = radiusText(profile.widened(level).searchRadiusM)
+        val radius = texts.radius(profile.widened(level).searchRadiusM)
         return when {
-            level == 0 -> "Nothing nearby worth a story yet; looking further afield in ${durationText(nextStep)}"
-            level < MAX_WIDENING -> "Nothing nearby; looking further afield, within $radius. Wider in ${durationText(nextStep)}"
-            else -> "Nothing nearby; looking further afield, within $radius"
+            level == 0 -> texts.nothingYet(texts.duration(nextStep))
+            level < MAX_WIDENING -> texts.widerIn(radius, texts.duration(nextStep))
+            else -> texts.widest(radius)
         }
     }
 
@@ -522,7 +526,7 @@ class GuideEngine(
         val translator = translator ?: return null
         val sentences = narration.sentences.toMutableList()
         try {
-            doing("Translating ${narration.poi.title}…") {
+            doing(texts.translating(narration.poi.title)) {
                 for ((from, items) in foreign.groupBy { it.value }) {
                     val indices = items.map { it.index }
                     val result = translator.translate(indices.map { narration.sentences[it] }, from, target)
@@ -568,7 +572,7 @@ class GuideEngine(
         val source = articles ?: return null
         if (!poi.hasArticle) return null
         val sections = try {
-            doing("Reading about ${poi.title}…") { source.article(poi) }?.let { ArticleParser.parse(it, StoryLanguages.of(poi.lang)) }
+            doing(texts.reading(poi.title)) { source.article(poi) }?.let { ArticleParser.parse(it, StoryLanguages.of(poi.lang)) }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -761,18 +765,6 @@ class GuideEngine(
 
         const val PREFETCH_COUNT = 2
         const val ARTICLE_CACHE_SIZE = 20
-    }
-
-    private fun radiusText(meters: Int): String = when {
-        meters < 1_000 -> "$meters m"
-        meters % 1_000 == 0 -> "${meters / 1_000} km"
-        else -> "${"%.1f".format(java.util.Locale.ROOT, meters / 1_000.0)} km"
-    }
-
-    /** "20 s" or "2 min", rounded up. */
-    private fun durationText(millis: Long): String {
-        val seconds = ((millis + 999) / 1_000).coerceAtLeast(1)
-        return if (seconds < 60) "$seconds s" else "${(seconds + 59) / 60} min"
     }
 
     private fun pointAlong(path: PredictedPath, distanceM: Double): GeoPoint {

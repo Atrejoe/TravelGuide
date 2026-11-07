@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import io.github.atrejoe.travelguide.GuideStatus
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.MapPlace
 import io.github.atrejoe.travelguide.StoryItem
 import io.github.atrejoe.travelguide.UpcomingItem
@@ -48,7 +49,6 @@ import io.github.atrejoe.travelguide.core.rail.OverpassClient
 import io.github.atrejoe.travelguide.core.road.RoadSource
 import io.github.atrejoe.travelguide.core.route.PathSource
 import io.github.atrejoe.travelguide.core.story.Narration
-import io.github.atrejoe.travelguide.core.story.NarrationComposer
 import io.github.atrejoe.travelguide.core.story.PhrasePicker
 import io.github.atrejoe.travelguide.core.story.Poi
 import io.github.atrejoe.travelguide.core.story.SentenceSplitter
@@ -57,7 +57,9 @@ import io.github.atrejoe.travelguide.core.wiki.WikipediaClient
 import io.github.atrejoe.travelguide.nav.NavigationState
 import io.github.atrejoe.travelguide.nav.RouteRepository
 import io.github.atrejoe.travelguide.net.UrlConnectionFetcher
+import io.github.atrejoe.travelguide.settings.AppLanguage
 import io.github.atrejoe.travelguide.settings.AppSettings
+import io.github.atrejoe.travelguide.ui.whereLabel
 import io.github.atrejoe.travelguide.settings.Storyteller
 import io.github.atrejoe.travelguide.story.LlamaModel
 import io.github.atrejoe.travelguide.story.LocalOnDevice
@@ -86,6 +88,11 @@ import java.time.LocalTime
  * All guide logic runs on the main thread; network and synthesis hop to background dispatchers.
  */
 class GuideService : LifecycleService(), AudioFocus.Listener {
+    // Screens and notifications in the app's language (issue #92).
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
+
 
     private lateinit var engine: GuideEngine
     private lateinit var session: MediaSessionCompat
@@ -185,6 +192,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             history = app.storyHistory,
         )
         engine.onActivity = { what -> GuideStatus.update { it.copy(activity = what) } }
+        engine.texts = ResourceGuideTexts(this)
         engine.translator = translator
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
@@ -223,13 +231,13 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             0
         }
         if (guideJob != null) return
-        GuideStatus.update { it.copy(running = true, paused = false, pauseReason = null, message = "Waiting for location…") }
+        GuideStatus.update { it.copy(running = true, paused = false, pauseReason = null, message = getString(R.string.waiting_location)) }
         try {
             ServiceCompat.startForeground(this, GuideNotification.ID, GuideNotification.build(this, GuideStatus.state.value, session), types)
         } catch (e: RuntimeException) {
             // Missing location permission or not allowed to start from the background.
             Log.e(TAG, "Cannot start in the foreground", e)
-            GuideStatus.update { it.copy(running = false, message = "Could not start: ${e.message}") }
+            GuideStatus.update { it.copy(running = false, message = getString(R.string.could_not_start, e.message.orEmpty())) }
             stopSelf()
             return
         }
@@ -330,7 +338,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         existing?.drain()
         existing?.release()
         narratorDirty = false
-        val choice = doing("Loading the voice…") { Narrators.create(this, settings, app.voiceModels) }
+        val choice = doing(getString(R.string.loading_the_voice)) { Narrators.create(this, settings, app.voiceModels) }
         narratorWarning = choice.warning
         shownNotice = null
         GuideStatus.update { it.copy(voiceLabel = choice.narrator.label, voiceWarning = choice.warning) }
@@ -406,7 +414,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 }
             } catch (e: IOException) {
                 Log.w(TAG, "Could not fetch places", e)
-                GuideStatus.update { it.copy(message = "Can't reach Wikipedia right now") }
+                GuideStatus.update { it.copy(message = getString(R.string.wikipedia_unreachable)) }
                 continue
             }
             publishUpcoming(now)
@@ -439,10 +447,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         }
         val load: suspend () -> StoryEnhancement? = { withContext(Dispatchers.IO) { currentEnhancement() } }
         // Only the open model takes a while to load.
-        val enhancement = (if (settings.storyteller == Storyteller.ON_DEVICE) doing("Loading $storyteller…", load) else load())
+        val enhancement = (if (settings.storyteller == Storyteller.ON_DEVICE) doing(getString(R.string.loading_storyteller, storyteller), load) else load())
             ?: return narration
         val mode = engine.motion.state?.mode ?: return narration
-        val story = doing("Retelling ${narration.poi.title} with $storyteller…") {
+        val story = doing(getString(R.string.retelling, narration.poi.title, storyteller)) {
             reassuring(Wait.RETELLING, times = 2) {
                 withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
             }
@@ -494,7 +502,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         val items = engine.upcoming().map { story ->
             UpcomingItem(
                 title = story.poi.title,
-                where = NarrationComposer.label(story.relative),
+                where = whereLabel(this, story.relative),
                 expectedAtMillis = story.etaSeconds?.let { now + it * 1000L },
                 point = story.poi.point,
             )
@@ -594,7 +602,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                     // Once per story at most: a slow voice would otherwise keep apologising.
                     val times = if (reassured) 0 else 1
                     reassured = true
-                    doing("Preparing speech…") { reassuring(Wait.PREPARING, times) { narrator.speak(text) } }
+                    doing(getString(R.string.preparing_speech)) { reassuring(Wait.PREPARING, times) { narrator.speak(text) } }
                 }
                 showVoiceNotice(narrator)
                 // Cut off by a pause or by a replay: say the piece again afterwards.
@@ -645,8 +653,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         if (factor <= SLOW_VOICE_FACTOR) return
         GuideStatus.update {
             if (it.voiceWarning != null) it else it.copy(
-                voiceWarning = "${narrator.label} renders slower than it speaks on this phone, so there are pauses " +
-                    "between sentences. Piper voices (Settings) render several times faster than Kokoro ones.",
+                voiceWarning = getString(R.string.voice_too_slow, narrator.label),
             )
         }
     }
@@ -658,8 +665,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private fun isPaused(): Boolean {
         val inCall = focus.isInCall()
         val reason = when {
-            inCall -> "phone call"
-            focusPaused -> "another app is speaking"
+            inCall -> getString(R.string.pause_call)
+            focusPaused -> getString(R.string.pause_other_app)
             else -> null
         }
         val paused = userPaused || inCall || focusPaused
@@ -704,7 +711,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 manager.requestLocationUpdates(provider, 2_000L, 5f, locationListener, Looper.getMainLooper())
             } catch (e: SecurityException) {
                 Log.w(TAG, "No location permission", e)
-                GuideStatus.update { it.copy(message = "Location permission is needed") }
+                GuideStatus.update { it.copy(message = getString(R.string.location_permission)) }
             }
         }
     }
@@ -734,7 +741,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 position = motion.fix.point,
                 onRail = engine.onRail,
                 headingDeg = motion.headingDeg,
-                message = it.message?.takeUnless { m -> m.startsWith("Waiting for location") },
+                message = it.message?.takeUnless { m -> m == getString(R.string.waiting_location) },
             )
         }
     }

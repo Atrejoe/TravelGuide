@@ -14,18 +14,18 @@ import io.github.atrejoe.travelguide.core.enhance.LocalModels
 import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.core.lang.English
 import io.github.atrejoe.travelguide.core.lang.StoryLanguage
-import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.motion.TravelMode
 import io.github.atrejoe.travelguide.core.voice.ElevenLabsModel
 import io.github.atrejoe.travelguide.voice.VoiceCatalog
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import java.util.Locale
 
 data class AppSettings(
     /** The language of the stories and voices (issue #68), a [StoryLanguage] code. */
     val language: String = English.code,
+    /** True when [language] is the phone's, followed when that changes (issue #92). */
+    val followPhoneLanguage: Boolean = false,
     /**
      * `neural:<id>` for an on-device voice, `system:<name>` for an Android TTS voice,
      * `elevenlabs:<id>` for an ElevenLabs voice (issue #75).
@@ -118,7 +118,7 @@ class SettingsRepository(private val context: Context) {
     suspend fun update(transform: (AppSettings) -> AppSettings) {
         context.dataStore.edit { p ->
             val next = transform(fromPrefs(p))
-            p[Keys.language] = next.language
+            p[Keys.language] = if (next.followPhoneLanguage) "" else next.language
             p[Keys.voice] = next.voiceId
             p[Keys.pitch] = next.pitch
             p[Keys.rate] = next.rate
@@ -138,16 +138,17 @@ class SettingsRepository(private val context: Context) {
     private companion object {
         const val CURRENT_VERSION = 2
 
-        /** The phone's language when stories can be told in it, else English. */
-        fun phoneLanguage(): String = StoryLanguages.of(Locale.getDefault().language).code
     }
 
     private fun fromPrefs(p: Preferences): AppSettings {
         val defaults = AppSettings()
         // Earlier versions only told stories in English: keep it for those who chose a voice.
-        val language = p[Keys.language] ?: if (p[Keys.voice] != null) English.code else phoneLanguage()
+        val stored = p[Keys.language] ?: if (p[Keys.voice] != null) English.code else ""
+        // Empty follows the phone: its language, else one of its keyboards', else English (issue #92).
+        val language = stored.ifEmpty { AppLanguage.phoneLanguage(context) }
         return AppSettings(
             language = language,
+            followPhoneLanguage = stored.isEmpty(),
             voiceId = p[Keys.voice] ?: VoiceCatalog.defaultVoiceId(language),
             pitch = p[Keys.pitch] ?: defaults.pitch,
             rate = p[Keys.rate] ?: defaults.rate,

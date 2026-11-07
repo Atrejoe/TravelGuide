@@ -36,9 +36,9 @@ object GuideNotification {
         )
         val title = state.current?.title ?: context.getString(R.string.app_name)
         val text = when {
-            state.paused -> state.pauseReason?.let { "Paused · $it" } ?: "Paused"
-            state.speaking -> "Telling you about ${state.current?.title}"
-            else -> state.message ?: "Listening to the road ahead"
+            state.paused -> state.pauseReason?.let { context.getString(R.string.notif_paused_reason, it) } ?: context.getString(R.string.notif_paused)
+            state.speaking -> context.getString(R.string.notif_telling, state.current?.title.orEmpty())
+            else -> state.message ?: context.getString(R.string.notif_listening)
         }
         val toggle = if (state.paused) {
             NotificationCompat.Action(R.drawable.ic_play, context.getString(R.string.action_resume), serviceIntent(context, GuideService.ACTION_RESUME))

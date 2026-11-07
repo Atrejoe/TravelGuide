@@ -4,6 +4,7 @@ import android.content.Context
 import android.speech.tts.TextToSpeech
 import android.speech.tts.UtteranceProgressListener
 import android.speech.tts.Voice
+import io.github.atrejoe.travelguide.R
 import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -14,7 +15,8 @@ import kotlin.coroutines.resume
 
 /** Uses whatever text-to-speech engine is installed on the device. */
 class SystemTtsNarrator(
-    context: Context,
+    /** Also for the label and warnings, in the app's language. */
+    private val context: Context,
     private val voiceName: String?,
     private var pitch: Float,
     private var rate: Float,
@@ -38,7 +40,7 @@ class SystemTtsNarrator(
         })
     }
 
-    override var label: String = "System voice"
+    override var label: String = context.getString(R.string.label_system)
         private set
 
     private var configured = false
@@ -49,7 +51,7 @@ class SystemTtsNarrator(
      * engine's default voice for [locale] speaks instead.
      */
     suspend fun initialize(): String? {
-        if (!ready.await()) return "The phone's text-to-speech engine is not available."
+        if (!ready.await()) return context.getString(R.string.warn_tts_unavailable)
         if (configured) return null
         configured = true
         tts.setAudioAttributes(Narrators.audioAttributes)
@@ -57,13 +59,13 @@ class SystemTtsNarrator(
         tts.setSpeechRate(rate)
         val wanted: Voice? = voiceName?.let { name -> tts.voices?.firstOrNull { it.name == name } }
         if (wanted != null && SystemVoices.isInstalled(wanted) && tts.setVoice(wanted) == TextToSpeech.SUCCESS) {
-            label = "System voice ${wanted.name}"
+            label = context.getString(R.string.label_system_named, wanted.name)
             return null
         }
         val supported = tts.setLanguage(locale) >= TextToSpeech.LANG_AVAILABLE
-        label = "System voice (default)"
-        if (!supported) return "The phone has no ${locale.getDisplayLanguage(Locale.ENGLISH)} system voice; install one in Android's text-to-speech settings."
-        return voiceName?.let { "System voice $it is not installed on this phone; using the default voice." }
+        label = context.getString(R.string.label_system_default)
+        if (!supported) return context.getString(R.string.warn_tts_language, Narrators.languageName(context, locale.language))
+        return voiceName?.let { context.getString(R.string.warn_tts_voice_missing, it) }
     }
 
     override fun adjust(pitch: Float, rate: Float) {

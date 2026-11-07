@@ -1,6 +1,8 @@
 package io.github.atrejoe.travelguide.voice
 
+import android.content.Context
 import android.util.Log
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.core.voice.ElevenLabsClient
 import io.github.atrejoe.travelguide.core.voice.ElevenLabsException
 import io.github.atrejoe.travelguide.core.voice.ElevenLabsModel
@@ -30,6 +32,8 @@ import kotlin.coroutines.coroutineContext
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ElevenLabsNarrator(
+    /** For the label and notices, in the app's language. */
+    private val context: Context,
     private val client: ElevenLabsClient,
     private val voiceId: String,
     voiceName: String,
@@ -40,7 +44,8 @@ class ElevenLabsNarrator(
     rate: Float,
     private val fallback: suspend () -> NarratorChoice,
 ) : Narrator {
-    override val label: String = "${voiceName.ifBlank { "ElevenLabs voice" }} (ElevenLabs)"
+    override val label: String =
+        context.getString(R.string.label_elevenlabs, voiceName.ifBlank { context.getString(R.string.label_elevenlabs_unnamed) })
 
     @Volatile private var currentNotice: String? = null
     override val notice: String? get() = currentNotice
@@ -178,15 +183,15 @@ class ElevenLabsNarrator(
             refused = true
             currentNotice = when (e.reason) {
                 ElevenLabsException.Reason.QUOTA_EXCEEDED ->
-                    "Your ElevenLabs credits are used up, so an on-device voice reads on."
-                else -> "ElevenLabs refused your API key (${e.message}), so an on-device voice reads on. Check the key in Settings."
+                    context.getString(R.string.notice_credits)
+                else -> context.getString(R.string.notice_key_refused, e.message.orEmpty())
             }
         } else {
             offlineUntil = System.currentTimeMillis() + RETRY_MILLIS
             currentNotice = if (e != null) {
-                "ElevenLabs had a problem (${e.message}), so an on-device voice reads for now."
+                context.getString(R.string.notice_problem, e.message.orEmpty())
             } else {
-                "No connection to ElevenLabs, so an on-device voice reads until it's back."
+                context.getString(R.string.notice_offline)
             }
         }
     }

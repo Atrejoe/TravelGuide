@@ -36,8 +36,9 @@ class NeuralNarrator(
     private val files: ModelFiles,
     pitch: Float,
     rate: Float,
+    /** The name to show, e.g. "George (on-device)". */
+    override val label: String = "${voice.name} (on-device)",
 ) : Narrator {
-    override val label: String = "${voice.name} (on-device)"
     override val rendersOnDevice: Boolean = true
 
     @Volatile private var rate: Float = rate

@@ -51,11 +51,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.GuideUiState
 import io.github.atrejoe.travelguide.StoryItem
@@ -106,10 +108,10 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Travel Guide") },
+                title = { Text(stringResource(R.string.app_name)) },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
-                        Icon(Icons.Filled.Settings, contentDescription = "Settings")
+                        Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
                     }
                 },
             )
@@ -118,7 +120,7 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
         Column(Modifier.fillMaxSize().padding(padding)) {
             // Shown as soon as guiding starts, so the screen doesn't jump when the first fix arrives.
             if (state.running) {
-                GuideMap(state, routeFrom = route?.origin?.label, navigatingWith = navigation?.app?.name)
+                GuideMap(state, routeFrom = route?.origin?.let { originLabel(it) }, navigatingWith = navigation?.app?.name)
             }
             LazyColumn(
                 modifier = Modifier.fillMaxWidth().weight(1f),
@@ -130,13 +132,12 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
                     item {
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
                             Column(Modifier.padding(16.dp)) {
-                                Text("Narrator voice not downloaded", style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.voice_not_downloaded), style = MaterialTheme.typography.titleMedium)
                                 Text(
-                                    "${neural.name} (${neural.pkg.approxSizeMb} MB) runs fully on your phone. " +
-                                        "Until it is downloaded the guide uses the system voice.",
+                                    stringResource(R.string.voice_not_downloaded_help, neural.name, neural.pkg.approxSizeMb),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
-                                TextButton(onClick = onOpenSettings) { Text("Choose & download voice") }
+                                TextButton(onClick = onOpenSettings) { Text(stringResource(R.string.choose_download_voice)) }
                             }
                         }
                     }
@@ -155,15 +156,15 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
                 item {
                     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                         if (!state.running) {
-                            Button(onClick = start, modifier = Modifier.weight(1f)) { Text("Start guiding") }
+                            Button(onClick = start, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.start_guiding)) }
                         } else {
                             Button(
                                 onClick = {
                                     GuideService.send(context, if (state.paused) GuideService.ACTION_RESUME else GuideService.ACTION_PAUSE)
                                 },
                                 modifier = Modifier.weight(1f),
-                            ) { Text(if (state.paused) "Resume" else "Pause") }
-                            OutlinedButton(onClick = { GuideService.send(context, GuideService.ACTION_STOP) }) { Text("Stop") }
+                            ) { Text(stringResource(if (state.paused) R.string.resume else R.string.pause)) }
+                            OutlinedButton(onClick = { GuideService.send(context, GuideService.ACTION_STOP) }) { Text(stringResource(R.string.stop)) }
                         }
                     }
                 }
@@ -178,7 +179,7 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
 
                 item {
                     Text(
-                        "Stories are based on Wikipedia articles, available under CC BY-SA 4.0.",
+                        stringResource(R.string.wikipedia_credit),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -198,20 +199,20 @@ private fun LazyListScope.timeline(state: GuideUiState) {
     if (upcoming.isEmpty() && state.current == null && earlier.isEmpty()) return
     val now = System.currentTimeMillis()
 
-    item { Text("Timeline", style = MaterialTheme.typography.labelLarge) }
+    item { Text(stringResource(R.string.timeline), style = MaterialTheme.typography.labelLarge) }
     itemsIndexed(upcoming, key = { index, u -> "up:$index:${u.title}" }) { index, story ->
         TimelineRow(etaLabel(story.expectedAtMillis, now), Marker.UPCOMING, first = index == 0, last = false) {
             UpcomingCard(story)
         }
     }
     item(key = "now") {
-        TimelineRow("Now", Marker.NOW, first = upcoming.isEmpty(), last = earlier.isEmpty()) {
+        TimelineRow(stringResource(R.string.now), Marker.NOW, first = upcoming.isEmpty(), last = earlier.isEmpty()) {
             val current = state.current
             if (current != null && state.speaking) {
                 StoryCard(current, expanded = true, state)
             } else {
                 Text(
-                    if (state.running) "Listening to the road ahead…" else "Start guiding to see what's coming up.",
+                    stringResource(if (state.running) R.string.listening_ahead_dots else R.string.start_to_see),
                     modifier = Modifier.padding(top = 8.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -288,13 +289,14 @@ private fun UpcomingCard(story: UpcomingItem) {
     }
 }
 
+@Composable
 private fun etaLabel(expectedAtMillis: Long?, now: Long): String {
-    if (expectedAtMillis == null) return "nearby"
+    if (expectedAtMillis == null) return stringResource(R.string.eta_nearby)
     val seconds = (expectedAtMillis - now) / 1000
     return when {
-        seconds <= 45 -> "soon"
-        seconds < 3_600 -> "in ${((seconds + 30) / 60).coerceAtLeast(1)} min"
-        else -> "later"
+        seconds <= 45 -> stringResource(R.string.eta_soon)
+        seconds < 3_600 -> stringResource(R.string.eta_minutes, ((seconds + 30) / 60).coerceAtLeast(1).toInt())
+        else -> stringResource(R.string.eta_later)
     }
 }
 
@@ -311,28 +313,31 @@ private fun StatusCard(
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             val headline = when {
-                !state.running -> "Not guiding"
-                state.paused -> "Paused" + (state.pauseReason?.let { " · $it" } ?: "")
-                state.speaking -> "Narrating"
-                else -> "Listening to the road ahead"
+                !state.running -> stringResource(R.string.state_not_guiding)
+                state.paused -> state.pauseReason?.let { stringResource(R.string.state_paused_reason, it) } ?: stringResource(R.string.state_paused)
+                state.speaking -> stringResource(R.string.state_narrating)
+                else -> stringResource(R.string.state_listening)
             }
             Text(headline, style = MaterialTheme.typography.titleLarge)
             if (state.running && !state.paused) ActivityLine(state)
             if (state.running) {
                 val mode = state.mode?.let { m ->
-                    modeLabel(m) + when {
-                        !auto -> " (set by you)"
-                        m == TravelMode.TRAIN && state.onRail -> " (detected: on the railway)"
-                        else -> " (detected)"
-                    }
-                } ?: "Detecting…"
+                    stringResource(
+                        when {
+                            !auto -> R.string.mode_set_by_you
+                            m == TravelMode.TRAIN && state.onRail -> R.string.mode_detected_rail
+                            else -> R.string.mode_detected
+                        },
+                        modeLabel(m),
+                    )
+                } ?: stringResource(R.string.mode_detecting)
                 val speed = state.speedKmh?.let { "${it.roundToInt()} km/h" } ?: "–"
-                Text("$mode · $speed · ${state.knownPlaces} places nearby", style = MaterialTheme.typography.bodyMedium)
+                Text(stringResource(R.string.status_line, mode, speed, state.knownPlaces), style = MaterialTheme.typography.bodyMedium)
             }
             state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
             RouteLine(state, route, navigation, onClearRoute)
             if (state.running) {
-                state.voiceLabel?.let { Text("Voice: $it", style = MaterialTheme.typography.bodySmall) }
+                state.voiceLabel?.let { Text(stringResource(R.string.status_voice, it), style = MaterialTheme.typography.bodySmall) }
                 state.voiceWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             }
         }
@@ -354,12 +359,13 @@ private fun ActivityLine(state: GuideUiState) {
 @Composable
 private fun RouteLine(state: GuideUiState, route: ImportedRoute?, navigation: NavigationStatus?, onClearRoute: () -> Unit) {
     navigation?.let {
-        Text("Navigating with ${it.label()}", style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(stringResource(R.string.navigating_with, navigationLabel(LocalContext.current, it)), style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
     }
     if (state.running) {
         val forecast = when (state.routeSource) {
-            PathSource.NAVIGATION -> "Following ${navigation?.app?.name ?: "navigation"} directions"
-            PathSource.ROAD -> "Following the road"
+            PathSource.NAVIGATION -> navigation?.app?.name?.let { stringResource(R.string.following_directions, it) }
+                ?: stringResource(R.string.following_navigation)
+            PathSource.ROAD -> stringResource(R.string.following_road)
             else -> null
         }
         forecast?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary) }
@@ -367,8 +373,7 @@ private fun RouteLine(state: GuideUiState, route: ImportedRoute?, navigation: Na
     if (route == null) {
         if (!state.running) {
             Text(
-                "Tip: with notification access the guide follows Google Maps, Komoot, OsmAnd or Waze directions. " +
-                    "You can also share a route or a GPX file with Travel Guide.",
+                stringResource(R.string.route_tip),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -377,18 +382,18 @@ private fun RouteLine(state: GuideUiState, route: ImportedRoute?, navigation: Na
     }
     Row(verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f)) {
-            Text("Route: ${route.summary()}", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.route_line, routeSummary(route)), style = MaterialTheme.typography.bodyMedium)
             val offRoute = state.running && state.position != null &&
                 state.routeSource != PathSource.PLANNED_ROUTE && state.routeSource != PathSource.NONE
             if (offRoute) {
                 Text(
-                    "You're more than 1 km from the route, so the guide looks ahead without it.",
+                    stringResource(R.string.off_route),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.secondary,
                 )
             }
         }
-        TextButton(onClick = onClearRoute) { Text("Clear") }
+        TextButton(onClick = onClearRoute) { Text(stringResource(R.string.clear)) }
     }
 }
 
@@ -405,8 +410,12 @@ private fun ModeSelector(selected: TravelMode?, detected: TravelMode?, onSelect:
                 onClick = { onSelect(mode) },
                 label = {
                     // In automatic mode, show what was detected: "Auto · Cycling".
-                    val auto = if (selected == null && detected != null) "Auto · ${modeLabel(detected)}" else "Auto"
-                    Text(mode?.let(::modeLabel) ?: auto)
+                    val auto = if (selected == null && detected != null) {
+                        stringResource(R.string.mode_auto_detected, modeLabel(detected))
+                    } else {
+                        stringResource(R.string.mode_auto)
+                    }
+                    Text(mode?.let { modeLabel(it) } ?: auto)
                 },
             )
         }
@@ -430,7 +439,7 @@ private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) 
                     ) {
                         Icon(
                             Icons.Filled.PlayArrow,
-                            contentDescription = "Play again",
+                            contentDescription = stringResource(R.string.play_again),
                             modifier = Modifier.size(20.dp),
                             tint = if (replaying) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
                         )
@@ -438,10 +447,10 @@ private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) 
                 }
             }
             if (replaying) {
-                Text("Playing again", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(stringResource(R.string.playing_again), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
             if (story.also.isNotEmpty()) {
-                Text("Also: " + story.also.joinToString(", "), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.also, story.also.joinToString(", ")), style = MaterialTheme.typography.bodySmall)
             }
             Text(
                 story.text,
@@ -461,11 +470,14 @@ PoiSources.label(story.url),
     }
 }
 
-fun modeLabel(mode: TravelMode): String = when (mode) {
-    TravelMode.STATIONARY -> "Standing still"
-    TravelMode.WALKING -> "Walking"
-    TravelMode.CYCLING -> "Cycling"
-    TravelMode.DRIVING -> "Car"
-    TravelMode.TRAIN -> "Train"
-    TravelMode.FLYING -> "Plane"
-}
+@Composable
+fun modeLabel(mode: TravelMode): String = stringResource(
+    when (mode) {
+        TravelMode.STATIONARY -> R.string.mode_stationary
+        TravelMode.WALKING -> R.string.mode_walking
+        TravelMode.CYCLING -> R.string.mode_cycling
+        TravelMode.DRIVING -> R.string.mode_driving
+        TravelMode.TRAIN -> R.string.mode_train
+        TravelMode.FLYING -> R.string.mode_flying
+    },
+)

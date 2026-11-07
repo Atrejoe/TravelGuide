@@ -125,6 +125,13 @@ android {
         unitTests.isIncludeAndroidResources = true
     }
 
+    // The app switches its language at runtime (issue #92), so a bundle must carry every language.
+    bundle {
+        language {
+            enableSplit = false
+        }
+    }
+
     lint {
         // CI runs lintDebug on every app change; no need to repeat it for release builds.
         checkReleaseBuilds = false

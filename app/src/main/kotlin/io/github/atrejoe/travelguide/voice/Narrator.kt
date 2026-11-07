@@ -3,6 +3,7 @@ package io.github.atrejoe.travelguide.voice
 import android.content.Context
 import android.media.AudioAttributes
 import android.util.Log
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.story.SpeechChunker
@@ -101,9 +102,10 @@ object Narrators {
             val key = context.app.elevenLabsKeys.get()
             if (key == null) {
                 val choice = create(context, local, models)
-                return choice.copy(warning = choice.warning ?: "ElevenLabs needs your API key (Settings), so an on-device voice is used.")
+                return choice.copy(warning = choice.warning ?: context.getString(R.string.warn_elevenlabs_key))
             }
             val narrator = ElevenLabsNarrator(
+                context = context,
                 client = ElevenLabsClient(key, UrlConnectionTransport()),
                 voiceId = cloudVoice,
                 voiceName = settings.elevenLabsVoiceName,
@@ -121,24 +123,24 @@ object Narrators {
         val neural = VoiceCatalog.neural(settings.voiceId)
         if (neural != null && neural.lang != language.code) {
             // An English voice reading Dutch sounds like nonsense (issue #68).
-            warning = "${neural.name} doesn't speak ${language.name}, so the system voice is used. Pick a ${language.name} voice in Settings."
+            warning = context.getString(R.string.warn_wrong_language, neural.name, languageName(context, language.code))
         } else if (neural != null) {
             val files = models.files(neural.pkg)
             if (files == null) {
-                warning = "${neural.name} is not downloaded yet, so the system voice is used."
+                warning = context.getString(R.string.warn_not_downloaded, neural.name)
             } else {
-                val narrator = NeuralNarrator(neural, files, settings.pitch, settings.rate)
+                val narrator = NeuralNarrator(neural, files, settings.pitch, settings.rate, context.getString(R.string.label_on_device, neural.name))
                 try {
                     narrator.warmUp()
                     return NarratorChoice(narrator, null)
                 } catch (t: Throwable) {
                     Log.e(TAG, "Could not load ${neural.id}", t)
                     narrator.release()
-                    warning = "${neural.name} could not be loaded (${t.message ?: t.javaClass.simpleName}), so the system voice is used."
+                    warning = context.getString(R.string.warn_not_loaded, neural.name, t.message ?: t.javaClass.simpleName)
                 }
             }
         } else if (settings.voiceId.startsWith(VoiceCatalog.NEURAL_PREFIX)) {
-            warning = "The chosen voice is no longer available; pick another one in Settings."
+            warning = context.getString(R.string.warn_voice_gone)
         }
         val system = SystemTtsNarrator(
             context,
@@ -154,6 +156,10 @@ object Narrators {
     /** The first downloaded on-device voice for [lang], else the system voice. */
     private fun localVoiceId(lang: String, models: VoiceModelManager): String =
         VoiceCatalog.voicesFor(lang).firstOrNull { models.files(it.pkg) != null }?.voiceId ?: VoiceCatalog.SYSTEM_PREFIX
+
+    /** The name of a language in the language of [context]'s screens, as written within a sentence. */
+    fun languageName(context: Context, code: String): String =
+        Locale.forLanguageTag(code).getDisplayLanguage(context.resources.configuration.locales[0])
 
     /** The system voice's locale for a story language: British English, as the neural voices. */
     fun locale(lang: String): Locale = if (lang == "en") Locale.UK else Locale.forLanguageTag(lang)
