@@ -22,11 +22,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.core.nav.RouteImportException
 import io.github.atrejoe.travelguide.nav.NavigationListenerService
 import io.github.atrejoe.travelguide.nav.NavigationState
@@ -60,13 +62,13 @@ fun NavigationSettings() {
         importing = true
         scope.launch {
             val message = try {
-                "Route imported: " + RouteImports.importUri(context, uri).summary()
+                context.getString(R.string.route_imported, routeSummary(context, RouteImports.importUri(context, uri)))
             } catch (e: RouteImportException) {
-                e.message ?: "Could not import the route."
+                e.message ?: context.getString(R.string.route_import_failed)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                "Could not import the route: ${e.message ?: e.javaClass.simpleName}"
+                context.getString(R.string.route_import_failed_reason, e.message ?: e.javaClass.simpleName)
             } finally {
                 importing = false
             }
@@ -76,61 +78,51 @@ fun NavigationSettings() {
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            "Let the guide follow your navigation app live (notification access, below), or share a route " +
-                "with Travel Guide, and the stories follow it instead of guessing the way ahead.",
+            stringResource(R.string.nav_intro),
             style = MaterialTheme.typography.bodyMedium,
         )
         val small = MaterialTheme.typography.bodySmall
-        Text(
-            "• Google Maps: plan directions, then Share. Google offers no route data, so the route is " +
-                "recomputed with OpenStreetMap and may differ slightly.",
-            style = small,
-        )
-        Text("• Komoot: share a tour link. Private tours: export the tour as GPX and share that file.", style = small)
-        Text("• Garmin Connect / Explore: export the course as GPX (or FIT) and share or import the file.", style = small)
-        Text("• Any other app (OsmAnd, …): share or import a GPX file.", style = small)
+        Text(stringResource(R.string.nav_google), style = small)
+        Text(stringResource(R.string.nav_komoot), style = small)
+        Text(stringResource(R.string.nav_garmin), style = small)
+        Text(stringResource(R.string.nav_other), style = small)
 
         Text(
-            route?.let { "Current route: " + it.summary() } ?: "No route: the guide guesses the way ahead from your movement.",
+            route?.let { stringResource(R.string.nav_current_route, routeSummary(it)) } ?: stringResource(R.string.nav_no_route),
             style = MaterialTheme.typography.bodyMedium,
         )
         route?.note?.let { Text(it, style = small, color = MaterialTheme.colorScheme.onSurfaceVariant) }
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(enabled = !importing, onClick = { openDocument.launch(arrayOf("*/*")) }) {
-                Text(if (importing) "Importing…" else "Import GPX file")
+                Text(stringResource(if (importing) R.string.nav_importing else R.string.nav_import_gpx))
             }
             if (route != null) {
-                OutlinedButton(onClick = { scope.launch { RouteRepository.clear(context) } }) { Text("Clear route") }
+                OutlinedButton(onClick = { scope.launch { RouteRepository.clear(context) } }) { Text(stringResource(R.string.nav_clear_route)) }
             }
         }
 
-        Text("Navigation notifications (optional)", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.nav_notifications), style = MaterialTheme.typography.titleMedium)
         Text(
-            "With notification access, the guide follows Google Maps, Komoot, Garmin, OsmAnd or Waze live: " +
-                "it reads the next instruction (\"in 300 m turn left onto …\") and follows the road through " +
-                "that turn, without sharing anything. It only looks at those apps' notifications and never " +
-                "stores or sends them anywhere. Notifications only tell the next turn, so a shared route " +
-                "still looks further ahead.",
+            stringResource(R.string.nav_notifications_help),
             style = small,
         )
         Text(
-            if (listenerEnabled) "Notification access: allowed" else "Notification access: not allowed",
+            stringResource(if (listenerEnabled) R.string.nav_access_allowed else R.string.nav_access_denied),
             style = MaterialTheme.typography.bodyMedium,
         )
-        navigation?.let { Text("Now: ${it.label()}", style = small) }
+        navigation?.let { Text(stringResource(R.string.nav_now, navigationLabel(context, it)), style = small) }
         OutlinedButton(onClick = {
             try {
                 context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))
             } catch (e: ActivityNotFoundException) {
-                Toast.makeText(context, "Notification access settings are not available on this device.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.nav_settings_unavailable), Toast.LENGTH_LONG).show()
             }
         }) {
-            Text(if (listenerEnabled) "Change notification access" else "Enable navigation notifications")
+            Text(stringResource(if (listenerEnabled) R.string.nav_change_access else R.string.nav_enable))
         }
         if (!listenerEnabled) {
             Text(
-                "If the switch is greyed out (Android 13+ for apps installed from an APK): open App info for " +
-                    "Travel Guide, tap ⋮ → Allow restricted settings, then try again.",
+                stringResource(R.string.nav_restricted_help),
                 style = small,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )

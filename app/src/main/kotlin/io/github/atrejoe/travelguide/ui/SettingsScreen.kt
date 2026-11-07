@@ -1,5 +1,6 @@
 package io.github.atrejoe.travelguide.ui
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -44,18 +45,22 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.CrashReporting
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.nav.RouteRepository
+import io.github.atrejoe.travelguide.settings.AppLanguage
 import io.github.atrejoe.travelguide.settings.AppSettings
-import io.github.atrejoe.travelguide.voice.NeuralVoice
 import io.github.atrejoe.travelguide.voice.Narrators
+import io.github.atrejoe.travelguide.voice.NeuralVoice
 import io.github.atrejoe.travelguide.voice.PreviewNarrator
 import io.github.atrejoe.travelguide.voice.SystemVoice
 import io.github.atrejoe.travelguide.voice.SystemVoices
@@ -112,11 +117,15 @@ private val SAMPLES = mapOf(
 private const val PRELOAD_DELAY_MILLIS = 700L
 
 /** How fast a voice renders on this phone, measured during the preview. */
-private fun speedInfo(label: String, factor: Double): String {
-    val seconds = String.format(Locale.ROOT, "%.1f", factor)
-    val verdict = if (factor > 1.1) "too slow for this phone, so expect pauses between sentences" else "fast enough"
-    return "$label renders 1 second of speech in $seconds s: $verdict."
+private fun speedInfo(context: Context, label: String, factor: Double): String {
+    val seconds = String.format(Locale.getDefault(), "%.1f", factor)
+    return context.getString(if (factor > 1.1) R.string.speed_slow else R.string.speed_fast, label, seconds)
 }
+
+/** The name of a language in the language of the screen, as written within a sentence ("néerlandais"). */
+@Composable
+private fun languageName(code: String): String =
+    Locale.forLanguageTag(code).getDisplayLanguage(LocalConfiguration.current.locales[0])
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,13 +155,20 @@ fun SettingsScreen(onBack: () -> Unit) {
 
     fun select(voiceId: String) = scope.launch { repo.update { it.copy(voiceId = voiceId) } }
 
-    /** Stories in another language need a voice that speaks it. */
-    fun selectLanguage(lang: String) = scope.launch {
+    /** Stories in another language need a voice that speaks it; null follows the phone (issue #92). */
+    fun selectLanguage(chosen: String?) = scope.launch {
+        val lang = chosen ?: AppLanguage.phoneLanguage(context)
         repo.update { s ->
             // ElevenLabs voices speak every story language (issue #75).
             val keep = VoiceCatalog.neural(s.voiceId)?.lang == lang || VoiceCatalog.elevenLabsVoice(s.voiceId) != null
-            s.copy(language = lang, voiceId = if (keep) s.voiceId else VoiceCatalog.defaultVoiceId(lang))
+            s.copy(language = lang, followPhoneLanguage = chosen == null, voiceId = if (keep) s.voiceId else VoiceCatalog.defaultVoiceId(lang))
         }
+    }
+
+    /** The app's screens in another language: they are built anew (issue #92). */
+    fun selectAppLanguage(chosen: String?) {
+        AppLanguage.choose(context, chosen.orEmpty())
+        context.findActivity()?.recreate()
     }
 
     fun download(pkg: VoicePackage, then: NeuralVoice) = scope.launch {
@@ -160,7 +176,7 @@ fun SettingsScreen(onBack: () -> Unit) {
             models.download(pkg)
             select(then.voiceId)
         } catch (e: Exception) {
-            Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, context.getString(R.string.download_failed, e.message.orEmpty()), Toast.LENGTH_LONG).show()
         }
     }
 
@@ -169,7 +185,6 @@ fun SettingsScreen(onBack: () -> Unit) {
     val piper = voices.filter { it.pkg.engine == VoiceEngine.PIPER }
     // One Kokoro package per language: English, or the multilingual one (issue #73).
     val kokoroPkg = kokoro.firstOrNull()?.pkg
-    val language = StoryLanguages.of(settings.language)
 
     // Which sections are open, and which kind of narrator shows its voices (issue #80).
     var open by rememberSaveable { mutableStateOf(setOf<String>()) }
@@ -193,19 +208,24 @@ fun SettingsScreen(onBack: () -> Unit) {
     }
 
     val voiceSummary = when (activeKind) {
-        NarratorKind.NATURAL, NarratorKind.LITE -> VoiceCatalog.neural(settings.voiceId)?.let { "${it.name}, on this phone" }
+        NarratorKind.NATURAL, NarratorKind.LITE -> VoiceCatalog.neural(settings.voiceId)?.let { stringResource(R.string.voice_on_phone, it.name) }
         NarratorKind.SYSTEM -> VoiceCatalog.systemVoiceName(settings.voiceId)?.takeIf { it.isNotEmpty() }
-            ?.let { name -> systemVoices.firstOrNull { it.name == name }?.label ?: name } ?: "The phone's own voice"
-        NarratorKind.ELEVENLABS -> "${settings.elevenLabsVoiceName.ifBlank { "A voice" }}, ElevenLabs"
+            ?.let { name -> systemVoices.firstOrNull { it.name == name }?.label ?: name } ?: stringResource(R.string.voice_phone_own)
+        NarratorKind.ELEVENLABS -> stringResource(
+            R.string.voice_elevenlabs,
+            settings.elevenLabsVoiceName.ifBlank { stringResource(R.string.voice_elevenlabs_unnamed) },
+        )
     }
+    val storyLanguageName = languageName(settings.language)
+    val appLanguageCode = AppLanguage.chosen(context).ifEmpty { AppLanguage.phoneLanguage(context) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -219,24 +239,44 @@ fun SettingsScreen(onBack: () -> Unit) {
             item { CrashNotice() }
 
             item {
-                SettingsSection("Language", language.nativeName, "language" in open, { toggle("language") }) {
-                    Text(
-                        "Stories come from the Wikipedia in this language and are told by a voice that speaks it. " +
-                            "The app's own screens stay in English.",
-                        style = MaterialTheme.typography.bodySmall,
+                SettingsSection(
+                    stringResource(R.string.section_language),
+                    stringResource(
+                        R.string.language_summary,
+                        StoryLanguages.of(settings.language).nativeName,
+                        StoryLanguages.of(appLanguageCode).nativeName,
+                    ),
+                    "language" in open,
+                    { toggle("language") },
+                ) {
+                    Text(stringResource(R.string.language_stories), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.language_stories_help), style = MaterialTheme.typography.bodySmall)
+                    LanguagePicker(
+                        selected = settings.language.takeUnless { settings.followPhoneLanguage },
+                        phone = AppLanguage.phoneLanguage(context),
+                        onSelect = ::selectLanguage,
                     )
-                    LanguagePicker(settings.language, ::selectLanguage)
+                    Text(stringResource(R.string.language_app), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.language_app_help), style = MaterialTheme.typography.bodySmall)
+                    LanguagePicker(
+                        selected = AppLanguage.chosen(context).ifEmpty { null },
+                        phone = AppLanguage.phoneLanguage(context),
+                        onSelect = ::selectAppLanguage,
+                    )
+                    Text(
+                        stringResource(R.string.language_phone_help),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
 
             item {
-                SettingsSection("Narrator", voiceSummary, "narrator" in open, { toggle("narrator") }) {
+                SettingsSection(stringResource(R.string.section_narrator), voiceSummary, "narrator" in open, { toggle("narrator") }) {
                     if (kokoroPkg != null) {
                         OptionRow(
-                            "Natural voices, on this phone",
-                            "Kokoro. The most lifelike of the free voices, and they work offline. One " +
-                                "${kokoroPkg.approxSizeMb} MB download for all of them. A slower phone may pause " +
-                                "between sentences while it renders.",
+                            stringResource(R.string.narrator_natural),
+                            stringResource(R.string.narrator_natural_help, kokoroPkg.approxSizeMb),
                             selected = shownKind == NarratorKind.NATURAL,
                             onSelect = { chooseKind(NarratorKind.NATURAL) },
                         ) {
@@ -256,10 +296,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
                     if (piper.isNotEmpty()) {
                         OptionRow(
-                            if (kokoroPkg != null) "Lite voices, on this phone" else "Voices on this phone",
-                            "Piper. Free and offline, small downloads (${piper.minOf { it.pkg.approxSizeMb }} to " +
-                                "${piper.maxOf { it.pkg.approxSizeMb }} MB each) and fast on any phone, but they " +
-                                "sound less natural.",
+                            stringResource(if (kokoroPkg != null) R.string.narrator_lite else R.string.narrator_lite_only),
+                            stringResource(R.string.narrator_lite_help, piper.minOf { it.pkg.approxSizeMb }, piper.maxOf { it.pkg.approxSizeMb }),
                             selected = shownKind == NarratorKind.LITE,
                             onSelect = { chooseKind(NarratorKind.LITE) },
                         ) {
@@ -277,13 +315,12 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                     OptionRow(
-                        "The phone's own voice",
-                        "Android's text-to-speech: nothing to download, and offline once the phone has the " +
-                            "${language.name} voice data. How it sounds depends on the phone; often robotic.",
+                        stringResource(R.string.narrator_system),
+                        stringResource(R.string.narrator_system_help, storyLanguageName),
                         selected = shownKind == NarratorKind.SYSTEM,
                         onSelect = { chooseKind(NarratorKind.SYSTEM) },
                     ) {
-                        (listOf(SystemVoice("", "Default system voice")) + systemVoices).forEach { voice ->
+                        (listOf(SystemVoice("", stringResource(R.string.narrator_system_default))) + systemVoices).forEach { voice ->
                             val id = VoiceCatalog.SYSTEM_PREFIX + voice.name
                             Row(
                                 Modifier.fillMaxWidth().selectable(selected = settings.voiceId == id, onClick = { select(id) }, role = Role.RadioButton),
@@ -295,10 +332,8 @@ fun SettingsScreen(onBack: () -> Unit) {
                         }
                     }
                     OptionRow(
-                        "ElevenLabs, with your own key",
-                        "Studio quality, and one voice speaks every story language. ElevenLabs charges credits per " +
-                            "character, about 600 to 1,000 a story; a story heard again is free. Needs a connection, " +
-                            "and the stories' text is sent to ElevenLabs. Without a connection an on-device voice reads on.",
+                        stringResource(R.string.narrator_elevenlabs),
+                        stringResource(R.string.narrator_elevenlabs_help),
                         selected = shownKind == NarratorKind.ELEVENLABS,
                         onSelect = { chooseKind(NarratorKind.ELEVENLABS) },
                     ) {
@@ -306,10 +341,10 @@ fun SettingsScreen(onBack: () -> Unit) {
                     }
 
                     HorizontalDivider()
-                    VoiceSlider("Speaking rate", settings.rate, 0.7f..1.2f) { value ->
+                    VoiceSlider(stringResource(R.string.speaking_rate), settings.rate, 0.7f..1.2f) { value ->
                         scope.launch { repo.update { it.copy(rate = value) } }
                     }
-                    VoiceSlider("Pitch (1.00 sounds most natural)", settings.pitch, 0.8f..1.2f) { value ->
+                    VoiceSlider(stringResource(R.string.pitch), settings.pitch, 0.8f..1.2f) { value ->
                         scope.launch { repo.update { it.copy(pitch = value) } }
                     }
                     Button(
@@ -321,11 +356,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 playing.cancel()
                                 previewJob = null
                             } else {
-                                previewInfo = "Loading voice…"
+                                previewInfo = context.getString(R.string.loading_voice)
                                 previewJob = scope.launch {
                                     try {
                                         val choice = preview.get(settings)
-                                        previewInfo = choice.warning ?: "Speaking with ${choice.narrator.label}"
+                                        previewInfo = choice.warning ?: context.getString(R.string.speaking_with, choice.narrator.label)
                                         val sample = SAMPLES[settings.language] ?: SAMPLES.getValue("en")
                                         val pieces = Narrators.pieces(choice.narrator, sample)
                                         choice.narrator.prepare(pieces.map { it.text })
@@ -334,7 +369,7 @@ fun SettingsScreen(onBack: () -> Unit) {
                                         }
                                         choice.narrator.drain()
                                         choice.narrator.realTimeFactor?.let { factor ->
-                                            previewInfo = speedInfo(choice.narrator.label, factor)
+                                            previewInfo = speedInfo(context, choice.narrator.label, factor)
                                         }
                                     } finally {
                                         // Unless a newer preview has started meanwhile.
@@ -343,23 +378,21 @@ fun SettingsScreen(onBack: () -> Unit) {
                                 }
                             }
                         },
-                    ) { Text(if (previewJob != null) "Stop preview" else "Preview voice") }
+                    ) { Text(stringResource(if (previewJob != null) R.string.preview_stop else R.string.preview_voice)) }
                     previewInfo?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
                 }
             }
 
             item {
-                SettingsSection("Stories", storytellerLabel(settings.storyteller), "stories" in open, { toggle("stories") }) {
+                SettingsSection(stringResource(R.string.section_stories), storytellerLabel(settings.storyteller), "stories" in open, { toggle("stories") }) {
                     SwitchRow(
-                        "Buildings and institutions while walking",
-                        "On foot, also tell about the town you enter and the town hall, churches, museums and " +
-                            "listed buildings you pass, from OpenStreetMap and Wikidata.",
+                        stringResource(R.string.walking_places),
+                        stringResource(R.string.walking_places_help),
                         settings.walkingPlaces,
                     ) { on -> scope.launch { repo.update { it.copy(walkingPlaces = on) } } }
                     SwitchRow(
-                        "Translate places without a ${language.name} article",
-                        "Also tell about places only the Wikipedia of the country you're in, or the English one, " +
-                            "knows, translated on the phone. The first time per language this downloads about 30 MB.",
+                        stringResource(R.string.translate_places, storyLanguageName),
+                        stringResource(R.string.translate_places_help),
                         settings.translatePlaces,
                     ) { on -> scope.launch { repo.update { it.copy(translatePlaces = on) } } }
                     HorizontalDivider()
@@ -371,11 +404,11 @@ fun SettingsScreen(onBack: () -> Unit) {
                 val remembered by context.app.storyHistory.count.collectAsStateWithLifecycle()
                 val retention = HistoryRetention.byName(settings.historyRetention)
                 SettingsSection(
-                    "Story history",
+                    stringResource(R.string.section_history),
                     when (retention) {
-                        HistoryRetention.TRIP -> "Only during the trip"
-                        HistoryRetention.ALWAYS -> "$remembered remembered"
-                        else -> "$remembered remembered, for ${retentionLabel(retention).lowercase()}"
+                        HistoryRetention.TRIP -> stringResource(R.string.history_trip_only)
+                        HistoryRetention.ALWAYS -> stringResource(R.string.history_count, remembered)
+                        else -> stringResource(R.string.history_count_for, remembered, retentionLabel(retention))
                     },
                     "history" in open,
                     { toggle("history") },
@@ -385,8 +418,8 @@ fun SettingsScreen(onBack: () -> Unit) {
             item {
                 val route by RouteRepository.route.collectAsStateWithLifecycle()
                 SettingsSection(
-                    "Navigation",
-                    route?.let { "Following " + it.summary() } ?: "Guessing the way ahead",
+                    stringResource(R.string.section_navigation),
+                    route?.let { stringResource(R.string.navigation_following, routeSummary(it)) } ?: stringResource(R.string.navigation_guessing),
                     "navigation" in open,
                     { toggle("navigation") },
                 ) { NavigationSettings() }
@@ -394,15 +427,14 @@ fun SettingsScreen(onBack: () -> Unit) {
 
             if (CrashReporting.available) item {
                 val enabled by CrashReporting.enabled.collectAsStateWithLifecycle()
-                SettingsSection("Crash reports", if (enabled) "Sent" else "Not sent", "crashes" in open, { toggle("crashes") }) {
+                SettingsSection(stringResource(R.string.section_crashes), stringResource(if (enabled) R.string.crashes_sent else R.string.crashes_not_sent), "crashes" in open, { toggle("crashes") }) {
                     CrashReportSettings()
                 }
             }
 
             item {
                 Text(
-                    "Stories come from Wikipedia (CC BY-SA 4.0), and for buildings from OpenStreetMap (ODbL) and Wikidata (CC0). Map © OpenStreetMap contributors (ODbL). Roads, railways and buildings: Overpass API. Routing: OSRM (routing.openstreetmap.de, FOSSGIS) and Nominatim. Voices: Kokoro (Apache 2.0) and Piper models run " +
-                        "with sherpa-onnx (Apache 2.0). No AI service is used while guiding, unless you choose Gemini Nano or Claude as the storyteller, or an ElevenLabs voice.",
+                    stringResource(R.string.credits),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -446,13 +478,21 @@ private fun SwitchRow(title: String, description: String, checked: Boolean, onCh
     }
 }
 
-/** The story languages (issue #68), each in its own name. */
+/**
+ * The languages (issue #68), each in its own name, after the phone's: [selected] null follows the
+ * phone (issue #92), whose language is [phone].
+ */
 @Composable
-private fun LanguagePicker(selected: String, onSelect: (String) -> Unit) {
+private fun LanguagePicker(selected: String?, phone: String, onSelect: (String?) -> Unit) {
     Row(
         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        FilterChip(
+            selected = selected == null,
+            onClick = { onSelect(null) },
+            label = { Text(stringResource(R.string.language_phone, StoryLanguages.of(phone).nativeName)) },
+        )
         StoryLanguages.all.forEach { language ->
             FilterChip(
                 selected = language.code == selected,
@@ -472,7 +512,7 @@ private fun VoiceRow(voice: NeuralVoice, selected: Boolean, enabled: Boolean, on
         RadioButton(selected = selected, onClick = null, enabled = enabled)
         Column(Modifier.weight(1f).padding(start = 8.dp)) {
             Text(voice.name, style = MaterialTheme.typography.titleMedium)
-            Text(voice.description, style = MaterialTheme.typography.bodySmall)
+            Text(voiceDescription(voice), style = MaterialTheme.typography.bodySmall)
         }
     }
 }
@@ -487,15 +527,18 @@ private fun PackageActions(
 ) {
     when {
         progress != null -> {
-            Text(if (progress < 0f) "Unpacking…" else "Downloading… ${(progress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
+            Text(
+                if (progress < 0f) stringResource(R.string.unpacking) else stringResource(R.string.downloading, (progress * 100).toInt()),
+                style = MaterialTheme.typography.bodySmall,
+            )
             if (progress < 0f) {
                 LinearProgressIndicator(Modifier.fillMaxWidth())
             } else {
                 LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
             }
         }
-        installed -> TextButton(onClick = onRemove) { Text("Remove download") }
-        else -> OutlinedButton(onClick = onDownload) { Text("Download · ${pkg.approxSizeMb} MB") }
+        installed -> TextButton(onClick = onRemove) { Text(stringResource(R.string.remove_download)) }
+        else -> OutlinedButton(onClick = onDownload) { Text(stringResource(R.string.download_size, pkg.approxSizeMb)) }
     }
 }
 
@@ -503,7 +546,7 @@ private fun PackageActions(
 private fun VoiceSlider(label: String, value: Float, range: ClosedFloatingPointRange<Float>, onChange: (Float) -> Unit) {
     var current by remember(value) { mutableFloatStateOf(value) }
     Column {
-        Text("$label: ${String.format(Locale.ROOT, "%.2f", current)}", style = MaterialTheme.typography.bodyMedium)
+        Text("$label: ${String.format(Locale.getDefault(), "%.2f", current)}", style = MaterialTheme.typography.bodyMedium)
         Slider(
             value = current,
             onValueChange = { current = it },
@@ -527,10 +570,9 @@ private fun CrashReportSettings() {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f)) {
-            Text("Send crash reports", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.crash_reports_send), style = MaterialTheme.typography.bodyLarge)
             Text(
-                "When the app crashes, send a report to the developer through Sentry: the error, the app and " +
-                    "Android version and the phone model. Never your location, places or stories.",
+                stringResource(R.string.crash_reports_help),
                 style = MaterialTheme.typography.bodySmall,
             )
         }

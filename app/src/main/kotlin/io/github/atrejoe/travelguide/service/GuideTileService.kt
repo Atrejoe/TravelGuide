@@ -9,10 +9,17 @@ import android.os.Build
 import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 import io.github.atrejoe.travelguide.GuideStatus
+import io.github.atrejoe.travelguide.R
+import io.github.atrejoe.travelguide.settings.AppLanguage
 import io.github.atrejoe.travelguide.ui.MainActivity
 
 /** Quick Settings tile: pause or resume the guide from the system shade. */
 class GuideTileService : TileService() {
+    // Screens and notifications in the app's language (issue #92).
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
+
 
     override fun onStartListening() {
         super.onStartListening()
@@ -35,9 +42,9 @@ class GuideTileService : TileService() {
         tile.state = if (state.running && !state.paused) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             tile.subtitle = when {
-                !state.running -> "Off"
-                state.paused -> "Paused"
-                else -> "Guiding"
+                !state.running -> getString(R.string.tile_off)
+                state.paused -> getString(R.string.tile_paused)
+                else -> getString(R.string.tile_guiding)
             }
         }
         tile.updateTile()

@@ -7,6 +7,14 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- The app speaks your language ([#92](../../issues/92)): its screens, notification and tile are
+  translated into Dutch, German, French, Spanish, Italian and Portuguese. Settings → Language picks
+  the app language and the story language separately; both follow the phone by default: the
+  phone's (or Android's per-app) language, else another language set up on the phone, such as a
+  keyboard language, else English. Route-import errors and crash diagnostics stay in English.
+
 ## [0.7.0] - 2026-11-01
 
 ### Added

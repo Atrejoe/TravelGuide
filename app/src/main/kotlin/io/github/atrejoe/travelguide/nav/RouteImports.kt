@@ -10,6 +10,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.github.atrejoe.travelguide.GuideStatus
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.geo.GeoPoint
 import io.github.atrejoe.travelguide.core.nav.ImportedRoute
@@ -43,9 +44,9 @@ object RouteImports {
             val bytes = try {
                 read(context, uri)
             } catch (e: IOException) {
-                throw RouteImportException(RouteImportException.Reason.UNSUPPORTED, "Could not open the file.", e)
+                throw RouteImportException(RouteImportException.Reason.UNSUPPORTED, context.getString(R.string.import_cannot_open), e)
             } catch (e: SecurityException) {
-                throw RouteImportException(RouteImportException.Reason.UNSUPPORTED, "Travel Guide may not read this file.", e)
+                throw RouteImportException(RouteImportException.Reason.UNSUPPORTED, context.getString(R.string.import_not_allowed), e)
             }
             importer.importFile(bytes, displayName(context, uri))
         }
@@ -63,7 +64,7 @@ object RouteImports {
                 if (n < 0) break
                 out.write(buffer, 0, n)
                 if (out.size() > MAX_FILE_BYTES) {
-                    throw RouteImportException(RouteImportException.Reason.UNSUPPORTED, "This file is too large for a route.")
+                    throw RouteImportException(RouteImportException.Reason.UNSUPPORTED, context.getString(R.string.import_too_large))
                 }
             }
             out.toByteArray()

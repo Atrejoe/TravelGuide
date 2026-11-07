@@ -28,11 +28,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.mlkit.genai.common.DownloadStatus
 import io.github.atrejoe.travelguide.app
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.settings.AppSettings
 import io.github.atrejoe.travelguide.settings.Storyteller
@@ -70,9 +72,9 @@ fun StorytellerSettings(settings: AppSettings) {
         try {
             NanoStoryEnhancer.download().collect { status ->
                 nanoProgress = when (status) {
-                    is DownloadStatus.DownloadStarted -> "Downloading Gemini Nano…"
-                    is DownloadStatus.DownloadProgress -> "Downloading Gemini Nano: ${status.totalBytesDownloaded / 1_000_000} MB"
-                    is DownloadStatus.DownloadFailed -> "Download failed: ${status.e.message}"
+                    is DownloadStatus.DownloadStarted -> context.getString(R.string.nano_downloading)
+                    is DownloadStatus.DownloadProgress -> context.getString(R.string.nano_downloading_mb, (status.totalBytesDownloaded / 1_000_000).toInt())
+                    is DownloadStatus.DownloadFailed -> context.getString(R.string.download_failed, status.e.message.orEmpty())
                     is DownloadStatus.DownloadCompleted -> null
                     else -> nanoProgress
                 }
@@ -80,56 +82,51 @@ fun StorytellerSettings(settings: AppSettings) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            nanoProgress = "Download failed: ${e.message}"
+            nanoProgress = context.getString(R.string.download_failed, e.message.orEmpty())
         }
         nano = NanoStoryEnhancer.status()
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Storyteller", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.storyteller), style = MaterialTheme.typography.titleMedium)
         OptionRow(
             storytellerLabel(Storyteller.BUILT_IN),
-            "Tells passages of the Wikipedia article as they are written. Free, instant and works everywhere, but " +
-                "it can't retell: a story is only as well told as the article.",
+            stringResource(R.string.storyteller_builtin_help),
             settings.storyteller == Storyteller.BUILT_IN,
             { choose(Storyteller.BUILT_IN) },
         )
         OptionRow(
             storytellerLabel(Storyteller.GEMINI_NANO),
-            "Retells each story on the phone itself, through Android AICore. Free and private, but only on some " +
-                "recent phones (e.g. Pixel 9 and later), and plainer than Claude.",
+            stringResource(R.string.storyteller_nano_help),
             settings.storyteller == Storyteller.GEMINI_NANO,
             { choose(Storyteller.GEMINI_NANO) },
         ) {
             val status = nanoProgress ?: when (nano) {
-                null -> "Checking whether this phone has Gemini Nano…"
-                NanoStoryEnhancer.Availability.AVAILABLE -> "Gemini Nano is ready."
-                NanoStoryEnhancer.Availability.DOWNLOADABLE -> "Gemini Nano needs to be downloaded first."
-                NanoStoryEnhancer.Availability.DOWNLOADING -> "Gemini Nano is being downloaded."
-                NanoStoryEnhancer.Availability.UNAVAILABLE -> "This phone doesn't offer Gemini Nano: you'll hear the built-in stories."
+                null -> stringResource(R.string.nano_checking)
+                NanoStoryEnhancer.Availability.AVAILABLE -> stringResource(R.string.nano_ready)
+                NanoStoryEnhancer.Availability.DOWNLOADABLE -> stringResource(R.string.nano_downloadable)
+                NanoStoryEnhancer.Availability.DOWNLOADING -> stringResource(R.string.nano_downloading_state)
+                NanoStoryEnhancer.Availability.UNAVAILABLE -> stringResource(R.string.nano_unavailable)
             }
             Text(status, style = MaterialTheme.typography.bodyMedium)
             if (nano == NanoStoryEnhancer.Availability.DOWNLOADABLE && nanoProgress == null) {
-                Button(onClick = { downloadNano() }) { Text("Download Gemini Nano") }
+                Button(onClick = { downloadNano() }) { Text(stringResource(R.string.nano_download)) }
             }
         }
         OptionRow(
             storytellerLabel(Storyteller.ON_DEVICE),
-            "Retells each story with a small open model that the app runs itself. Free and private on any recent " +
-                "phone, but it needs a download of about 1 GB, is slow on mid-range phones and less accurate. Experimental.",
+            stringResource(R.string.storyteller_open_help),
             settings.storyteller == Storyteller.ON_DEVICE,
             { choose(Storyteller.ON_DEVICE) },
         ) { OnDeviceSettings(settings) }
         OptionRow(
             storytellerLabel(Storyteller.CLAUDE),
-            "Retells each story the way a good guide would: the best told stories. Needs your own Anthropic API " +
-                "key and a connection. Anthropic bills you per story, a place is paid for only once, and a monthly " +
-                "budget caps the cost.",
+            stringResource(R.string.storyteller_claude_help),
             settings.storyteller == Storyteller.CLAUDE,
             { choose(Storyteller.CLAUDE) },
         ) { ClaudeSettings(settings, spent) }
         Text(
-            "When a story can't be retold, you hear the built-in one.",
+            stringResource(R.string.storyteller_fallback),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -137,12 +134,15 @@ fun StorytellerSettings(settings: AppSettings) {
 }
 
 /** What the storyteller is called in the settings. */
-fun storytellerLabel(storyteller: Storyteller): String = when (storyteller) {
-    Storyteller.BUILT_IN -> "Built-in"
-    Storyteller.GEMINI_NANO -> "Gemini Nano, on this phone"
-    Storyteller.ON_DEVICE -> "Open model, on this phone"
-    Storyteller.CLAUDE -> "Claude, with your own key"
-}
+@Composable
+fun storytellerLabel(storyteller: Storyteller): String = stringResource(
+    when (storyteller) {
+        Storyteller.BUILT_IN -> R.string.storyteller_builtin
+        Storyteller.GEMINI_NANO -> R.string.storyteller_nano
+        Storyteller.ON_DEVICE -> R.string.storyteller_open
+        Storyteller.CLAUDE -> R.string.storyteller_claude
+    },
+)
 
 /** Claude's settings: the key, the model and the monthly budget. */
 @Composable
@@ -156,14 +156,14 @@ private fun ClaudeSettings(settings: AppSettings, spent: Double) {
 
     if (hasKey) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("API key stored, encrypted on this phone.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-            OutlinedButton(onClick = { keys.set(null) }) { Text("Remove key") }
+            Text(stringResource(R.string.key_stored), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            OutlinedButton(onClick = { keys.set(null) }) { Text(stringResource(R.string.key_remove)) }
         }
     } else {
         OutlinedTextField(
             value = keyInput,
             onValueChange = { keyInput = it },
-            label = { Text("Anthropic API key") },
+            label = { Text(stringResource(R.string.key_anthropic)) },
             placeholder = { Text("sk-ant-…") },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
@@ -176,15 +176,15 @@ private fun ClaudeSettings(settings: AppSettings, spent: Double) {
                 keyInput = ""
             },
             enabled = keyInput.isNotBlank(),
-        ) { Text("Save key") }
+        ) { Text(stringResource(R.string.key_save)) }
         Text(
-            "Create a key at console.anthropic.com. It is only sent to the Anthropic API.",
+            stringResource(R.string.key_anthropic_help),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 
-    Text("Model", style = MaterialTheme.typography.titleSmall)
+    Text(stringResource(R.string.model), style = MaterialTheme.typography.titleSmall)
     ClaudeModel.entries.forEach { model ->
         val selected = model.id == settings.claudeModel
         Row(
@@ -198,14 +198,14 @@ private fun ClaudeSettings(settings: AppSettings, spent: Double) {
             RadioButton(selected = selected, onClick = null)
             Column(Modifier.weight(1f).padding(start = 8.dp)) {
                 Text(model.label, style = MaterialTheme.typography.bodyLarge)
-                Text("About ${dollars(perStory(model))} per new place", style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.claude_per_place, dollars(perStory(model))), style = MaterialTheme.typography.bodySmall)
             }
         }
     }
 
     var budget by remember(settings.monthlyBudgetUsd) { mutableFloatStateOf(settings.monthlyBudgetUsd) }
     Text(
-        "Monthly budget: ${dollars(budget.toDouble())} · spent this month: ${dollars(spent)}",
+        stringResource(R.string.claude_budget, dollars(budget.toDouble()), dollars(spent)),
         style = MaterialTheme.typography.bodyMedium,
     )
     Slider(
@@ -221,8 +221,9 @@ private fun ClaudeSettings(settings: AppSettings, spent: Double) {
 private fun perStory(model: ClaudeModel): Double =
     (1_500 * model.inputUsdPerMTok + 600 * model.outputUsdPerMTok) / 1_000_000
 
+@Composable
 private fun dollars(usd: Double): String = when {
     usd == 0.0 -> "$0"
-    usd < 0.01 -> "less than $0.01"
+    usd < 0.01 -> stringResource(R.string.less_than_cent)
     else -> String.format(Locale.ROOT, "$%.2f", usd)
 }
