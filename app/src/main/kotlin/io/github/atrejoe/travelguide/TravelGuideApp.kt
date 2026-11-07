@@ -72,6 +72,7 @@ private suspend fun TravelGuideApp.restoreHistory() {
             timeMillis = s.timeMillis,
             places = listOfNotNull(s.point?.let { MapPlace(s.title, it) }),
             sentences = s.sentences,
+            toldBy = s.toldBy.ifEmpty { null },
         )
     }
     GuideStatus.update { state -> if (state.history.isEmpty()) state.copy(history = earlier) else state }

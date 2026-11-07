@@ -7,6 +7,18 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- How a story came about is shown with it ([#90](../../issues/90)): retold by Claude, Gemini Nano
+  or the open model, or by the built-in storyteller, and why when a retelling fell through (the
+  budget spent, the retelling failed). The guide screen also says who tells the stories.
+
+### Changed
+
+- The guide speaks as soon as it starts ([#90](../../issues/90)): it greets you at once, before
+  it knows where you are, and when the chosen voice takes longer than a moment to load, the
+  phone's own voice says hello meanwhile.
+
 ## [0.7.0] - 2026-11-01
 
 ### Added
