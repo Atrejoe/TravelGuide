@@ -330,16 +330,24 @@ jobs:
         run: ./gradlew :app:assembleDebug
 
       - name: Car screenshots
+        id: car
         continue-on-error: true
         timeout-minutes: 20
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 34
-          target: android-automotive
+          # The automotive images are listed in a newer SDK repository format than the runner's
+          # command-line tools read.
+          cmdline-tools-version: 19.0
+          api-level: 33
+          target: android-automotive-playstore
           arch: x86_64
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: scripts/car-screenshots.sh app/build/outputs/apk/debug docs/screenshots
+
+      - name: Report missing car screenshots
+        if: steps.car.outcome == 'failure'
+        run: echo "::warning title=Car screenshots::The car emulator failed; see the Car screenshots step. The phone screenshots are unaffected."
 
       - name: Upload screenshots
         if: always()
