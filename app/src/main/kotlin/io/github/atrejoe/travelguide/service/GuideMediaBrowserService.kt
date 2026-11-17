@@ -1,5 +1,6 @@
 package io.github.atrejoe.travelguide.service
 
+import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -10,6 +11,7 @@ import android.support.v4.media.MediaDescriptionCompat
 import androidx.media.MediaBrowserServiceCompat
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.R
+import io.github.atrejoe.travelguide.settings.AppLanguage
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.combine
@@ -27,6 +29,11 @@ import kotlinx.coroutines.launch
  */
 class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     private val scope = MainScope()
+
+    // The car's list in the app's language (issue #92).
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
 
     override fun onCreate() {
         super.onCreate()

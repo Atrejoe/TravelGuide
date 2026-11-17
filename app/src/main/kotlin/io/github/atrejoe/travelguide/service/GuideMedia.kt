@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.GuideUiState
 import io.github.atrejoe.travelguide.R
+import io.github.atrejoe.travelguide.settings.AppLanguage
 import io.github.atrejoe.travelguide.settings.CarNavigationStories
 import io.github.atrejoe.travelguide.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
@@ -87,7 +88,9 @@ object GuideMedia {
         }
     }
 
-    private fun publish(context: Context, session: MediaSessionCompat, shown: Shown) {
+    private fun publish(app: Context, session: MediaSessionCompat, shown: Shown) {
+        // In the app's language (issue #92), which the application context doesn't follow.
+        val context = AppLanguage.wrap(app)
         val state = when {
             !shown.running -> PlaybackStateCompat.STATE_STOPPED
             shown.paused -> PlaybackStateCompat.STATE_PAUSED
@@ -162,7 +165,7 @@ object GuideMedia {
             PackageManager.PERMISSION_GRANTED
         if (!located) {
             // Permissions are asked on the phone, never on the car screen.
-            GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
+            GuideStatus.update { it.copy(message = AppLanguage.wrap(context).getString(R.string.auto_open_on_phone)) }
             return false
         }
         return try {
@@ -171,7 +174,7 @@ object GuideMedia {
         } catch (e: IllegalStateException) {
             // Android may refuse to start a foreground service from the background.
             Log.w(TAG, "Cannot start the guide", e)
-            GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
+            GuideStatus.update { it.copy(message = AppLanguage.wrap(context).getString(R.string.auto_open_on_phone)) }
             false
         }
     }

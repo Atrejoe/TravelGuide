@@ -369,7 +369,7 @@
     <string name="auto_offer_never_short">Never</string>
     <string name="auto_offer_never_subtitle">No stories are offered when you navigate in the car</string>
     <string name="car_stories_title">Stories in the car (Android Auto)</string>
-    <string name="car_stories_help">When a navigation app guides you while Android Auto is connected, the guide can tell you about the places along the way. It notices navigation through the navigation notifications below. Your answer in the car is remembered here.</string>
+    <string name="car_stories_help">When a navigation app guides you while Android Auto is connected, the guide can tell you about the places along the way. It notices navigation through the navigation notifications above. Your answer in the car is remembered here.</string>
     <string name="car_stories_ask">Ask</string>
     <string name="car_stories_ask_help">Travel Guide in Android Auto offers stories once per trip; press play to hear them.</string>
     <string name="car_stories_always">Always</string>
