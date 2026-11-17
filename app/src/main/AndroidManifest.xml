@@ -17,6 +17,10 @@
         <intent>
             <action android:name="android.intent.action.TTS_SERVICE" />
         </intent>
+        <!-- Android Auto hosts, checked before they may browse the story list (issue #94). -->
+        <package android:name="com.google.android.projection.gearhead" />
+        <package android:name="com.android.car.media" />
+        <package android:name="com.google.android.carassistant" />
     </queries>
 
     <application
@@ -31,6 +35,14 @@
         <!-- Sentry only starts when the listener opts in (CrashReporting). -->
         <meta-data android:name="io.sentry.auto-init" android:value="false" />
 
+        <!-- Android Auto: a media app, with the notification icon in the car's status bar. -->
+        <meta-data
+            android:name="com.google.android.gms.car.application"
+            android:resource="@xml/automotive_app_desc" />
+        <meta-data
+            android:name="com.google.android.gms.car.notification.SmallIcon"
+            android:resource="@drawable/ic_notification" />
+
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
@@ -38,6 +50,11 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- "Hey Google, play Travel Guide", on the phone or in the car (issue #94). -->
+            <intent-filter>
+                <action android:name="android.media.action.MEDIA_PLAY_FROM_SEARCH" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
 
@@ -80,6 +97,15 @@
             android:name=".service.GuideService"
             android:exported="false"
             android:foregroundServiceType="location|mediaPlayback" />
+
+        <!-- Android Auto shows the guide as a media app (issue #94). -->
+        <service
+            android:name=".service.GuideMediaBrowserService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.media.browse.MediaBrowserService" />
+            </intent-filter>
+        </service>
 
         <service
             android:name=".service.GuideTileService"

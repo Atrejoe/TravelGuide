@@ -30,11 +30,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.R
+import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.nav.RouteImportException
 import io.github.atrejoe.travelguide.nav.NavigationListenerService
 import io.github.atrejoe.travelguide.nav.NavigationState
 import io.github.atrejoe.travelguide.nav.RouteImports
 import io.github.atrejoe.travelguide.nav.RouteRepository
+import io.github.atrejoe.travelguide.settings.AppSettings
+import io.github.atrejoe.travelguide.settings.CarNavigationStories
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
@@ -129,5 +132,32 @@ fun NavigationSettings() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        CarStoriesSetting()
+    }
+}
+
+/** Whether to offer stories while navigating in Android Auto (issue #94); also answered in the car. */
+@Composable
+private fun CarStoriesSetting() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val repo = context.app.settings
+    val settings by repo.settings.collectAsStateWithLifecycle(initialValue = AppSettings())
+    fun choose(choice: CarNavigationStories) = scope.launch { repo.update { it.copy(carNavigationStories = choice) } }
+
+    Text(stringResource(R.string.car_stories_title), style = MaterialTheme.typography.titleMedium)
+    Text(stringResource(R.string.car_stories_help), style = MaterialTheme.typography.bodySmall)
+    listOf(
+        Triple(CarNavigationStories.ASK, R.string.car_stories_ask, R.string.car_stories_ask_help),
+        Triple(CarNavigationStories.ALWAYS, R.string.car_stories_always, R.string.car_stories_always_help),
+        Triple(CarNavigationStories.NEVER, R.string.car_stories_never, R.string.car_stories_never_help),
+    ).forEach { (choice, title, help) ->
+        OptionRow(
+            title = stringResource(title),
+            description = stringResource(help),
+            selected = settings.carNavigationStories == choice,
+            onSelect = { choose(choice) },
+        )
     }
 }

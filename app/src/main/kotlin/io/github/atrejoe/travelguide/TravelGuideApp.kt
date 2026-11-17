@@ -4,6 +4,7 @@ import android.app.Application
 import io.github.atrejoe.travelguide.core.guide.HistoryRetention
 import io.github.atrejoe.travelguide.core.voice.SpeechCache
 import io.github.atrejoe.travelguide.nav.RouteRepository
+import io.github.atrejoe.travelguide.service.CarStoryOffer
 import io.github.atrejoe.travelguide.settings.ApiKeyStore
 import io.github.atrejoe.travelguide.settings.FileStoryHistory
 import io.github.atrejoe.travelguide.settings.FileStoryStore
@@ -53,6 +54,8 @@ class TravelGuideApp : Application() {
         storyHistory = FileStoryHistory(this)
         localModels = LocalModelManager(this)
         GlobalScope.launch { settings.migrate() }
+        // Offer stories while navigating in Android Auto (issue #94).
+        CarStoryOffer.start(this)
         GlobalScope.launch { RouteRepository.load(this@TravelGuideApp) }
         GlobalScope.launch(Dispatchers.IO) { restoreHistory() }
     }
