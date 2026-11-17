@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-17
+
 ### Added
 
 - How a story came about is shown with it ([#90](../../issues/90)): retold by Claude, Gemini Nano
@@ -31,6 +33,20 @@ All notable changes to this project are documented here. The format follows
 - The guide speaks as soon as it starts ([#90](../../issues/90)): it greets you at once, before
   it knows where you are, and when the chosen voice takes longer than a moment to load, the
   phone's own voice says hello meanwhile.
+- New dependency: the Android for Cars App Library (`androidx.car.app`) 1.4.0, only to know when
+  Android Auto is connected.
+
+### Known issues
+
+- In Android Auto, the offer to tell stories while navigating only shows in Travel Guide's player
+  and list: while another app plays music, it stays out of sight. Starting by itself ("Always")
+  may be refused by Android; the car then offers it instead.
+- Route-import errors and crash diagnostics are in English only, and how an earlier story was
+  told stays in the language it was told in.
+- While driving, the guide asks Wikipedia for at most 20 places within 10 km, so where articles
+  are dense an interesting event further away can be missed.
+- The open model may still be too slow on a mid-range phone to retell a story in the 20 seconds it
+  gets; you then hear the built-in story ([#54](../../issues/54)).
 
 ## [0.7.0] - 2026-11-01
 
