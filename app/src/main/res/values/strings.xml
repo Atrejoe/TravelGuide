@@ -350,4 +350,13 @@
     <string name="told_over_budget">Built-in storyteller: the monthly budget for %1$s is spent</string>
     <string name="told_failed">Built-in storyteller: %1$s couldn\'t retell it</string>
     <string name="told_skipped">Built-in storyteller: too little to retell</string>
+    <!-- Android Auto (issue #94) -->
+    <string name="auto_start">Start the guide</string>
+    <string name="auto_start_subtitle">Stories about the places you pass</string>
+    <string name="auto_play_again">Play again</string>
+    <string name="auto_press_play">Press play to start the guide</string>
+    <string name="auto_listening">Listening to the road ahead</string>
+    <string name="auto_paused">Paused</string>
+    <string name="auto_paused_because">Paused · %1$s</string>
+    <string name="auto_open_on_phone">Open Travel Guide on your phone once to allow location, then start it here.</string>
 </resources>

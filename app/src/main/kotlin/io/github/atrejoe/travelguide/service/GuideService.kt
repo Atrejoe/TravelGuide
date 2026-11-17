@@ -9,9 +9,7 @@ import android.location.LocationListener
 import android.location.LocationManager
 import android.os.Build
 import android.os.Looper
-import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
-import android.support.v4.media.session.PlaybackStateCompat
 import android.util.Log
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.app.ServiceCompat
@@ -98,7 +96,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
 
     private lateinit var engine: GuideEngine
-    private lateinit var session: MediaSessionCompat
+    /** Shared with Android Auto, which can start the guide while it is off (issue #94). */
+    private val session: MediaSessionCompat get() = GuideMedia.session(this)
     private lateinit var focus: AudioFocus
     private var narrator: Narrator? = null
     /** Why the narrator isn't the voice picked, when it isn't. */
@@ -199,13 +198,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         engine.translator = translator
         focus = AudioFocus(this, this)
         GuideNotification.createChannel(this)
-        session = MediaSessionCompat(this, "TravelGuide").apply {
-            setCallback(object : MediaSessionCompat.Callback() {
-                override fun onPlay() = setUserPaused(false)
-                override fun onPause() = setUserPaused(true)
-                override fun onStop() = stopGuide()
-            })
-        }
+        // The car follows the guide through this session; create it before anything is told.
+        GuideMedia.session(this)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -217,7 +211,11 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             return START_NOT_STICKY
         }
         when (action) {
-            ACTION_START -> startGuide()
+            ACTION_START -> {
+                startGuide()
+                // Started from the car to hear a story again (issue #94).
+                intent.getLongExtra(EXTRA_STORY, 0L).takeIf { it > 0 && guideJob != null }?.let { requestReplay(it) }
+            }
             ACTION_PAUSE -> setUserPaused(true)
             ACTION_RESUME -> setUserPaused(false)
             ACTION_TOGGLE -> setUserPaused(!userPaused)
@@ -245,8 +243,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             return
         }
 
-        session.isActive = true
-        updateSession()
         startLocationUpdates()
         guideJob = lifecycleScope.launch {
             launch { watchSettings() }
@@ -289,7 +285,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         replayRequest = null
         focus.abandon()
         stopLocationUpdates()
-        session.isActive = false
         engine.reset()
         GuideStatus.update {
             it.copy(
@@ -305,7 +300,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     override fun onDestroy() {
         if (guideJob != null) stopGuide()
-        session.release()
         translator.close()
         super.onDestroy()
     }
@@ -562,14 +556,12 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         )
         GuideStatus.update { it.copy(current = item, speaking = true, waiting = null, history = (listOf(item) + it.history).take(GuideStatus.HISTORY_SIZE)) }
         remember(narration, item.timeMillis, toldBy)
-        updateSession()
         abortStory = false
         try {
             speakStory(item)
         } finally {
             focus.abandon()
             GuideStatus.update { it.copy(speaking = false) }
-            updateSession()
             warnIfVoiceTooSlow()
         }
     }
@@ -708,7 +700,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         val current = GuideStatus.state.value
         if (current.paused != paused || current.pauseReason != reason) {
             GuideStatus.update { it.copy(paused = paused, pauseReason = reason) }
-            updateSession()
         }
         return paused
     }
@@ -781,26 +772,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         }
     }
 
-    private fun updateSession() {
-        val state = GuideStatus.state.value
-        val playback = if (state.paused) PlaybackStateCompat.STATE_PAUSED else PlaybackStateCompat.STATE_PLAYING
-        session.setPlaybackState(
-            PlaybackStateCompat.Builder()
-                .setActions(
-                    PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PAUSE or
-                        PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_STOP,
-                )
-                .setState(playback, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, 1f)
-                .build(),
-        )
-        session.setMetadata(
-            MediaMetadataCompat.Builder()
-                .putString(MediaMetadataCompat.METADATA_KEY_TITLE, state.current?.title ?: "Travel Guide")
-                .putString(MediaMetadataCompat.METADATA_KEY_ARTIST, "Travel Guide")
-                .build(),
-        )
-    }
-
     @SuppressLint("MissingPermission") // Without the permission the notification is simply not shown.
     private fun refreshNotification() {
         if (guideJob == null) return
@@ -839,11 +810,11 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         const val ACTION_REPLAY = "io.github.atrejoe.travelguide.REPLAY"
         const val EXTRA_STORY = "story"
 
-        fun start(context: Context) {
-            ContextCompat.startForegroundService(
-                context,
-                Intent(context, GuideService::class.java).setAction(ACTION_START),
-            )
+        /** Starts the guide, and plays the story told at [replayStory] again first when given. */
+        fun start(context: Context, replayStory: Long? = null) {
+            val intent = Intent(context, GuideService::class.java).setAction(ACTION_START)
+            replayStory?.let { intent.putExtra(EXTRA_STORY, it) }
+            ContextCompat.startForegroundService(context, intent)
         }
 
         fun send(context: Context, action: String) {

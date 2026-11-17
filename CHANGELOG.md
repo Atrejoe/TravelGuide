@@ -17,6 +17,10 @@ All notable changes to this project are documented here. The format follows
   the app language and the story language separately; both follow the phone by default: the
   phone's (or Android's per-app) language, else another language set up on the phone, such as a
   keyboard language, else English. Route-import errors and crash diagnostics stay in English.
+- Android Auto ([#94](../../issues/94)): the guide shows up as a media app in the car. Start,
+  pause, resume and stop it from the car screen or the steering wheel, see which story is being
+  told, and pick one of the recent stories to hear it again. The first time, open the app on the
+  phone to allow location. Only Android Auto and the system may list the stories you heard.
 
 ### Changed
 
