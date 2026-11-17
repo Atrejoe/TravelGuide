@@ -159,6 +159,18 @@ class NeuralNarrator(
         return stream.write(audio.samples, audio.sampleRate)
     }
 
+    override suspend fun render(text: String): RenderedSpeech? {
+        if (released) return null
+        val audio = try {
+            synthesize(text).await()
+        } catch (t: Throwable) {
+            coroutineContext.ensureActive()
+            Log.w(TAG, "Rendering failed", t)
+            return null
+        }
+        return audio.takeIf { it.samples.isNotEmpty() }?.let { RenderedSpeech(it.samples, it.sampleRate) }
+    }
+
     override suspend fun silence(millis: Long) {
         if (!stopped && !released) stream.silence(millis)
     }

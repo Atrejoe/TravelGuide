@@ -56,6 +56,12 @@ interface Narrator {
     /** A pause of [millis] between sentences, timed with what is still to be heard. */
     suspend fun silence(millis: Long) = delay(millis)
 
+    /**
+     * Renders [text] without speaking it, to keep and play later without this voice, e.g. the
+     * greeting for the next start ([GreetingCache]). Null when this voice can't, or failed.
+     */
+    suspend fun render(text: String): RenderedSpeech? = null
+
     /** Suspends until everything spoken has been heard; call it when a story ends. */
     suspend fun drain() = Unit
 
