@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Screenshots of Travel Guide in a car (issue #94), on an Android Automotive emulator: its media
+# center shows the guide the way Android Auto and cars with Android built in do, from the same
+# media service. The Android workflow runs this inside android-emulator-runner.
+#
+# Usage: scripts/car-screenshots.sh <dir with the debug APK> <output dir>
+set -euo pipefail
+
+apk=$(ls "$1"/*.apk | head -n 1)
+out=$2
+pkg=io.github.atrejoe.travelguide
+work=$(mktemp -d)
+trap 'rm -rf "$work"' EXIT
+mkdir -p "$out"
+
+shot() {
+  adb exec-out screencap -p > "$out/$1.png"
+  echo "Captured $out/$1.png"
+}
+
+# Taps the on-screen element showing exactly this text, as a driver would.
+tap_text() {
+  adb shell uiautomator dump /sdcard/ui.xml > /dev/null
+  adb pull /sdcard/ui.xml "$work/ui.xml" > /dev/null
+  local bounds
+  bounds=$(grep -o "text=\"$1\"[^>]*bounds=\"[^\"]*\"" "$work/ui.xml" | head -n 1 | sed 's/.*bounds="\([^"]*\)"/\1/')
+  if [ -z "$bounds" ]; then
+    echo "::warning::'$1' is not on the car screen."
+    return 1
+  fi
+  local x1 y1 x2 y2
+  read -r x1 y1 x2 y2 < <(echo "$bounds" | tr -c '0-9' ' ')
+  adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
+}
+
+# -g grants location and notifications, as the phone app would ask for them.
+adb install -r -g "$apk"
+# The Grote Markt in Haarlem, where the phone screenshots walk.
+adb emu geo fix 4.6368 52.3812
+
+# Travel Guide opened from the car's app launcher: its list.
+adb shell am start -a android.car.intent.action.MEDIA_TEMPLATE \
+  --es android.car.intent.extra.MEDIA_COMPONENT "$pkg/.service.GuideMediaBrowserService"
+sleep 10
+shot car-browse
+
+# "Start the guide": it greets, then tells about the places around.
+if tap_text "Start the guide"; then
+  sleep 60
+  shot car-playing
+fi
