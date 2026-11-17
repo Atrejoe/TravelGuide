@@ -249,7 +249,14 @@ jobs:
             found { print }
           ' CHANGELOG.md > "$RUNNER_TEMP/release-notes.md"
           if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            echo "Release $GITHUB_REF_NAME already exists; keeping its notes."
+            # A release made in GitHub's interface with generated notes gets the CHANGELOG section
+            # instead; notes written by hand are kept.
+            if gh release view "$GITHUB_REF_NAME" --json body -q .body | grep -q '^\*\*Full Changelog\*\*' &&
+              grep -q '[^[:space:]]' "$RUNNER_TEMP/release-notes.md"; then
+              gh release edit "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"
+            else
+              echo "Release $GITHUB_REF_NAME already exists; keeping its notes."
+            fi
           elif grep -q '[^[:space:]]' "$RUNNER_TEMP/release-notes.md"; then
             gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes-file "$RUNNER_TEMP/release-notes.md"
           else
