@@ -55,7 +55,21 @@ data class AppSettings(
     val elevenLabsVoiceName: String = "",
     /** How long told stories are remembered (issue #84), a [HistoryRetention] name. */
     val historyRetention: String = HistoryRetention.DEFAULT.name,
+    /** Whether to offer stories while navigating in Android Auto (issue #94). */
+    val carNavigationStories: CarNavigationStories = CarNavigationStories.ASK,
 )
+
+/** Stories while a navigation app guides you in Android Auto (issue #94). */
+enum class CarNavigationStories {
+    /** The car offers to tell stories, once per trip. */
+    ASK,
+
+    /** The guide starts by itself. */
+    ALWAYS,
+
+    /** Nothing is offered. */
+    NEVER,
+}
 
 /** Who tells the stories. The other two retell the built-in story, and fall back to it. */
 enum class Storyteller {
@@ -90,6 +104,7 @@ class SettingsRepository(private val context: Context) {
         val elevenLabsModel = stringPreferencesKey("elevenlabs_model")
         val elevenLabsVoiceName = stringPreferencesKey("elevenlabs_voice_name")
         val historyRetention = stringPreferencesKey("history_retention")
+        val carNavigationStories = stringPreferencesKey("car_navigation_stories")
         val version = intPreferencesKey("version")
     }
 
@@ -132,6 +147,7 @@ class SettingsRepository(private val context: Context) {
             p[Keys.elevenLabsModel] = next.elevenLabsModel
             p[Keys.elevenLabsVoiceName] = next.elevenLabsVoiceName
             p[Keys.historyRetention] = next.historyRetention
+            p[Keys.carNavigationStories] = next.carNavigationStories.name
         }
     }
 
@@ -162,6 +178,8 @@ class SettingsRepository(private val context: Context) {
             elevenLabsModel = p[Keys.elevenLabsModel] ?: defaults.elevenLabsModel,
             elevenLabsVoiceName = p[Keys.elevenLabsVoiceName] ?: defaults.elevenLabsVoiceName,
             historyRetention = p[Keys.historyRetention] ?: defaults.historyRetention,
+            carNavigationStories = p[Keys.carNavigationStories]
+                ?.let { name -> CarNavigationStories.entries.firstOrNull { it.name == name } } ?: defaults.carNavigationStories,
         )
     }
 }

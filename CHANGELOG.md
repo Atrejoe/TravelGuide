@@ -21,6 +21,10 @@ All notable changes to this project are documented here. The format follows
   pause, resume and stop it from the car screen or the steering wheel, see which story is being
   told, and pick one of the recent stories to hear it again. The first time, open the app on the
   phone to allow location. Only Android Auto and the system may list the stories you heard.
+  While a navigation app guides you in the car and the guide is off, Travel Guide offers to tell
+  about the places along the route, once per trip: press play, or answer "Always" or "Never" to
+  have it remembered (Settings → Navigation → Stories in the car). Navigation is noticed through
+  the navigation notifications, so that access is needed.
 
 ### Changed
 

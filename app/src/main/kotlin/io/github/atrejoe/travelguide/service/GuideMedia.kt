@@ -14,12 +14,13 @@ import androidx.core.content.ContextCompat
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.GuideUiState
 import io.github.atrejoe.travelguide.R
+import io.github.atrejoe.travelguide.settings.CarNavigationStories
 import io.github.atrejoe.travelguide.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -34,6 +35,11 @@ object GuideMedia {
 
     /** The browsable item that starts the guide. */
     const val ID_START = "start"
+
+    /** Answers to the offer of stories while navigating (issue #94), as items and player buttons. */
+    const val ID_ALWAYS = "offer:always"
+    const val ID_NEVER = "offer:never"
+    private const val ACTION_NOT_NOW = "offer:not_now"
     private const val STORY_PREFIX = "story:"
 
     fun storyId(timeMillis: Long) = "$STORY_PREFIX$timeMillis"
@@ -56,8 +62,7 @@ object GuideMedia {
         }
         session = created
         CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
-            GuideStatus.state
-                .map { Shown.of(it) }
+            combine(GuideStatus.state, CarStoryOffer.offered) { state, offered -> Shown.of(state, offered) }
                 .distinctUntilChanged()
                 .collect { publish(app, created, it) }
         }
@@ -73,9 +78,12 @@ object GuideMedia {
         val title: String?,
         val message: String?,
         val activity: String?,
+        /** Offering stories while navigating in the car (issue #94). */
+        val offer: Boolean,
     ) {
         companion object {
-            fun of(s: GuideUiState) = Shown(s.running, s.paused, s.pauseReason, s.speaking, s.current?.title, s.message, s.activity)
+            fun of(s: GuideUiState, offered: Boolean) =
+                Shown(s.running, s.paused, s.pauseReason, s.speaking, s.current?.title, s.message, s.activity, offered && !s.running)
         }
     }
 
@@ -93,15 +101,25 @@ object GuideMedia {
         val playback = PlaybackStateCompat.Builder()
             .setActions(actions)
             .setState(state, PlaybackStateCompat.PLAYBACK_POSITION_UNKNOWN, if (state == PlaybackStateCompat.STATE_PLAYING) 1f else 0f)
-        // Why the guide did not start, e.g. no location permission yet: the car shows it.
-        if (!shown.running && shown.message != null) {
+        if (shown.offer) {
+            // "Play" says yes; these answer the offer and remember it.
+            playback.addCustomAction(customAction(context, ID_ALWAYS, R.string.auto_offer_always_short, R.drawable.ic_always))
+            playback.addCustomAction(customAction(context, ACTION_NOT_NOW, R.string.auto_offer_not_now, R.drawable.ic_close))
+            playback.addCustomAction(customAction(context, ID_NEVER, R.string.auto_offer_never_short, R.drawable.ic_never))
+        } else if (!shown.running && shown.message != null) {
+            // Why the guide did not start, e.g. no location permission yet: the car shows it.
             playback.setErrorMessage(PlaybackStateCompat.ERROR_CODE_APP_ERROR, shown.message)
         }
         session.setPlaybackState(playback.build())
 
         val appName = context.getString(R.string.app_name)
-        val title = if (shown.speaking && shown.title != null) shown.title else appName
+        val title = when {
+            shown.offer -> context.getString(R.string.auto_offer_title)
+            shown.speaking && shown.title != null -> shown.title
+            else -> appName
+        }
         val subtitle = when {
+            shown.offer -> context.getString(R.string.auto_offer_subtitle)
             !shown.running -> shown.message ?: context.getString(R.string.auto_press_play)
             shown.paused -> shown.pauseReason?.let { context.getString(R.string.auto_paused_because, it) } ?: context.getString(R.string.auto_paused)
             shown.speaking -> appName
@@ -115,8 +133,11 @@ object GuideMedia {
                 .putString(MediaMetadataCompat.METADATA_KEY_DISPLAY_SUBTITLE, subtitle)
                 .build(),
         )
-        session.isActive = shown.running
+        session.isActive = shown.running || shown.offer
     }
+
+    private fun customAction(context: Context, action: String, name: Int, icon: Int) =
+        PlaybackStateCompat.CustomAction.Builder(action, context.getString(name), icon).build()
 
     private val running get() = GuideStatus.state.value.running
 
@@ -125,12 +146,16 @@ object GuideMedia {
      * request such as "Hey Google, play Travel Guide". There is one guide to play, so any search
      * query plays it.
      */
-    fun play(context: Context) {
-        if (running) send(context, GuideService.ACTION_RESUME) else start(context, null)
-    }
+    fun play(context: Context): Boolean =
+        if (running) {
+            send(context, GuideService.ACTION_RESUME)
+            true
+        } else {
+            start(context, null)
+        }
 
-    /** Starts the guide, and plays [story] again first when given. */
-    private fun start(context: Context, story: Long?) {
+    /** Starts the guide, and plays [story] again first when given. False when it can't start. */
+    private fun start(context: Context, story: Long?): Boolean {
         val located = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
             PackageManager.PERMISSION_GRANTED ||
             ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
@@ -138,14 +163,16 @@ object GuideMedia {
         if (!located) {
             // Permissions are asked on the phone, never on the car screen.
             GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
-            return
+            return false
         }
-        try {
+        return try {
             GuideService.start(context, story)
+            true
         } catch (e: IllegalStateException) {
             // Android may refuse to start a foreground service from the background.
             Log.w(TAG, "Cannot start the guide", e)
             GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
+            false
         }
     }
 
@@ -159,9 +186,21 @@ object GuideMedia {
 
     /** Play, pause and stop from the car, a headset or the lock screen. */
     private class Commands(private val context: Context) : MediaSessionCompat.Callback() {
-        override fun onPlay() = play(context)
+        override fun onPlay() {
+            play(context)
+        }
 
-        override fun onPlayFromSearch(query: String?, extras: Bundle?) = play(context)
+        override fun onPlayFromSearch(query: String?, extras: Bundle?) {
+            play(context)
+        }
+
+        override fun onCustomAction(action: String?, extras: Bundle?) {
+            when (action) {
+                ID_ALWAYS -> CarStoryOffer.answer(CarNavigationStories.ALWAYS)
+                ID_NEVER -> CarStoryOffer.answer(CarNavigationStories.NEVER)
+                ACTION_NOT_NOW -> CarStoryOffer.dismiss()
+            }
+        }
 
         override fun onPause() {
             if (running) send(context, GuideService.ACTION_PAUSE)
@@ -174,6 +213,7 @@ object GuideMedia {
         override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {
             val story = mediaId?.takeIf { it.startsWith(STORY_PREFIX) }?.removePrefix(STORY_PREFIX)?.toLongOrNull()
             when {
+                mediaId == ID_ALWAYS || mediaId == ID_NEVER -> onCustomAction(mediaId, extras)
                 story == null -> onPlay()
                 running -> GuideService.replay(context, story)
                 else -> start(context, story)

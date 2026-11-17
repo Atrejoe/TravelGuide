@@ -12,6 +12,7 @@ import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.R
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.map
@@ -33,6 +34,7 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
         scope.launch {
             GuideStatus.state
                 .map { s -> s.running to s.history.take(MAX_STORIES).map { it.timeMillis } }
+                .combine(CarStoryOffer.offered) { listed, offered -> listed to offered }
                 .distinctUntilChanged()
                 .drop(1)
                 .collect { notifyChildrenChanged(ROOT) }
@@ -60,7 +62,12 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
         }
         val state = GuideStatus.state.value
         val items = mutableListOf<MediaItem>()
-        if (!state.running) {
+        if (!state.running && CarStoryOffer.offered.value) {
+            // Navigating in the car: offer stories along the route, and to remember the answer (issue #94).
+            items += playable(GuideMedia.ID_START, getString(R.string.auto_offer_title), getString(R.string.auto_offer_subtitle))
+            items += playable(GuideMedia.ID_ALWAYS, getString(R.string.auto_offer_always), getString(R.string.auto_offer_always_subtitle))
+            items += playable(GuideMedia.ID_NEVER, getString(R.string.auto_offer_never), getString(R.string.auto_offer_never_subtitle))
+        } else if (!state.running) {
             items += playable(GuideMedia.ID_START, getString(R.string.auto_start), getString(R.string.auto_start_subtitle))
         }
         state.history.take(MAX_STORIES).forEach { story ->

@@ -359,4 +359,21 @@
     <string name="auto_paused">Paused</string>
     <string name="auto_paused_because">Paused · %1$s</string>
     <string name="auto_open_on_phone">Open Travel Guide on your phone once to allow location, then start it here.</string>
+    <string name="auto_offer_title">Hear about the places along your route?</string>
+    <string name="auto_offer_subtitle">Press play for stories while you navigate</string>
+    <string name="auto_offer_always">Always, when navigating</string>
+    <string name="auto_offer_always_short">Always</string>
+    <string name="auto_offer_always_subtitle">Stories start by themselves when you navigate in the car</string>
+    <string name="auto_offer_not_now">Not now</string>
+    <string name="auto_offer_never">Never offer this</string>
+    <string name="auto_offer_never_short">Never</string>
+    <string name="auto_offer_never_subtitle">No stories are offered when you navigate in the car</string>
+    <string name="car_stories_title">Stories in the car (Android Auto)</string>
+    <string name="car_stories_help">When a navigation app guides you while Android Auto is connected, the guide can tell you about the places along the way. It notices navigation through the navigation notifications below. Your answer in the car is remembered here.</string>
+    <string name="car_stories_ask">Ask</string>
+    <string name="car_stories_ask_help">Travel Guide in Android Auto offers stories once per trip; press play to hear them.</string>
+    <string name="car_stories_always">Always</string>
+    <string name="car_stories_always_help">The guide starts by itself when you navigate. If Android doesn\'t allow that, the car offers it instead.</string>
+    <string name="car_stories_never">Never</string>
+    <string name="car_stories_never_help">Nothing is offered; start the guide yourself when you like.</string>
 </resources>
