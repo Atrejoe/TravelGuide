@@ -1,5 +1,6 @@
 package io.github.atrejoe.travelguide.ui
 
+import android.content.Context
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -25,11 +26,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.lang.StoryLanguages
 import io.github.atrejoe.travelguide.core.voice.CloudUsage
@@ -56,6 +61,7 @@ import java.time.format.FormatStyle
 @Composable
 fun ElevenLabsSettings(settings: AppSettings) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val repo = context.app.settings
     val keys = context.app.elevenLabsKeys
@@ -66,6 +72,8 @@ fun ElevenLabsSettings(settings: AppSettings) {
     var problem by remember { mutableStateOf<String?>(null) }
     var reload by remember { mutableIntStateOf(0) }
     val language = StoryLanguages.of(settings.language)
+    val languageDisplayName = java.util.Locale.forLanguageTag(language.code)
+        .getDisplayLanguage(LocalConfiguration.current.locales[0])
 
     LaunchedEffect(hasKey, reload) {
         voices = null
@@ -85,9 +93,9 @@ fun ElevenLabsSettings(settings: AppSettings) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: ElevenLabsException) {
-            problem = "ElevenLabs refused: ${e.message}"
+            problem = resources.getString(R.string.elevenlabs_refused, e.message.orEmpty())
         } catch (e: Exception) {
-            problem = "Couldn't reach ElevenLabs: ${e.message ?: e.javaClass.simpleName}"
+            problem = resources.getString(R.string.elevenlabs_unreachable, e.message ?: e.javaClass.simpleName)
         }
     }
 
@@ -98,7 +106,7 @@ fun ElevenLabsSettings(settings: AppSettings) {
             OutlinedTextField(
                 value = keyInput,
                 onValueChange = { keyInput = it },
-                label = { Text("ElevenLabs API key") },
+                label = { Text(stringResource(R.string.key_elevenlabs)) },
                 placeholder = { Text("sk_…") },
                 singleLine = true,
                 visualTransformation = PasswordVisualTransformation(),
@@ -111,10 +119,9 @@ fun ElevenLabsSettings(settings: AppSettings) {
                     keyInput = ""
                 },
                 enabled = keyInput.isNotBlank(),
-            ) { Text("Save key") }
+            ) { Text(stringResource(R.string.key_save)) }
             Text(
-                "Create a key at elevenlabs.io, under Developers → API keys, with access to Text to Speech and " +
-                    "Voices, and to User to see your credits here. It is only sent to the ElevenLabs API.",
+                stringResource(R.string.key_elevenlabs_help),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -122,7 +129,7 @@ fun ElevenLabsSettings(settings: AppSettings) {
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("API key stored, encrypted on this phone.", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.key_stored), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             OutlinedButton(
                 onClick = {
                     keys.set(null)
@@ -131,29 +138,29 @@ fun ElevenLabsSettings(settings: AppSettings) {
                         if (VoiceCatalog.elevenLabsVoice(s.voiceId) == null) s else s.copy(voiceId = VoiceCatalog.defaultVoiceId(s.language))
                     }
                 },
-            ) { Text("Remove key") }
+            ) { Text(stringResource(R.string.key_remove)) }
         }
-        usage?.let { Text(credits(it, ElevenLabsModel.byId(settings.elevenLabsModel)), style = MaterialTheme.typography.bodyMedium) }
+        usage?.let { Text(credits(context, it, ElevenLabsModel.byId(settings.elevenLabsModel)), style = MaterialTheme.typography.bodyMedium) }
         problem?.let {
             Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-            TextButton(onClick = { reload++ }) { Text("Try again") }
+            TextButton(onClick = { reload++ }) { Text(stringResource(R.string.try_again)) }
         }
 
-        Text("Model", style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.model), style = MaterialTheme.typography.titleSmall)
         ElevenLabsModel.entries.forEach { model ->
-            ChoiceRow(model.label, model.description, selected = model.id == settings.elevenLabsModel) {
+            ChoiceRow(model.label, stringResource(if (model == ElevenLabsModel.FLASH) R.string.elevenlabs_flash else R.string.elevenlabs_multilingual), selected = model.id == settings.elevenLabsModel) {
                 update { it.copy(elevenLabsModel = model.id) }
             }
         }
 
-        Text("Voice", style = MaterialTheme.typography.titleSmall)
+        Text(stringResource(R.string.voice), style = MaterialTheme.typography.titleSmall)
         val list = voices
         when {
-            list == null && problem == null -> Text("Loading your voices…", style = MaterialTheme.typography.bodySmall)
-            list != null && list.isEmpty() -> Text("Your account has no voices yet; add some at elevenlabs.io.", style = MaterialTheme.typography.bodySmall)
+            list == null && problem == null -> Text(stringResource(R.string.elevenlabs_loading_voices), style = MaterialTheme.typography.bodySmall)
+            list != null && list.isEmpty() -> Text(stringResource(R.string.elevenlabs_no_voices), style = MaterialTheme.typography.bodySmall)
             list != null -> list.sortedByDescending { language.code in it.languages }.forEach { voice ->
                 val id = VoiceCatalog.ELEVENLABS_PREFIX + voice.id
-                val verified = if (language.code in voice.languages) "Verified in ${language.name}" else null
+                val verified = if (language.code in voice.languages) stringResource(R.string.elevenlabs_verified, languageDisplayName) else null
                 ChoiceRow(voice.name, listOfNotNull(voice.description.ifBlank { null }, verified).joinToString(" · "), selected = settings.voiceId == id) {
                     update { it.copy(voiceId = id, elevenLabsVoiceName = voice.name) }
                 }
@@ -179,10 +186,14 @@ private fun ChoiceRow(title: String, description: String, selected: Boolean, onS
 /** A typical story is about [STORY_CHARS] characters. */
 private const val STORY_CHARS = 800
 
-private fun credits(usage: CloudUsage, model: ElevenLabsModel): String {
+private fun credits(context: Context, usage: CloudUsage, model: ElevenLabsModel): String {
     val number = NumberFormat.getIntegerInstance()
     val reset = usage.resetsAtUnix?.let {
-        " Renews " + DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(Instant.ofEpochSecond(it).atZone(ZoneId.systemDefault())) + "."
+        " " + context.getString(
+            R.string.elevenlabs_renews,
+            DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(Instant.ofEpochSecond(it).atZone(ZoneId.systemDefault())),
+        )
     }.orEmpty()
-    return "Credits: ${number.format(usage.left)} left of ${number.format(usage.limit)}, about ${number.format((usage.left / (STORY_CHARS * model.creditsPerChar)).toLong())} stories with ${model.label}.$reset"
+    val stories = number.format((usage.left / (STORY_CHARS * model.creditsPerChar)).toLong())
+    return context.getString(R.string.elevenlabs_credits, number.format(usage.left), number.format(usage.limit), stories, model.label) + reset
 }

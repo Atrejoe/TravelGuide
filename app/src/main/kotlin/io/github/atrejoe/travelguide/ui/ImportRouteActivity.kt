@@ -1,6 +1,7 @@
 package io.github.atrejoe.travelguide.ui
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -25,8 +26,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -34,13 +35,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.content.IntentCompat
+import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.core.nav.RouteImportException
 import io.github.atrejoe.travelguide.nav.RouteImports
 import io.github.atrejoe.travelguide.service.GuideService
+import io.github.atrejoe.travelguide.settings.AppLanguage
 import kotlinx.coroutines.CancellationException
 
 /**
@@ -48,6 +53,11 @@ import kotlinx.coroutines.CancellationException
  * and GPX/FIT files (e.g. Garmin or Komoot exports). Imports the route and confirms it.
  */
 class ImportRouteActivity : ComponentActivity() {
+    // Screens and notifications in the app's language (issue #92).
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
+
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -107,9 +117,10 @@ internal sealed interface ImportRequest {
 @Composable
 private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onStartGuide: () -> Unit) {
     val context = LocalContext.current
+    val resources = LocalResources.current
     var summary by rememberSaveable { mutableStateOf<String?>(null) }
     var note by rememberSaveable { mutableStateOf<String?>(null) }
-    var error by rememberSaveable { mutableStateOf(if (request == null) "Nothing to import was shared." else null) }
+    var error by rememberSaveable { mutableStateOf(if (request == null) resources.getString(R.string.import_nothing) else null) }
 
     LaunchedEffect(request) {
         if (request == null || summary != null || error != null) return@LaunchedEffect
@@ -118,7 +129,7 @@ private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onSt
                 is ImportRequest.Text -> RouteImports.importText(context, request.text)
                 is ImportRequest.File -> RouteImports.importUri(context, request.uri)
             }
-            summary = route.summary()
+            summary = routeSummary(context, route)
             note = route.note
         } catch (e: CancellationException) {
             throw e
@@ -126,7 +137,7 @@ private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onSt
             error = e.message
         } catch (e: Exception) {
             Log.w("ImportRoute", "Import failed", e)
-            error = "Could not import the route: ${e.message ?: e.javaClass.simpleName}"
+            error = resources.getString(R.string.route_import_failed_reason, e.message ?: e.javaClass.simpleName)
         }
     }
 
@@ -140,29 +151,25 @@ private fun ImportRouteScreen(request: ImportRequest?, onClose: () -> Unit, onSt
                     val failed = error
                     when {
                         done != null -> {
-                            Text("Route imported", style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.import_done), style = MaterialTheme.typography.titleLarge)
                             Text(done, style = MaterialTheme.typography.bodyLarge)
                             note?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                             Text(
-                                if (running) {
-                                    "The guide now follows this route and tells you about places along it."
-                                } else {
-                                    "Start guiding and the guide follows this route, telling you about places along it."
-                                },
+                                stringResource(if (running) R.string.import_following else R.string.import_start),
                                 style = MaterialTheme.typography.bodyMedium,
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                if (!running) Button(onClick = onStartGuide) { Text("Start guiding") }
-                                OutlinedButton(onClick = onClose) { Text("Done") }
+                                if (!running) Button(onClick = onStartGuide) { Text(stringResource(R.string.start_guiding)) }
+                                OutlinedButton(onClick = onClose) { Text(stringResource(R.string.done)) }
                             }
                         }
                         failed != null -> {
-                            Text("Couldn't import the route", style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.import_failed_title), style = MaterialTheme.typography.titleLarge)
                             Text(failed, style = MaterialTheme.typography.bodyMedium)
-                            OutlinedButton(onClick = onClose) { Text("Close") }
+                            OutlinedButton(onClick = onClose) { Text(stringResource(R.string.close)) }
                         }
                         else -> {
-                            Text("Importing route…", style = MaterialTheme.typography.titleLarge)
+                            Text(stringResource(R.string.import_importing), style = MaterialTheme.typography.titleLarge)
                             CircularProgressIndicator()
                         }
                     }
