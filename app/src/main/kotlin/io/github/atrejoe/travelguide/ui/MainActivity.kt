@@ -1,7 +1,9 @@
 package io.github.atrejoe.travelguide.ui
 
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -11,6 +13,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import io.github.atrejoe.travelguide.settings.AppLanguage
+import io.github.atrejoe.travelguide.service.GuideMedia
 
 class MainActivity : ComponentActivity() {
     // Screens and notifications in the app's language (issue #92).
@@ -21,6 +24,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (savedInstanceState == null) playIfAsked(intent)
         setContent {
             TravelGuideTheme {
                 var showSettings by rememberSaveable { mutableStateOf(false) }
@@ -32,5 +36,15 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        playIfAsked(intent)
+    }
+
+    /** A voice request to play the guide (issue #94); without location, the screen asks for it. */
+    private fun playIfAsked(intent: Intent?) {
+        if (intent?.action == MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH) GuideMedia.play(this)
     }
 }

@@ -85,7 +85,8 @@ object GuideMedia {
             shown.paused -> PlaybackStateCompat.STATE_PAUSED
             else -> PlaybackStateCompat.STATE_PLAYING
         }
-        var actions = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID
+        var actions = PlaybackStateCompat.ACTION_PLAY or PlaybackStateCompat.ACTION_PLAY_FROM_MEDIA_ID or
+            PlaybackStateCompat.ACTION_PLAY_FROM_SEARCH
         if (shown.running) {
             actions = actions or PlaybackStateCompat.ACTION_PAUSE or PlaybackStateCompat.ACTION_PLAY_PAUSE or PlaybackStateCompat.ACTION_STOP
         }
@@ -117,20 +118,57 @@ object GuideMedia {
         session.isActive = shown.running
     }
 
+    private val running get() = GuideStatus.state.value.running
+
+    /**
+     * Starts the guide, or resumes it when paused: "play" from the car, a headset, or a voice
+     * request such as "Hey Google, play Travel Guide". There is one guide to play, so any search
+     * query plays it.
+     */
+    fun play(context: Context) {
+        if (running) send(context, GuideService.ACTION_RESUME) else start(context, null)
+    }
+
+    /** Starts the guide, and plays [story] again first when given. */
+    private fun start(context: Context, story: Long?) {
+        val located = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!located) {
+            // Permissions are asked on the phone, never on the car screen.
+            GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
+            return
+        }
+        try {
+            GuideService.start(context, story)
+        } catch (e: IllegalStateException) {
+            // Android may refuse to start a foreground service from the background.
+            Log.w(TAG, "Cannot start the guide", e)
+            GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
+        }
+    }
+
+    private fun send(context: Context, action: String) {
+        try {
+            GuideService.send(context, action)
+        } catch (e: IllegalStateException) {
+            Log.w(TAG, "Cannot reach the guide", e)
+        }
+    }
+
     /** Play, pause and stop from the car, a headset or the lock screen. */
     private class Commands(private val context: Context) : MediaSessionCompat.Callback() {
-        private val running get() = GuideStatus.state.value.running
+        override fun onPlay() = play(context)
 
-        override fun onPlay() {
-            if (running) send(GuideService.ACTION_RESUME) else start(null)
-        }
+        override fun onPlayFromSearch(query: String?, extras: Bundle?) = play(context)
 
         override fun onPause() {
-            if (running) send(GuideService.ACTION_PAUSE)
+            if (running) send(context, GuideService.ACTION_PAUSE)
         }
 
         override fun onStop() {
-            if (running) send(GuideService.ACTION_STOP)
+            if (running) send(context, GuideService.ACTION_STOP)
         }
 
         override fun onPlayFromMediaId(mediaId: String?, extras: Bundle?) {
@@ -138,35 +176,7 @@ object GuideMedia {
             when {
                 story == null -> onPlay()
                 running -> GuideService.replay(context, story)
-                else -> start(story)
-            }
-        }
-
-        /** Starts the guide, and plays [story] again first when given. */
-        private fun start(story: Long?) {
-            val located = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED ||
-                ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) ==
-                PackageManager.PERMISSION_GRANTED
-            if (!located) {
-                // Permissions are asked on the phone, never on the car screen.
-                GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
-                return
-            }
-            try {
-                GuideService.start(context, story)
-            } catch (e: IllegalStateException) {
-                // Android may refuse to start a foreground service from the background.
-                Log.w(TAG, "Cannot start the guide", e)
-                GuideStatus.update { it.copy(message = context.getString(R.string.auto_open_on_phone)) }
-            }
-        }
-
-        private fun send(action: String) {
-            try {
-                GuideService.send(context, action)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "Cannot reach the guide", e)
+                else -> start(context, story)
             }
         }
     }
