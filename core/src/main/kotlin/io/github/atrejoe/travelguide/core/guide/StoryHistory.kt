@@ -16,6 +16,8 @@ data class ToldStory(
     /** The story as told, to show and play it again; empty for a place woven into another's story. */
     val sentences: List<String> = emptyList(),
     val point: GeoPoint? = null,
+    /** How the story came about, e.g. "Retold by Claude Opus 5.5"; empty when not known. */
+    val toldBy: String = "",
 )
 
 /** How long told stories are remembered. */

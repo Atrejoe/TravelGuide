@@ -332,6 +332,7 @@ private fun StatusCard(
             state.message?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary) }
             RouteLine(state, route, navigation, onClearRoute)
             if (state.running) {
+                state.storyteller?.let { Text("Stories: $it", style = MaterialTheme.typography.bodySmall) }
                 state.voiceLabel?.let { Text("Voice: $it", style = MaterialTheme.typography.bodySmall) }
                 state.voiceWarning?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error) }
             }
@@ -440,6 +441,7 @@ private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) 
             if (replaying) {
                 Text("Playing again", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
+            story.toldBy?.let { Text(it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             if (story.also.isNotEmpty()) {
                 Text("Also: " + story.also.joinToString(", "), style = MaterialTheme.typography.bodySmall)
             }

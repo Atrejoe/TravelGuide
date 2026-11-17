@@ -19,6 +19,8 @@ data class StoryItem(
     val places: List<MapPlace> = emptyList(),
     /** The story as spoken, to play it again. */
     val sentences: List<String> = emptyList(),
+    /** How the story came about, e.g. "Retold by Claude Opus 5.5" (issue #90). */
+    val toldBy: String? = null,
 )
 
 data class MapPlace(val title: String, val point: GeoPoint)
@@ -62,6 +64,8 @@ data class GuideUiState(
     /** The voice actually speaking, and why it differs from the chosen one, if it does. */
     val voiceLabel: String? = null,
     val voiceWarning: String? = null,
+    /** Who tells the stories, as chosen in the settings (issue #90). */
+    val storyteller: String? = null,
 )
 
 /** Process-wide guide state, written by [service.GuideService] and observed by UI and tile. */

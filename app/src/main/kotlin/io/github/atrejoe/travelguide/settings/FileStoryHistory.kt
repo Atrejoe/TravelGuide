@@ -110,6 +110,7 @@ class FileStoryHistory(context: Context) : StoryHistory {
                         .put("time", s.timeMillis)
                         .put("url", s.url)
                         .put("sentences", JSONArray(s.sentences))
+                        .put("toldBy", s.toldBy)
                         .apply { s.point?.let { put("lat", it.lat).put("lon", it.lon) } },
                 )
             }
@@ -130,6 +131,7 @@ class FileStoryHistory(context: Context) : StoryHistory {
                     url = o.optString("url"),
                     sentences = sentences?.let { a -> (0 until a.length()).map { a.optString(it) } }.orEmpty(),
                     point = if (o.has("lat") && o.has("lon")) GeoPoint(o.getDouble("lat"), o.getDouble("lon")) else null,
+                    toldBy = o.optString("toldBy"),
                 )
             }
         }

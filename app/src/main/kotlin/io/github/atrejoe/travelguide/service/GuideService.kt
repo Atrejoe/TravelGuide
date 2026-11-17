@@ -25,6 +25,7 @@ import io.github.atrejoe.travelguide.UpcomingItem
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.enhance.ClaudeModel
 import io.github.atrejoe.travelguide.core.enhance.ClaudeStoryEnhancer
+import io.github.atrejoe.travelguide.core.enhance.EnhanceOutcome
 import io.github.atrejoe.travelguide.core.enhance.LocalModels
 import io.github.atrejoe.travelguide.core.enhance.LocalStoryEnhancer
 import io.github.atrejoe.travelguide.core.enhance.StoryEnhancement
@@ -65,9 +66,11 @@ import io.github.atrejoe.travelguide.story.MlKitTranslator
 import io.github.atrejoe.travelguide.story.NanoStoryEnhancer
 import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
+import io.github.atrejoe.travelguide.voice.SystemTtsNarrator
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -315,6 +318,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 narrator?.adjust(s.pitch, s.rate)
             }
             settings = s
+            GuideStatus.update { it.copy(storyteller = storytellerName()?.let { name -> "retold by $name" } ?: BUILT_IN.lowercase()) }
             engine.motion.modeOverride = s.modeOverride
             engine.walkingPlaces = s.walkingPlaces
             // Always set: places found in another Wikipedia must be told in this language, or not at all.
@@ -341,17 +345,27 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     }
 
     /** Says hello when the guide starts, a little differently each time (issue #82). */
-    private suspend fun greet() {
+    private suspend fun greet(): Unit = coroutineScope {
         greeted = true
-        val narrator = currentNarrator()
-        if (!focus.request()) return
+        // An on-device voice can take seconds to load. Rather than keep the listener waiting in
+        // silence, the phone's own voice says hello meanwhile (issue #90).
+        val loading = async { currentNarrator() }
+        val chosen = withTimeoutOrNull(QUICK_GREETING_MILLIS) { loading.await() }
+        if (!focus.request()) return@coroutineScope
         val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val language = StoryLanguages.of(settings.language)
         val options = language.greetings(DayPart.of(LocalTime.now().hour))
         val last = prefs.getString(LAST_GREETING, null)
         val greeting = options.filter { it != last }.ifEmpty { options }.random()
         prefs.edit().putString(LAST_GREETING, greeting).apply()
+        val quick = if (chosen == null) {
+            SystemTtsNarrator(this@GuideService, null, settings.pitch, settings.rate, Narrators.locale(language.code))
+                .also { it.initialize() }
+        } else {
+            null
+        }
         try {
+            val narrator = chosen ?: quick!!
             val pieces = Narrators.pieces(narrator, SentenceSplitter.split(greeting, language))
             narrator.prepare(pieces.map { it.text })
             for (piece in pieces) {
@@ -359,8 +373,11 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             }
             narrator.drain()
         } finally {
+            quick?.release()
             focus.abandon()
         }
+        loading.await()
+        Unit
     }
 
     /**
@@ -387,6 +404,10 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     }
 
     private suspend fun runGuide() {
+        // Sound right away, before the first location fix and the first search (issue #90), in the
+        // language and voice chosen: the settings may not have reached watchSettings yet.
+        settings = app.settings.current()
+        greet()
         while (true) {
             withTimeoutOrNull(TICK_MILLIS) { wake.receive() }
             if (isPaused()) continue
@@ -398,7 +419,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             }
             // Load (or reload) the voice ahead of the first story so problems show up early.
             if (narratorDirty) currentNarrator()
-            if (!greeted) greet()
             val now = System.currentTimeMillis()
             try {
                 if (engine.refreshIfNeeded(now)) {
@@ -418,7 +438,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
                 continue
             }
             publishUpcoming(now)
-            tell(retold(narration))
+            val told = retold(narration)
+            tell(told.narration, told.by)
             engine.onNarrationFinished(System.currentTimeMillis())
         }
     }
@@ -426,22 +447,28 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     private var enhancement: StoryEnhancement? = null
     private var enhancementConfig: List<Any>? = null
 
+    /** A story ready to tell, and who told it, as shown with the story (issue #90). */
+    private data class Told(val narration: Narration, val by: String)
+
+    /** The storyteller chosen in the settings, by name. */
+    private fun storytellerName(): String? = when (settings.storyteller) {
+        Storyteller.BUILT_IN -> null
+        Storyteller.GEMINI_NANO -> "Gemini Nano"
+        Storyteller.CLAUDE -> ClaudeModel.byId(settings.claudeModel).label
+        Storyteller.ON_DEVICE -> LocalModels.byId(settings.localModel).name
+    }
+
     /**
      * The story retold by Gemini Nano or Claude when the listener chose one (issue #7);
-     * otherwise, or when anything goes wrong, the template story as it is.
+     * otherwise, or when anything goes wrong, the template story as it is. Says which, and why.
      */
-    private suspend fun retold(narration: Narration): Narration {
-        val storyteller = when (settings.storyteller) {
-            Storyteller.BUILT_IN -> return narration
-            Storyteller.GEMINI_NANO -> "Gemini Nano"
-            Storyteller.CLAUDE -> "Claude"
-            Storyteller.ON_DEVICE -> LocalModels.byId(settings.localModel).name
-        }
+    private suspend fun retold(narration: Narration): Told {
+        val storyteller = storytellerName() ?: return Told(narration, BUILT_IN)
         val load: suspend () -> StoryEnhancement? = { withContext(Dispatchers.IO) { currentEnhancement() } }
         // Only the open model takes a while to load.
         val enhancement = (if (settings.storyteller == Storyteller.ON_DEVICE) doing("Loading $storyteller…", load) else load())
-            ?: return narration
-        val mode = engine.motion.state?.mode ?: return narration
+            ?: return Told(narration, "$BUILT_IN: $storyteller isn't available")
+        val mode = engine.motion.state?.mode ?: return Told(narration, BUILT_IN)
         val story = doing("Retelling ${narration.poi.title} with $storyteller…") {
             reassuring(Wait.RETELLING, times = 2) {
                 withContext(Dispatchers.IO) { enhancement.enhance(narration, mode, engine.interestWeights) }
@@ -449,7 +476,14 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         }
         enhancement.lastError?.let { Log.w(TAG, "Could not retell ${narration.poi.title}", it) }
         Log.i(TAG, "Story of ${narration.poi.title}: ${enhancement.lastOutcome}")
-        return story
+        val by = when (enhancement.lastOutcome) {
+            EnhanceOutcome.RETOLD -> "Retold by $storyteller"
+            EnhanceOutcome.CACHED -> "Retold by $storyteller, earlier"
+            EnhanceOutcome.OVER_BUDGET -> "$BUILT_IN: the monthly budget for $storyteller is spent"
+            EnhanceOutcome.FAILED -> "$BUILT_IN: $storyteller couldn't retell it"
+            EnhanceOutcome.SKIPPED, null -> "$BUILT_IN: too little to retell"
+        }
+        return Told(story, by)
     }
 
     /** Rebuilt when the storyteller, key, model or budget changes; null when it can't be used. */
@@ -509,16 +543,17 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         }
     }
 
-    private suspend fun tell(narration: Narration) {
+    private suspend fun tell(narration: Narration, toldBy: String) {
         val poi = narration.poi
         val item = StoryItem(
             poi.title, narration.text, poi.url, System.currentTimeMillis(),
             also = narration.companions.map { it.title },
             places = (listOf(poi) + narration.companions).map { MapPlace(it.title, it.point) },
             sentences = narration.sentences,
+            toldBy = toldBy,
         )
         GuideStatus.update { it.copy(current = item, speaking = true, waiting = null, history = (listOf(item) + it.history).take(GuideStatus.HISTORY_SIZE)) }
-        remember(narration, item.timeMillis)
+        remember(narration, item.timeMillis, toldBy)
         updateSession()
         abortStory = false
         try {
@@ -532,9 +567,9 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
     }
 
     /** Keeps the story told and the places woven into it in the history (issue #84). */
-    private fun remember(narration: Narration, timeMillis: Long) {
+    private fun remember(narration: Narration, timeMillis: Long, toldBy: String) {
         fun told(poi: Poi, sentences: List<String>) =
-            ToldStory(poi.title, poi.lang, poi.pageId, poi.wikidataId, timeMillis, poi.url, sentences, poi.point)
+            ToldStory(poi.title, poi.lang, poi.pageId, poi.wikidataId, timeMillis, poi.url, sentences, poi.point, toldBy)
         val stories = listOf(told(narration.poi, narration.sentences)) + narration.companions.map { told(it, emptyList()) }
         lifecycleScope.launch(Dispatchers.IO) { app.storyHistory.record(stories) }
     }
@@ -776,6 +811,11 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         private const val COUNTRY_RECHECK_M = 25_000.0
         private const val TICK_MILLIS = 3_000L
         private const val SENTENCE_PAUSE_MILLIS = 250L
+
+        /** How long the chosen voice may take to load before the phone's own voice says hello instead. */
+        private const val QUICK_GREETING_MILLIS = 1_500L
+
+        private const val BUILT_IN = "Built-in storyteller"
 
         /** How long the listener waits before the guide says it is still at it (issue #82). */
         private const val PATIENCE_AFTER_MILLIS = 5_000L
