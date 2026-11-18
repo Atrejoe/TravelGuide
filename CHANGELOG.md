@@ -14,6 +14,12 @@ All notable changes to this project are documented here. The format follows
   (one per part of the day), so from then on the guide still says hello at once; the first time,
   and after choosing another voice, it waits for the voice.
 
+### Fixed
+
+- In cars with Android built in (Android Automotive), the car's media centre showed Travel Guide's
+  list as empty: it wasn't among the apps allowed to list the stories you heard. The car's own
+  preinstalled apps may now list them; on a phone, only Android Auto still may.
+
 ## [0.8.0] - 2026-11-17
 
 ### Added
