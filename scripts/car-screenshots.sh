@@ -14,10 +14,13 @@ trap 'rm -rf "$work"' EXIT
 mkdir -p "$out"
 
 # Via a file on the car: screencap warns about the car's several displays on its output.
+# Captures the car screen as <dir>/<name>.png; the directory defaults to the output directory.
 shot() {
+  local dir=${2:-$out}
+  mkdir -p "$dir"
   adb shell screencap -p /sdcard/shot.png
-  adb pull /sdcard/shot.png "$out/$1.png" > /dev/null
-  echo "Captured $out/$1.png"
+  adb pull /sdcard/shot.png "$dir/$1.png" > /dev/null
+  echo "Captured $dir/$1.png"
 }
 
 # Taps the on-screen element showing exactly this text, as a driver would.
@@ -46,21 +49,32 @@ adb shell am start -a android.car.intent.action.MEDIA_TEMPLATE \
 sleep 10
 shot car-browse
 
+# Positions come from Android's test provider for GPS: a car ships with location off, and the
+# emulator's own GPS doesn't reach apps then. The emulator's GPS is fed too, as a fallback.
+fake_location() {
+  adb shell cmd location set-location-enabled true || true
+  adb shell cmd location providers add-test-provider gps || true
+  adb shell cmd location providers set-test-provider-enabled gps true || true
+}
+
 # A drive north along the Spaarne in Haarlem, one position every 5 seconds: the guide only listens
 # for positions once it runs, and needs a few to tell where you are heading.
 drive() {
   local lat
   for step in $(seq 0 "$1"); do
     lat=$(awk -v s="$step" 'BEGIN { printf "%.5f", 52.3760 + s * 0.00012 }')
+    adb shell cmd location providers set-test-provider-location gps --location "$lat,4.6402" > /dev/null 2>&1 || true
     adb emu geo fix 4.6402 "$lat" > /dev/null
     sleep 5
   done
 }
 
-# "Start the guide": it greets, then tells about the places along the way.
+# "Start the guide": it greets, then tells about the places along the way. Kept for review only
+# (the workflow's artifact), not in docs/screenshots, until it reliably shows a story.
+fake_location
 if tap_text "Start the guide"; then
   drive 24
-  shot car-playing
+  shot car-playing "${CAR_REVIEW_DIR:-$out}"
 fi
 
 # Which app browsed the guide, and what it was shown.

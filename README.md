@@ -22,7 +22,6 @@ emulator, which shows it as Android Auto does.
 
 <p>
   <img src="docs/screenshots/car-browse.png" alt="Car screen: Travel Guide's Stories tab with Start the guide, and the mini player" width="420">
-  <img src="docs/screenshots/car-playing.png" alt="Car screen: Now Playing, Travel Guide running" width="420">
 </p>
 
 ## What it does

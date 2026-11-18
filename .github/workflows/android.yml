@@ -333,6 +333,9 @@ jobs:
         id: car
         continue-on-error: true
         timeout-minutes: 25
+        env:
+          # Not in docs/screenshots yet: until the guide gets a location there, it shows no story.
+          CAR_REVIEW_DIR: app/build/outputs/car
         run: scripts/car-emulator.sh app/build/outputs/apk/debug docs/screenshots
 
       - name: Report missing car screenshots
@@ -348,6 +351,7 @@ jobs:
           path: |
             docs/screenshots
             app/build/outputs/roborazzi
+            app/build/outputs/car
           retention-days: 14
 
       # A manual run on any branch shows how its screens look, without touching main or the PR.
