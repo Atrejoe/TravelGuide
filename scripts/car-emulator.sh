@@ -39,15 +39,34 @@ device=$("$tools/avdmanager" list device --compact 2> /dev/null | grep -m 1 '^au
 echo "Display: ${device:-default}"
 echo no | "$tools/avdmanager" create avd --name car --package "$image" ${device:+--device "$device"} --force > /dev/null
 
+echo "Virtual devices: $("$ANDROID_HOME/emulator/emulator" -list-avds | tr '\n' ' ')"
+log="$RUNNER_TEMP/emulator.log"
 "$ANDROID_HOME/emulator/emulator" -avd car -no-window -gpu swiftshader_indirect -noaudio \
-  -no-boot-anim -no-snapshot -camera-back none > "$RUNNER_TEMP/emulator.log" 2>&1 &
+  -no-boot-anim -no-snapshot -camera-back none > "$log" 2>&1 &
 emulator=$!
 trap 'adb emu kill > /dev/null 2>&1 || true; kill "$emulator" 2> /dev/null || true' EXIT
 
-adb wait-for-device
+# Up to 15 minutes for the car to boot; stop at once, with its log, when the emulator quits.
 echo "Waiting for the car to boot…"
-timeout 900 bash -c 'until [ "$(adb shell getprop sys.boot_completed 2> /dev/null | tr -d "\r")" = 1 ]; do sleep 5; done' \
-  || { tail -n 50 "$RUNNER_TEMP/emulator.log"; exit 1; }
+booted=false
+for _ in $(seq 1 180); do
+  if ! kill -0 "$emulator" 2> /dev/null; then
+    echo "::error::The emulator stopped."
+    tail -n 80 "$log"
+    exit 1
+  fi
+  if [ "$(adb shell getprop sys.boot_completed 2> /dev/null | tr -d '\r')" = 1 ]; then
+    booted=true
+    break
+  fi
+  sleep 5
+done
+if [ "$booted" != true ]; then
+  echo "::error::The car did not finish booting in 15 minutes."
+  tail -n 80 "$log"
+  exit 1
+fi
+echo "Booted."
 sleep 30 # the car launcher and media center settle
 
 "$(dirname "$0")/car-screenshots.sh" "$@"
