@@ -6,6 +6,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Process
+import android.util.Log
 import android.support.v4.media.MediaBrowserCompat.MediaItem
 import android.support.v4.media.MediaDescriptionCompat
 import androidx.media.MediaBrowserServiceCompat
@@ -44,7 +45,7 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
                 .combine(CarStoryOffer.offered) { listed, offered -> listed to offered }
                 .distinctUntilChanged()
                 .drop(1)
-                .collect { notifyChildrenChanged(ROOT) }
+                .collect { notifyChildrenChanged(STORIES) }
         }
     }
 
@@ -54,7 +55,9 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     }
 
     override fun onGetRoot(clientPackageName: String, clientUid: Int, rootHints: Bundle?): BrowserRoot {
-        if (!trusted(clientPackageName, clientUid)) return BrowserRoot(EMPTY_ROOT, null)
+        val trusted = trusted(clientPackageName, clientUid)
+        Log.i(TAG, "Browsed by $clientPackageName: ${if (trusted) "stories listed" else "nothing listed"}")
+        if (!trusted) return BrowserRoot(EMPTY_ROOT, null)
         val extras = Bundle().apply {
             putBoolean(CONTENT_STYLE_SUPPORTED, true)
             putInt(CONTENT_STYLE_PLAYABLE_HINT, CONTENT_STYLE_LIST)
@@ -63,10 +66,16 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     }
 
     override fun onLoadChildren(parentId: String, result: Result<MutableList<MediaItem>>) {
-        if (parentId != ROOT) {
-            result.sendResult(mutableListOf())
-            return
+        when (parentId) {
+            // The car shows the root's children as tabs, and only browsable ones: one tab, the stories.
+            ROOT -> result.sendResult(mutableListOf(browsable(STORIES, getString(R.string.section_stories))))
+            STORIES -> result.sendResult(stories())
+            else -> result.sendResult(mutableListOf())
         }
+    }
+
+    /** Starting the guide, or the offer while navigating; then the recent stories to hear again. */
+    private fun stories(): MutableList<MediaItem> {
         val state = GuideStatus.state.value
         val items = mutableListOf<MediaItem>()
         if (!state.running && CarStoryOffer.offered.value) {
@@ -80,8 +89,13 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
         state.history.take(MAX_STORIES).forEach { story ->
             items += playable(GuideMedia.storyId(story.timeMillis), story.title, getString(R.string.auto_play_again))
         }
-        result.sendResult(items)
+        return items
     }
+
+    private fun browsable(id: String, title: String) = MediaItem(
+        MediaDescriptionCompat.Builder().setMediaId(id).setTitle(title).build(),
+        MediaItem.FLAG_BROWSABLE,
+    )
 
     private fun playable(id: String, title: String, subtitle: String) = MediaItem(
         MediaDescriptionCompat.Builder().setMediaId(id).setTitle(title).setSubtitle(subtitle).build(),
@@ -91,14 +105,17 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     /** Android Auto, the car's media centre, the system or this app; see the class comment. */
     private fun trusted(packageName: String, uid: Int): Boolean {
         if (uid == Process.myUid() || uid == Process.SYSTEM_UID) return true
-        if (packageName !in CAR_HOSTS) return false
-        // Only the real host: preinstalled, or installed from Google Play.
-        return try {
-            val info = packageManager.getApplicationInfo(packageName, 0)
-            (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0 || installer(packageName) == PLAY_STORE
+        val info = try {
+            packageManager.getApplicationInfo(packageName, 0)
         } catch (e: PackageManager.NameNotFoundException) {
-            false
+            return false
         }
+        val preinstalled = (info.flags and ApplicationInfo.FLAG_SYSTEM) != 0
+        // In a car with Android built in, the media centre and the launcher are the car's own apps,
+        // under names that differ per car maker.
+        if (preinstalled && packageManager.hasSystemFeature(PackageManager.FEATURE_AUTOMOTIVE)) return true
+        // On a phone, only the real Android Auto: preinstalled, or installed from Google Play.
+        return packageName in CAR_HOSTS && (preinstalled || installer(packageName) == PLAY_STORE)
     }
 
     @Suppress("DEPRECATION") // getInstallerPackageName before Android 11.
@@ -113,7 +130,9 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     }
 
     private companion object {
+        const val TAG = "GuideMediaBrowser"
         const val ROOT = "root"
+        const val STORIES = "stories"
         const val EMPTY_ROOT = "empty"
         const val MAX_STORIES = 20
         const val PLAY_STORE = "com.android.vending"
