@@ -45,7 +45,7 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
                 .combine(CarStoryOffer.offered) { listed, offered -> listed to offered }
                 .distinctUntilChanged()
                 .drop(1)
-                .collect { notifyChildrenChanged(ROOT) }
+                .collect { notifyChildrenChanged(STORIES) }
         }
     }
 
@@ -66,10 +66,16 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     }
 
     override fun onLoadChildren(parentId: String, result: Result<MutableList<MediaItem>>) {
-        if (parentId != ROOT) {
-            result.sendResult(mutableListOf())
-            return
+        when (parentId) {
+            // The car shows the root's children as tabs, and only browsable ones: one tab, the stories.
+            ROOT -> result.sendResult(mutableListOf(browsable(STORIES, getString(R.string.section_stories))))
+            STORIES -> result.sendResult(stories())
+            else -> result.sendResult(mutableListOf())
         }
+    }
+
+    /** Starting the guide, or the offer while navigating; then the recent stories to hear again. */
+    private fun stories(): MutableList<MediaItem> {
         val state = GuideStatus.state.value
         val items = mutableListOf<MediaItem>()
         if (!state.running && CarStoryOffer.offered.value) {
@@ -83,8 +89,13 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
         state.history.take(MAX_STORIES).forEach { story ->
             items += playable(GuideMedia.storyId(story.timeMillis), story.title, getString(R.string.auto_play_again))
         }
-        result.sendResult(items)
+        return items
     }
+
+    private fun browsable(id: String, title: String) = MediaItem(
+        MediaDescriptionCompat.Builder().setMediaId(id).setTitle(title).build(),
+        MediaItem.FLAG_BROWSABLE,
+    )
 
     private fun playable(id: String, title: String, subtitle: String) = MediaItem(
         MediaDescriptionCompat.Builder().setMediaId(id).setTitle(title).setSubtitle(subtitle).build(),
@@ -121,6 +132,7 @@ class GuideMediaBrowserService : MediaBrowserServiceCompat() {
     private companion object {
         const val TAG = "GuideMediaBrowser"
         const val ROOT = "root"
+        const val STORIES = "stories"
         const val EMPTY_ROOT = "empty"
         const val MAX_STORIES = 20
         const val PLAY_STORE = "com.android.vending"
