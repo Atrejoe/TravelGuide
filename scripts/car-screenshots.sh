@@ -49,15 +49,9 @@ adb shell am start -a android.car.intent.action.MEDIA_TEMPLATE \
 sleep 10
 shot car-browse
 
-# Positions come from Android's test provider for GPS: a car ships with location off, and the
-# emulator's own GPS doesn't reach apps then. The emulator's GPS is fed too, as a fallback.
-fake_location() {
+# A car ships with location off; the emulator's GPS fix only reaches apps once it is on.
+location_on() {
   adb shell cmd location set-location-enabled true || true
-  # The shell may only add a test provider once it is the mock location app.
-  adb shell appops set --uid com.android.shell android:mock_location allow || true
-  adb shell appops set com.android.shell android:mock_location allow || true
-  adb shell cmd location providers add-test-provider gps || true
-  adb shell cmd location providers set-test-provider-enabled gps true || true
 }
 
 # A drive north through Haarlem at about 50 km/h, one position every 5 seconds: the guide only
@@ -66,7 +60,6 @@ drive() {
   local lat
   for step in $(seq 0 "$1"); do
     lat=$(awk -v s="$step" 'BEGIN { printf "%.5f", 52.3760 + s * 0.00062 }')
-    adb shell cmd location providers set-test-provider-location gps --location "$lat,4.6402" > /dev/null 2>&1 || true
     adb emu geo fix 4.6402 "$lat" > /dev/null
     sleep 5
   done
@@ -74,7 +67,7 @@ drive() {
 
 # "Start the guide": it greets, then tells about the places along the way. Kept for review only
 # (the workflow's artifact), not in docs/screenshots, until it reliably shows a story.
-fake_location
+location_on
 if tap_text "Start the guide"; then
   drive 24
   shot car-playing "${CAR_REVIEW_DIR:-$out}"
