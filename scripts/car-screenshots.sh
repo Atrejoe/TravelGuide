@@ -53,16 +53,18 @@ shot car-browse
 # emulator's own GPS doesn't reach apps then. The emulator's GPS is fed too, as a fallback.
 fake_location() {
   adb shell cmd location set-location-enabled true || true
+  # The shell may only add a test provider once it is the mock location app.
+  adb shell appops set com.android.shell android:mock_location allow || true
   adb shell cmd location providers add-test-provider gps || true
   adb shell cmd location providers set-test-provider-enabled gps true || true
 }
 
-# A drive north along the Spaarne in Haarlem, one position every 5 seconds: the guide only listens
-# for positions once it runs, and needs a few to tell where you are heading.
+# A drive north through Haarlem at about 50 km/h, one position every 5 seconds: the guide only
+# listens for positions once it runs, and needs a few to tell where you are heading and how fast.
 drive() {
   local lat
   for step in $(seq 0 "$1"); do
-    lat=$(awk -v s="$step" 'BEGIN { printf "%.5f", 52.3760 + s * 0.00012 }')
+    lat=$(awk -v s="$step" 'BEGIN { printf "%.5f", 52.3760 + s * 0.00062 }')
     adb shell cmd location providers set-test-provider-location gps --location "$lat,4.6402" > /dev/null 2>&1 || true
     adb emu geo fix 4.6402 "$lat" > /dev/null
     sleep 5
@@ -81,5 +83,5 @@ if tap_text "Start the guide"; then
   echo "On the car screen: $(grep -o 'text="[^"]\+"' "$work/ui.xml" | sed 's/text="\(.*\)"/\1/' | paste -sd '|' -)"
 fi
 
-# Which app browsed the guide, and what it was shown.
-adb logcat -d -s GuideMediaBrowser:I GuideMedia:W | tail -n 20 || true
+# Which app browsed the guide, what it was shown, and how the guide got on.
+adb logcat -d -s GuideMediaBrowser:I GuideMedia:W GuideService:I Narrators:W NeuralNarrator:W AudioStream:W | tail -n 40 || true
