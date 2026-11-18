@@ -5,6 +5,9 @@
 # Usage: scripts/car-emulator.sh <dir with the debug APK> <output dir>
 set -euo pipefail
 
+# adb and the emulator, from the SDK this script installs them in.
+export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+
 # Answers the licence questions. Wrapped, because `yes` fails with a broken pipe once the command
 # stops reading, which would fail the pipeline under pipefail.
 agree() { yes 2> /dev/null || true; }
