@@ -46,9 +46,20 @@ adb shell am start -a android.car.intent.action.MEDIA_TEMPLATE \
 sleep 10
 shot car-browse
 
-# "Start the guide": it greets, then tells about the places around.
+# A drive north along the Spaarne in Haarlem, one position every 5 seconds: the guide only listens
+# for positions once it runs, and needs a few to tell where you are heading.
+drive() {
+  local lat
+  for step in $(seq 0 "$1"); do
+    lat=$(awk -v s="$step" 'BEGIN { printf "%.5f", 52.3760 + s * 0.00012 }')
+    adb emu geo fix 4.6402 "$lat" > /dev/null
+    sleep 5
+  done
+}
+
+# "Start the guide": it greets, then tells about the places along the way.
 if tap_text "Start the guide"; then
-  sleep 60
+  drive 24
   shot car-playing
 fi
 
