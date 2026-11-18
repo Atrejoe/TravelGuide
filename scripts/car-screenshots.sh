@@ -54,6 +54,7 @@ shot car-browse
 fake_location() {
   adb shell cmd location set-location-enabled true || true
   # The shell may only add a test provider once it is the mock location app.
+  adb shell appops set --uid com.android.shell android:mock_location allow || true
   adb shell appops set com.android.shell android:mock_location allow || true
   adb shell cmd location providers add-test-provider gps || true
   adb shell cmd location providers set-test-provider-enabled gps true || true
@@ -84,4 +85,9 @@ if tap_text "Start the guide"; then
 fi
 
 # Which app browsed the guide, what it was shown, and how the guide got on.
-adb logcat -d -s GuideMediaBrowser:I GuideMedia:W GuideService:I Narrators:W NeuralNarrator:W AudioStream:W | tail -n 40 || true
+app_pid=$(adb shell pidof "$pkg" | tr -d '\r' | awk '{print $1}' || true)
+if [ -n "$app_pid" ]; then
+  adb logcat -d --pid="$app_pid" '*:I' | tail -n 60 || true
+else
+  adb logcat -d -s GuideMediaBrowser:I GuideMedia:W | tail -n 20 || true
+fi
