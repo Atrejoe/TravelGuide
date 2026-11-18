@@ -75,6 +75,10 @@ fake_location
 if tap_text "Start the guide"; then
   drive 24
   shot car-playing "${CAR_REVIEW_DIR:-$out}"
+  # What the car shows now, for the log: a story's title, or still "Waiting for location…".
+  adb shell uiautomator dump /sdcard/ui.xml > /dev/null
+  adb pull /sdcard/ui.xml "$work/ui.xml" > /dev/null
+  echo "On the car screen: $(grep -o 'text="[^"]\+"' "$work/ui.xml" | sed 's/text="\(.*\)"/\1/' | paste -sd '|' -)"
 fi
 
 # Which app browsed the guide, and what it was shown.
