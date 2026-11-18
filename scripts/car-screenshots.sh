@@ -13,8 +13,10 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 mkdir -p "$out"
 
+# Via a file on the car: screencap warns about the car's several displays on its output.
 shot() {
-  adb exec-out screencap -p > "$out/$1.png"
+  adb shell screencap -p /sdcard/shot.png
+  adb pull /sdcard/shot.png "$out/$1.png" > /dev/null
   echo "Captured $out/$1.png"
 }
 
@@ -49,3 +51,6 @@ if tap_text "Start the guide"; then
   sleep 60
   shot car-playing
 fi
+
+# Which app browsed the guide, and what it was shown.
+adb logcat -d -s GuideMediaBrowser:I GuideMedia:W | tail -n 20 || true
