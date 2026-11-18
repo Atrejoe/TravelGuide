@@ -7,6 +7,9 @@ set -euo pipefail
 
 # adb and the emulator, from the SDK this script installs them in.
 export PATH="$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator:$PATH"
+# One place for the virtual device, for the tool that creates it and the emulator that starts it.
+export ANDROID_AVD_HOME="$RUNNER_TEMP/avd"
+mkdir -p "$ANDROID_AVD_HOME"
 
 # Answers the licence questions. Wrapped, because `yes` fails with a broken pipe once the command
 # stops reading, which would fail the pipeline under pipefail.
@@ -37,7 +40,12 @@ agree | "$tools/sdkmanager" --install emulator platform-tools "$image" > /dev/nu
 # A car display, when the SDK has one; else the image's default.
 device=$("$tools/avdmanager" list device --compact 2> /dev/null | grep -m 1 '^automotive' || true)
 echo "Display: ${device:-default}"
-echo no | "$tools/avdmanager" create avd --name car --package "$image" ${device:+--device "$device"} --force > /dev/null
+echo no | "$tools/avdmanager" create avd --name car --package "$image" ${device:+--device "$device"} --force
+if [ ! -f "$ANDROID_AVD_HOME/car.ini" ]; then
+  echo "::error::No virtual device was created in $ANDROID_AVD_HOME."
+  ls -la "$ANDROID_AVD_HOME" "$HOME/.android" 2> /dev/null || true
+  exit 1
+fi
 
 echo "Virtual devices: $("$ANDROID_HOME/emulator/emulator" -list-avds | tr '\n' ' ')"
 log="$RUNNER_TEMP/emulator.log"
