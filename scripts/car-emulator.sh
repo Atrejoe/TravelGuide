@@ -19,10 +19,11 @@ if [ -x "$ANDROID_HOME/cmdline-tools/latest-2/bin/sdkmanager" ]; then
 fi
 "$tools/sdkmanager" --version
 
-# The newest x86_64 Android Automotive image on offer, whatever it is called.
+# The newest x86_64 "Android Automotive with Google APIs" image on offer. Newer tools list packages
+# as system-images/android-35-ext15/android-automotive/x86_64, older ones with semicolons.
 image=$("$tools/sdkmanager" --list 2> /dev/null \
-  | grep -o 'system-images;android-[0-9]*;android-automotive[a-z-]*;x86_64' \
-  | grep -v distant | sort -u -V -t ';' -k 2,2 | tail -n 1 || true)
+  | grep -oE 'system-images[;/]android-[0-9]+(-ext[0-9]+)?[;/]android-automotive[;/]x86_64' \
+  | tr '/' ';' | sort -u -V -t ';' -k 2,2 | tail -n 1 || true)
 if [ -z "$image" ]; then
   echo "::error::No Android Automotive system image is listed."
   "$tools/sdkmanager" --list 2> /dev/null | grep -i automotive || true
