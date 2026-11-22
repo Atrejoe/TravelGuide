@@ -7,6 +7,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Stable releases also come as an app bundle (`.aab`), the format Google Play takes, with the
+  native debug symbols Play uses to show where the on-device storyteller crashed.
+
 ## [0.8.2] - 2026-11-22
 
 ### Changed

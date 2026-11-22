@@ -92,6 +92,11 @@ android {
                 signingConfig = signingConfigs.getByName("stable")
             }
             isMinifyEnabled = false
+            // Google Play shows native crashes (llama.cpp) with function names from these symbols,
+            // which the app bundle carries; the APKs Play delivers leave them out.
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
