@@ -17,6 +17,13 @@ your phone.
 _Rendered from the current `main` after every merge, with sample content. Map © OpenStreetMap
 contributors._
 
+In the car, Travel Guide is a media app: here in the media centre of an Android Automotive
+emulator, which shows it as Android Auto does.
+
+<p>
+  <img src="docs/screenshots/car-browse.png" alt="Car screen: Travel Guide's Stories tab with Start the guide, and the mini player" width="420">
+</p>
+
 ## What it does
 
 - **Narrates your surroundings** from geotagged Wikipedia articles: towns you enter, rivers you
