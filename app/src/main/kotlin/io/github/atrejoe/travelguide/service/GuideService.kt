@@ -64,9 +64,11 @@ import io.github.atrejoe.travelguide.story.LlamaModel
 import io.github.atrejoe.travelguide.story.LocalOnDevice
 import io.github.atrejoe.travelguide.story.MlKitTranslator
 import io.github.atrejoe.travelguide.story.NanoStoryEnhancer
+import io.github.atrejoe.travelguide.voice.AudioStream
+import io.github.atrejoe.travelguide.voice.GreetingCache
 import io.github.atrejoe.travelguide.voice.Narrator
 import io.github.atrejoe.travelguide.voice.Narrators
-import io.github.atrejoe.travelguide.voice.SystemTtsNarrator
+import io.github.atrejoe.travelguide.voice.RenderedSpeech
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -79,6 +81,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.File
 import java.io.IOException
 import java.time.LocalTime
 
@@ -115,6 +118,12 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
 
     /** Greeted the listener since the guide started (issue #82). */
     private var greeted = false
+
+    /** Greetings for the next start, rendered by the chosen voice during an earlier trip. */
+    private val greetings by lazy { GreetingCache(File(filesDir, "greetings")) }
+
+    /** Rendered this trip's greetings for the next start (see [prepareNextGreetings]). */
+    private var nextGreetingsPrepared = false
 
     /** What the guide says while the listener waits, varied (issue #82). */
     private val phrases = PhrasePicker()
@@ -279,6 +288,7 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         guideJob?.cancel()
         guideJob = null
         greeted = false
+        nextGreetingsPrepared = false
         narrator?.release()
         narrator = null
         closeEnhancement()
@@ -346,40 +356,82 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         return choice.narrator.also { narrator = it }
     }
 
-    /** Says hello when the guide starts, a little differently each time (issue #82). */
+    /**
+     * Says hello when the guide starts, a little differently each time (issue #82), in the chosen
+     * voice. An on-device voice takes seconds to load, so the greeting it rendered during an
+     * earlier trip plays at once meanwhile (issue #90); without one, the guide waits for the voice.
+     */
     private suspend fun greet(): Unit = coroutineScope {
         greeted = true
-        // An on-device voice can take seconds to load. Rather than keep the listener waiting in
-        // silence, the phone's own voice says hello meanwhile (issue #90).
         val loading = async { currentNarrator() }
-        val chosen = withTimeoutOrNull(QUICK_GREETING_MILLIS) { loading.await() }
-        if (!focus.request()) return@coroutineScope
-        val prefs = getSharedPreferences(PREFS, MODE_PRIVATE)
         val language = StoryLanguages.of(settings.language)
-        val options = language.greetings(DayPart.of(LocalTime.now().hour))
-        val last = prefs.getString(LAST_GREETING, null)
-        val greeting = options.filter { it != last }.ifEmpty { options }.random()
-        prefs.edit().putString(LAST_GREETING, greeting).apply()
-        val quick = if (chosen == null) {
-            SystemTtsNarrator(this@GuideService, null, settings.pitch, settings.rate, Narrators.locale(language.code))
-                .also { it.initialize() }
-        } else {
-            null
-        }
-        try {
-            val narrator = chosen ?: quick!!
-            val pieces = Narrators.pieces(narrator, SentenceSplitter.split(greeting, language))
-            narrator.prepare(pieces.map { it.text })
-            for (piece in pieces) {
-                if (!narrator.speak(piece.text)) break
+        val dayPart = DayPart.of(LocalTime.now().hour)
+        val kept = greetings.load(greetingKey(), dayPart)
+        if (focus.request()) {
+            try {
+                if (kept != null) {
+                    val (text, speech) = kept
+                    rememberGreeting(text)
+                    playKept(speech)
+                } else {
+                    val narrator = loading.await()
+                    val greeting = pickGreeting(language.greetings(dayPart), avoid = lastGreeting())
+                    rememberGreeting(greeting)
+                    val pieces = Narrators.pieces(narrator, SentenceSplitter.split(greeting, language))
+                    narrator.prepare(pieces.map { it.text })
+                    for (piece in pieces) {
+                        if (!narrator.speak(piece.text)) break
+                    }
+                    narrator.drain()
+                }
+            } finally {
+                focus.abandon()
             }
-            narrator.drain()
-        } finally {
-            quick?.release()
-            focus.abandon()
         }
         loading.await()
         Unit
+    }
+
+    /** Plays a greeting rendered earlier, at the pitch chosen now. */
+    private suspend fun playKept(speech: RenderedSpeech) {
+        val stream = AudioStream("greeting").also { it.pitch = settings.pitch }
+        try {
+            if (stream.write(speech.samples, speech.sampleRate)) stream.drain()
+        } finally {
+            stream.release()
+        }
+    }
+
+    /** The chosen voice, rate and language: a kept greeting only plays for the same ones. */
+    private fun greetingKey() = "${settings.voiceId}|${settings.rate}|${settings.language}"
+
+    private fun lastGreeting(): String? = getSharedPreferences(PREFS, MODE_PRIVATE).getString(LAST_GREETING, null)
+
+    private fun rememberGreeting(text: String) {
+        getSharedPreferences(PREFS, MODE_PRIVATE).edit().putString(LAST_GREETING, text).apply()
+    }
+
+    private fun pickGreeting(options: List<String>, avoid: String?): String =
+        options.filter { it != avoid }.ifEmpty { options }.random()
+
+    /**
+     * Renders the greetings for the next start, one per part of the day, in the chosen voice, and
+     * keeps them ([GreetingCache]). Done once per trip, after the first story, while the guide
+     * waits for the next one. Only for the voice picked: not for one that reads in its place.
+     */
+    private suspend fun prepareNextGreetings() {
+        if (nextGreetingsPrepared) return
+        nextGreetingsPrepared = true
+        val narrator = narrator ?: return
+        if (narratorWarning != null || !narrator.rendersOnDevice) return
+        val key = greetingKey()
+        val language = StoryLanguages.of(settings.language)
+        val just = lastGreeting()
+        for (dayPart in DayPart.entries) {
+            val text = pickGreeting(language.greetings(dayPart), avoid = just)
+            val speech = narrator.render(text) ?: return
+            withContext(Dispatchers.IO) { greetings.store(key, dayPart, text, speech) }
+        }
     }
 
     /**
@@ -564,6 +616,8 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
             GuideStatus.update { it.copy(speaking = false) }
             warnIfVoiceTooSlow()
         }
+        // While the guide waits for the next story, the voice renders the greetings for the next start.
+        if (!nextGreetingsPrepared) lifecycleScope.launch { prepareNextGreetings() }
     }
 
     /** Keeps the story told and the places woven into it in the history (issue #84). */
@@ -790,8 +844,6 @@ class GuideService : LifecycleService(), AudioFocus.Listener {
         private const val TICK_MILLIS = 3_000L
         private const val SENTENCE_PAUSE_MILLIS = 250L
 
-        /** How long the chosen voice may take to load before the phone's own voice says hello instead. */
-        private const val QUICK_GREETING_MILLIS = 1_500L
 
 
         /** How long the listener waits before the guide says it is still at it (issue #82). */

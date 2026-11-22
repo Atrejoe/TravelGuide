@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+
+- The greeting at the start is always in the chosen voice, no longer in the phone's own voice
+  while an on-device voice loads. During a trip the voice renders the greetings for the next start
+  (one per part of the day), so from then on the guide still says hello at once; the first time,
+  and after choosing another voice, it waits for the voice.
+
 ## [0.8.0] - 2026-11-17
 
 ### Added
