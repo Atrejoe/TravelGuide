@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.2] - 2026-11-22
+
 ### Changed
 
 - The greeting at the start is always in the chosen voice, no longer in the phone's own voice
@@ -21,6 +23,10 @@ All notable changes to this project are documented here. The format follows
   with Android built in (Android Automotive), the car's media centre also wasn't among the apps
   allowed to list the stories you heard; the car's own preinstalled apps now are. On a phone, only
   Android Auto still may.
+
+## [0.8.1] - 2026-11-17
+
+No changes to the app. The release notes of a GitHub release now come from this changelog.
 
 ## [0.8.0] - 2026-11-17
 
