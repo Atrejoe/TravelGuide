@@ -12,6 +12,8 @@
 6. Keep the branch current by rebasing it onto `main` (`git rebase origin/main`, then
    `git push --force-with-lease`) whenever `main` moves, rather than merging `main` into it.
 7. Squash-merge into `main` with a Conventional Commit title.
+8. The branch is deleted once merged (the *Branch cleanup* workflow), unless commits were pushed
+   to it after the merge or another open pull request uses it.
 
 ## Releases
 
