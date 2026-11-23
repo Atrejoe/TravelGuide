@@ -229,6 +229,16 @@
     <string name="mode_auto_detected">Auto · %1$s</string>
     <string name="play_again">Réécouter</string>
     <string name="playing_again">Réécoute</string>
+    <string name="report">Signaler</string>
+    <string name="report_title">Signaler cette histoire</string>
+    <string name="report_help">Indiquez au développeur ce qui ne va pas dans cette histoire. Le signalement contient l\'histoire et sa source, jamais votre position.</string>
+    <string name="report_offensive">Offensant ou nuisible</string>
+    <string name="report_wrong">Faux ou trompeur</string>
+    <string name="report_other">Autre chose</string>
+    <string name="report_comment">Commentaire (facultatif)</string>
+    <string name="report_send">Envoyer</string>
+    <string name="report_sent">Merci, votre signalement a été envoyé.</string>
+    <string name="report_failed">Le signalement n\'a pas pu être envoyé. Réessayez plus tard.</string>
     <string name="also">Aussi : %1$s</string>
     <string name="mode_stationary">À l\'arrêt</string>
     <string name="mode_walking">À pied</string>

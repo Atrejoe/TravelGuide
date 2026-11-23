@@ -4,7 +4,7 @@ Travel Guide is an Android app that tells you about the places around you while 
 This page says what it does with your data. It applies to the app as published on Google Play
 and on [GitHub](https://github.com/Atrejoe/TravelGuide/releases).
 
-*Last updated: 22 November 2026.*
+*Last updated: 23 November 2026.*
 
 ## In short
 
@@ -14,7 +14,8 @@ and on [GitHub](https://github.com/Atrejoe/TravelGuide/releases).
   (Wikipedia, Wikidata, OpenStreetMap). It doesn't send who you are.
 - Stories are written on your phone by default. Only when **you** turn on a cloud storyteller or
   voice and enter **your own key** for it does text about the place go to that service.
-- **Crash reports are off** until you turn them on, and contain no location or place names.
+- **Crash reports are off** until you turn them on, and contain no location or place names. A
+  story you report goes to the developer with the report.
 
 ## Location
 
@@ -90,6 +91,13 @@ doing (for example "running the open model"), the app version and the phone mode
 version, and a random ID that Sentry makes for the installation (to tell one phone's crashes from
 many phones'). Reports contain **no location, no place names, no screenshots** and nothing that
 identifies you. Turn it off at any time.
+
+## Reporting a story
+
+Each story has a **Report** link. When you use it, the report goes to the developer through
+Sentry: the reason you chose, your comment if you write one, and the story (its title, text, how
+it was told and its source link), with the app version, the phone model and Android version.
+Never your location. It is sent only when you press Send, whether or not crash reports are on.
 
 ## On your phone
 

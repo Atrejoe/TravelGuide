@@ -229,6 +229,16 @@
     <string name="mode_auto_detected">Auto · %1$s</string>
     <string name="play_again">Play again</string>
     <string name="playing_again">Playing again</string>
+    <string name="report">Report</string>
+    <string name="report_title">Report this story</string>
+    <string name="report_help">Tell the developer what is wrong with this story. The report includes the story and its source, never your location.</string>
+    <string name="report_offensive">Offensive or harmful</string>
+    <string name="report_wrong">Wrong or misleading</string>
+    <string name="report_other">Something else</string>
+    <string name="report_comment">Comment (optional)</string>
+    <string name="report_send">Send</string>
+    <string name="report_sent">Thanks, your report was sent.</string>
+    <string name="report_failed">The report could not be sent. Try again later.</string>
     <string name="also">Also: %1$s</string>
     <string name="mode_stationary">Standing still</string>
     <string name="mode_walking">Walking</string>

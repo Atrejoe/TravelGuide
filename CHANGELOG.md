@@ -9,6 +9,9 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Report a story: every story has a **Report** link to tell the developer it is offensive, wrong or
+  otherwise off, with an optional comment. The report carries the story and its source, never your
+  location. Google Play asks for this in apps whose stories can be written by AI.
 - Stable releases also come as an app bundle (`.aab`), the format Google Play takes, with the
   native debug symbols Play uses to show where the on-device storyteller crashed.
 

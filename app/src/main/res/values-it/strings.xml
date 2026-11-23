@@ -229,6 +229,16 @@
     <string name="mode_auto_detected">Auto · %1$s</string>
     <string name="play_again">Riascolta</string>
     <string name="playing_again">Riascolto</string>
+    <string name="report">Segnala</string>
+    <string name="report_title">Segnala questa storia</string>
+    <string name="report_help">Indichi allo sviluppatore cosa non va in questa storia. La segnalazione contiene la storia e la sua fonte, mai la Sua posizione.</string>
+    <string name="report_offensive">Offensiva o dannosa</string>
+    <string name="report_wrong">Errata o fuorviante</string>
+    <string name="report_other">Altro</string>
+    <string name="report_comment">Commento (facoltativo)</string>
+    <string name="report_send">Invia</string>
+    <string name="report_sent">Grazie, la segnalazione è stata inviata.</string>
+    <string name="report_failed">Impossibile inviare la segnalazione. Riprovi più tardi.</string>
     <string name="also">Anche: %1$s</string>
     <string name="mode_stationary">Fermo</string>
     <string name="mode_walking">A piedi</string>

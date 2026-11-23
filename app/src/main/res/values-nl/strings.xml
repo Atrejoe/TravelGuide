@@ -229,6 +229,16 @@
     <string name="mode_auto_detected">Auto · %1$s</string>
     <string name="play_again">Opnieuw afspelen</string>
     <string name="playing_again">Speelt opnieuw af</string>
+    <string name="report">Melden</string>
+    <string name="report_title">Dit verhaal melden</string>
+    <string name="report_help">Laat de ontwikkelaar weten wat er mis is met dit verhaal. De melding bevat het verhaal en de bron, nooit je locatie.</string>
+    <string name="report_offensive">Beledigend of schadelijk</string>
+    <string name="report_wrong">Onjuist of misleidend</string>
+    <string name="report_other">Iets anders</string>
+    <string name="report_comment">Opmerking (optioneel)</string>
+    <string name="report_send">Versturen</string>
+    <string name="report_sent">Bedankt, je melding is verstuurd.</string>
+    <string name="report_failed">De melding kon niet worden verstuurd. Probeer het later opnieuw.</string>
     <string name="also">Ook: %1$s</string>
     <string name="mode_stationary">Stilstaand</string>
     <string name="mode_walking">Wandelen</string>
