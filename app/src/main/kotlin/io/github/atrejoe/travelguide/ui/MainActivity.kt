@@ -12,8 +12,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.lifecycleScope
 import io.github.atrejoe.travelguide.settings.AppLanguage
 import io.github.atrejoe.travelguide.service.GuideMedia
+import io.github.atrejoe.travelguide.update.Updates
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     // Screens and notifications in the app's language (issue #92).
@@ -36,6 +39,12 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // At most once a day, for installs from GitHub; see Updates.
+        lifecycleScope.launch { Updates.check(applicationContext) }
     }
 
     override fun onNewIntent(intent: Intent) {
