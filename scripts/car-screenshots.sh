@@ -38,6 +38,20 @@ tap_text() {
   adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
 }
 
+# The car's status bar shows the time of the run, and its dock at the bottom the apps used last,
+# which differ from run to run. Keeps the committed screenshot when only those changed, so the
+# screenshots PR only proposes it when Travel Guide's own screen did. (Setting the car's clock
+# instead cost the guide its network: certificates and name lookups failed afterwards.)
+keep_unless_app_changed() {
+  local file=$1 committed="$work/committed.png"
+  git show "HEAD:$file" > "$committed" 2> /dev/null || return 0
+  python3 -m venv "$work/venv" && "$work/venv/bin/pip" install --quiet pillow || return 0
+  if "$work/venv/bin/python" "$(dirname "$0")/same-app-area.py" "$committed" "$file"; then
+    git checkout -- "$file"
+    echo "Only the clock or the dock changed in $file: kept the committed one."
+  fi
+}
+
 # -g grants location and notifications, as the phone app would ask for them.
 adb install -r -g "$apk"
 # The Grote Markt in Haarlem, where the phone screenshots walk.
@@ -48,6 +62,7 @@ adb shell am start -a android.car.intent.action.MEDIA_TEMPLATE \
   --es android.car.intent.extra.MEDIA_COMPONENT "$pkg/.service.GuideMediaBrowserService"
 sleep 10
 shot car-browse
+keep_unless_app_changed "$out/car-browse.png"
 
 # A car ships with location off; the emulator's GPS fix only reaches apps once it is on.
 location_on() {
