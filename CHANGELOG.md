@@ -7,6 +7,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.8.3] - 2026-11-23
+
 ### Added
 
 - Update notices for installs from GitHub: once a day the app asks GitHub for its newest
