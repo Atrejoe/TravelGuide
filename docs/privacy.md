@@ -83,6 +83,13 @@ from [GitHub](https://docs.github.com/en/site-policy/privacy-policies/github-gen
 models and Gemini Nano, through Google Play services). These downloads send no data about you
 beyond what any download does (your IP address).
 
+## Updates (installs from GitHub)
+
+If you installed the app from GitHub, Google Play can't update it, so once a day the app asks
+GitHub (`api.github.com`) for the list of its releases, to tell you when there is a newer one.
+GitHub sees your IP address and the app's name and version, nothing else. Turn it off under
+**Settings → Updates**. Installed from Google Play, the app never checks: Play updates it.
+
 ## Crash reports (optional)
 
 Off by default. If you turn on **Settings → Send crash reports**, a crash sends a report to

@@ -32,6 +32,10 @@ key** (Play Console → *Test and release → App integrity → App signing*, "U
 command, which uploads the stable key encrypted. Then an app installed from Play and an APK from
 GitHub are signed alike, and each installs over the other.
 
+Installs from GitHub look for newer releases on GitHub once a day and link to the release page.
+An install from Play never does (the app checks which store installed it), as Play's policy
+forbids apps from Play updating themselves another way.
+
 If Play generates a new key instead, people who installed an APK from GitHub have to uninstall it
 before installing from Play (their stories and settings are lost).
 

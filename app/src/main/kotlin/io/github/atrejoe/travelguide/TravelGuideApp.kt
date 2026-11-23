@@ -11,6 +11,7 @@ import io.github.atrejoe.travelguide.settings.FileStoryStore
 import io.github.atrejoe.travelguide.settings.SettingsRepository
 import io.github.atrejoe.travelguide.story.LocalModelManager
 import io.github.atrejoe.travelguide.voice.VoiceModelManager
+import io.github.atrejoe.travelguide.update.Updates
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
@@ -58,6 +59,8 @@ class TravelGuideApp : Application() {
         CarStoryOffer.start(this)
         GlobalScope.launch { RouteRepository.load(this@TravelGuideApp) }
         GlobalScope.launch(Dispatchers.IO) { restoreHistory() }
+        // Installs from GitHub: is there a newer release? (Installs from Google Play don't check.)
+        GlobalScope.launch(Dispatchers.IO) { Updates.start(this@TravelGuideApp) }
     }
 }
 

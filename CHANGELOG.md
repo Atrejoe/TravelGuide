@@ -12,6 +12,10 @@ All notable changes to this project are documented here. The format follows
 - Report a story: every story has a **Report** link to tell the developer it is offensive, wrong or
   otherwise off, with an optional comment. The report carries the story and its source, never your
   location. Google Play asks for this in apps whose stories can be written by AI.
+- Update notices for installs from GitHub: once a day the app asks GitHub for its newest
+  release, and a newer one shows on the guide screen and as a notification that opens its release
+  page. Stable versions are offered stable releases, alpha versions every release. Turn it off
+  under Settings → Updates. Installs from Google Play leave updates to Play.
 - Stable releases also come as an app bundle (`.aab`), the format Google Play takes, with the
   native debug symbols Play uses to show where the on-device storyteller crashed.
 

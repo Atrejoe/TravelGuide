@@ -385,4 +385,16 @@
     <string name="car_stories_always_help">De gids start vanzelf als u navigeert. Staat Android dat niet toe, dan biedt de auto het aan.</string>
     <string name="car_stories_never">Nooit</string>
     <string name="car_stories_never_help">Er wordt niets aangeboden; start de gids zelf wanneer u wilt.</string>
+    <string name="section_updates">Updates</string>
+    <string name="updates_on">Dagelijks gecontroleerd</string>
+    <string name="updates_off">Uit</string>
+    <string name="updates_check">Zoeken naar nieuwe versies</string>
+    <string name="updates_check_help">Je hebt Travel Guide via GitHub geïnstalleerd, dus Google Play werkt hem niet bij. Eén keer per dag vraagt de app GitHub naar de nieuwste versie en laat het je weten als die er is. GitHub ziet alleen dat een telefoon het vroeg.</string>
+    <string name="update_available">Travel Guide %1$s is beschikbaar</string>
+    <string name="update_available_help">Download de nieuwe APK van de releasepagina op GitHub en open hem om bij te werken; je verhalen en instellingen blijven bewaard.</string>
+    <string name="update_notification_text">Tik om hem van GitHub te downloaden.</string>
+    <string name="update_download">Downloaden</string>
+    <string name="update_later">Later</string>
+    <string name="channel_updates">Updates</string>
+    <string name="channel_updates_description">Nieuwe versies van Travel Guide op GitHub</string>
 </resources>
