@@ -30,7 +30,9 @@ git tag v0.3.0 && git push origin v0.3.0
 
 The *Android* workflow builds the APK, creates the GitHub release with that version's
 `CHANGELOG.md` section as release notes (or generated notes if there is none) and attaches the
-APK. Then bump `appVersion` for the next version.
+APK, plus the app bundle (`.aab`) to upload to Google Play. Then bump `appVersion` for the next
+version. Both are signed with the stable key (see [Signing](#signing)); a manual run of the
+workflow also builds both, as run artifacts.
 
 ### Versions
 

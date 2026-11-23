@@ -6,9 +6,9 @@
 #   the APK and the PRs merged since the previous tag as notes. Then the screenshots in
 #   docs/screenshots are re-rendered and, when they changed, pushed to bot/screenshots with a link
 #   to create the PR.
-# - Manual runs: the APK (and the screenshots) as run artifacts.
-# - `v*` tags pushed by hand (stable releases): the APK is attached to that release, with its
-#   CHANGELOG.md section as notes.
+# - Manual runs: the APK and the app bundle (and the screenshots) as run artifacts.
+# - `v*` tags pushed by hand (stable releases): the APK and the app bundle for Google Play are
+#   attached to that release, with its CHANGELOG.md section as notes.
 #
 # Every build is signed with the same key (repository secrets SIGNING_*, see CONTRIBUTING.md) so a
 # newer build installs over an older one (issue #15). Without the secrets it falls back to a debug
@@ -133,8 +133,13 @@ jobs:
           # Opt-in crash reports (issue #56); without it the app never reports.
           SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
         run: |
-          task=":app:assemble${VARIANT^}"
-          ./gradlew "$task" :app:lintDebug :core:test \
+          tasks=(":app:assemble${VARIANT^}" :app:lintDebug :core:test)
+          # Google Play only takes an app bundle (.aab): stable releases (tags) and manual runs build
+          # one next to the APK, signed with the same stable key.
+          if [[ "$VARIANT" == release && ( "$GITHUB_REF" == refs/tags/v* || "$GITHUB_EVENT_NAME" == workflow_dispatch ) ]]; then
+            tasks+=(:app:bundleRelease)
+          fi
+          ./gradlew "${tasks[@]}" \
             -PversionCode=${{ steps.version.outputs.code }} \
             -PversionName=${{ steps.version.outputs.name }}
 
@@ -178,6 +183,10 @@ jobs:
           mkdir -p out
           variant="${{ steps.signing.outputs.variant }}"
           cp "app/build/outputs/apk/$variant/app-$variant.apk" "out/travelguide-${{ steps.version.outputs.name }}.apk"
+          bundle=app/build/outputs/bundle/release/app-release.aab
+          if [[ -f "$bundle" ]]; then
+            cp "$bundle" "out/travelguide-${{ steps.version.outputs.name }}.aab"
+          fi
 
       - name: Upload APK artifact
         id: apk
@@ -220,7 +229,9 @@ jobs:
         continue-on-error: true
         with:
           name: travelguide-${{ steps.version.outputs.name }}
-          path: out/*.apk
+          path: |
+            out/*.apk
+            out/*.aab
           retention-days: 14
 
       # Creating the release creates the tag. Tags made with the workflow token don't start
@@ -263,7 +274,8 @@ jobs:
             echo "::warning::No '## [$VERSION]' section in CHANGELOG.md; using generated release notes."
             gh release create "$GITHUB_REF_NAME" --generate-notes
           fi
-          gh release upload "$GITHUB_REF_NAME" out/*.apk --clobber
+          # The APK to install by hand, and the app bundle to upload to Google Play.
+          gh release upload "$GITHUB_REF_NAME" out/*.apk out/*.aab --clobber
 
   # Screenshots for the README, rendered on the JVM (Robolectric + Roborazzi, no emulator). Only
   # after a merge to main (and on manual runs), so pull requests don't pay for it. Changed images
