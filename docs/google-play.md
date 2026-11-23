@@ -58,7 +58,8 @@ nothing to delete on request beyond uninstalling. Suggested answers:
 | --- | --- | --- | --- | --- | --- |
 | Location → **Precise location** | yes | yes: Wikipedia/Wikidata, OpenStreetMap services | no (the guide needs it) | yes | App functionality |
 | App info and performance → **Crash logs**, **Diagnostics** | yes | no (Sentry processes them for the developer) | yes, off by default | no | Analytics |
-| Device or other IDs | yes (Sentry's random installation ID) | no | yes, with crash reports | no | Analytics |
+| App activity → **Other user-generated content** (story reports: a comment, the reported story) | yes | no (Sentry processes them for the developer) | yes, only when you report | no | App functionality |
+| Device or other IDs | yes (Sentry's random installation ID) | no | yes, with crash reports or a story report | no | Analytics |
 
 Not collected: personal info, financial info, messages, photos, audio, files, contacts, calendar,
 web history, health. Notifications read for navigation never leave the phone. Text sent to Claude
@@ -88,8 +89,10 @@ is listed in the privacy policy.
 - **Content rating** questionnaire: reference app, no violence, no user-to-user communication, no
   purchases. Stories come from Wikipedia and may mention history (wars, deaths) in factual terms.
 - **AI-generated content**: stories can be retold by an AI model (Claude, Gemini Nano or an open
-  model). Play's policy asks for a way to report offensive generated content inside the app; the
-  app doesn't have one yet (to do before submitting).
+  model). Play's policy asks for a way to report offensive generated content without leaving the
+  app: every story has a **Report** link, which sends the reason, an optional comment and the
+  story to the developer through Sentry (Sentry → *User Feedback*). It needs a build with the
+  Sentry DSN, as every CI build with the repository's secrets has.
 
 ## 4. Android Auto
 

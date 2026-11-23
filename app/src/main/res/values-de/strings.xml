@@ -229,6 +229,16 @@
     <string name="mode_auto_detected">Auto · %1$s</string>
     <string name="play_again">Erneut abspielen</string>
     <string name="playing_again">Wird erneut abgespielt</string>
+    <string name="report">Melden</string>
+    <string name="report_title">Diese Geschichte melden</string>
+    <string name="report_help">Teilen Sie dem Entwickler mit, was an dieser Geschichte nicht stimmt. Die Meldung enthält die Geschichte und ihre Quelle, nie Ihren Standort.</string>
+    <string name="report_offensive">Beleidigend oder schädlich</string>
+    <string name="report_wrong">Falsch oder irreführend</string>
+    <string name="report_other">Etwas anderes</string>
+    <string name="report_comment">Kommentar (optional)</string>
+    <string name="report_send">Senden</string>
+    <string name="report_sent">Danke, Ihre Meldung wurde gesendet.</string>
+    <string name="report_failed">Die Meldung konnte nicht gesendet werden. Versuchen Sie es später erneut.</string>
     <string name="also">Außerdem: %1$s</string>
     <string name="mode_stationary">Stehend</string>
     <string name="mode_walking">Zu Fuß</string>

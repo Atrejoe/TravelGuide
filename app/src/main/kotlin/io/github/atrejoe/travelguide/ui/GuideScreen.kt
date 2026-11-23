@@ -48,6 +48,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -57,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.atrejoe.travelguide.CrashReporting
 import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.update.Updates
 import io.github.atrejoe.travelguide.GuideStatus
@@ -447,6 +451,7 @@ private fun ModeSelector(selected: TravelMode?, detected: TravelMode?, onSelect:
 private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) {
     val context = LocalContext.current
     val replaying = state.replaying == story.timeMillis
+    var reporting by rememberSaveable { mutableStateOf(false) }
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -480,16 +485,28 @@ private fun StoryCard(story: StoryItem, expanded: Boolean, state: GuideUiState) 
                 maxLines = if (expanded) Int.MAX_VALUE else 3,
                 overflow = TextOverflow.Ellipsis,
             )
-            Text(
-PoiSources.label(story.url),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.clickable {
-                    context.startActivity(Intent(Intent.ACTION_VIEW, story.url.toUri()))
-                },
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    PoiSources.label(story.url),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.weight(1f).clickable {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, story.url.toUri()))
+                    },
+                )
+                // Reporting a story (Google Play's policy on AI-generated content), kept muted.
+                if (CrashReporting.available) {
+                    Text(
+                        stringResource(R.string.report),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.clickable { reporting = true }.padding(start = 12.dp),
+                    )
+                }
+            }
         }
     }
+    if (reporting) ReportStoryDialog(story) { reporting = false }
 }
 
 @Composable

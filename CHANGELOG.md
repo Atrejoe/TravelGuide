@@ -7,6 +7,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+
+- Report a story: every story has a **Report** link to tell the developer it is offensive, wrong or
+  otherwise off, with an optional comment. The report carries the story and its source, never your
+  location. Google Play asks for this in apps whose stories can be written by AI.
+
 ## [0.8.3] - 2026-11-23
 
 ### Added
