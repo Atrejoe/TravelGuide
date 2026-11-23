@@ -38,28 +38,10 @@ tap_text() {
   adb shell input tap $(((x1 + x2) / 2)) $(((y1 + y2) / 2))
 }
 
-# The car's clock shows in its status bar: set it to 12:00 today, so the screenshot only changes
-# when the guide does. Today, not a fixed date: in the past, certificates aren't valid yet and the
-# guide can't reach Wikipedia. Setting the time takes root, which this emulator image allows.
-if adb root > /dev/null 2>&1; then
-  for _ in $(seq 30); do adb shell true 2> /dev/null && break; sleep 1; done
-fi
-set_clock() {
-  adb shell settings put global auto_time 0 || true
-  adb shell date "$(date -u +%m%d)1200$(date -u +%Y).00" > /dev/null 2>&1 ||
-    adb shell cmd alarm set-time "$(date -u -d 'today 12:00' +%s)000" > /dev/null 2>&1 ||
-    echo "::warning::Couldn't set the car's clock; the screenshot shows the time of the run."
-  echo "The car's clock: $(adb shell date +%H:%M)"
-}
-# Back to the real time, for everything after the screenshot.
-real_clock() {
-  adb shell settings put global auto_time 1 || true
-  adb shell date "$(date -u +%m%d%H%M%Y.%S)" > /dev/null 2>&1 || true
-}
-
-# The dock at the bottom shows the apps used last, which differ from run to run. Keeps the
-# committed screenshot when only the status bar or the dock changed, so the screenshots PR only
-# proposes it when Travel Guide's own screen did.
+# The car's status bar shows the time of the run, and its dock at the bottom the apps used last,
+# which differ from run to run. Keeps the committed screenshot when only those changed, so the
+# screenshots PR only proposes it when Travel Guide's own screen did. (Setting the car's clock
+# instead cost the guide its network: certificates and name lookups failed afterwards.)
 keep_unless_app_changed() {
   local file=$1 committed="$work/committed.png"
   git show "HEAD:$file" > "$committed" 2> /dev/null || return 0
@@ -76,12 +58,10 @@ adb install -r -g "$apk"
 adb emu geo fix 4.6368 52.3812
 
 # Travel Guide opened from the car's app launcher: its list.
-set_clock
 adb shell am start -a android.car.intent.action.MEDIA_TEMPLATE \
   --es android.car.intent.extra.MEDIA_COMPONENT "$pkg/.service.GuideMediaBrowserService"
 sleep 10
 shot car-browse
-real_clock
 keep_unless_app_changed "$out/car-browse.png"
 
 # A car ships with location off; the emulator's GPS fix only reaches apps once it is on.
