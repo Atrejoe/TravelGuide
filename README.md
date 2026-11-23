@@ -186,6 +186,13 @@ Dutch narration, interest selection, start suggestions and climate facts.
 - Speech: [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache 2.0) with
   [Piper](https://github.com/rhasspy/piper) voices (see each voice's model card for its license).
 
+## Privacy
+
+No account, no ads, no analytics. The app sends your position to Wikipedia and OpenStreetMap
+services to find places, and, only if you turn them on with your own key, place texts to a cloud
+storyteller or voice. See the [privacy policy](docs/privacy.md), and
+[docs/google-play.md](docs/google-play.md) for publishing on Google Play.
+
 ## License
 
 [Apache License 2.0](LICENSE). Wikipedia content and voice models keep their own licenses (see
