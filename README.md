@@ -102,8 +102,10 @@ tap **Start guiding**. On first use, open **Settings → Narrator** and download
 (99 MB).
 
 Newer builds (releases, alpha and pull-request builds alike) install over the old version and
-keep your voices and settings. Builds from before stable signing ([#15](../../issues/15)) can't be
-updated: uninstall such an older build once, then install the new one.
+keep your voices and settings. The app tells you when a newer release is out: stable versions of
+stable releases, alpha versions of every release (Settings → Updates). Builds from before stable
+signing ([#15](../../issues/15)) can't be updated: uninstall such an older build once, then
+install the new one.
 
 ## Following a route from a navigation app
 

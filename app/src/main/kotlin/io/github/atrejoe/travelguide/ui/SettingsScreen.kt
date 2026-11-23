@@ -53,6 +53,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.CrashReporting
+import io.github.atrejoe.travelguide.update.Updates
 import io.github.atrejoe.travelguide.R
 import io.github.atrejoe.travelguide.app
 import io.github.atrejoe.travelguide.core.guide.HistoryRetention
@@ -427,6 +428,13 @@ fun SettingsScreen(onBack: () -> Unit) {
                 ) { NavigationSettings() }
             }
 
+            if (Updates.applies(context)) item {
+                val enabled by Updates.enabled.collectAsStateWithLifecycle()
+                SettingsSection(stringResource(R.string.section_updates), stringResource(if (enabled) R.string.updates_on else R.string.updates_off), "updates" in open, { toggle("updates") }) {
+                    UpdateSettings()
+                }
+            }
+
             if (CrashReporting.available) item {
                 val enabled by CrashReporting.enabled.collectAsStateWithLifecycle()
                 SettingsSection(stringResource(R.string.section_crashes), stringResource(if (enabled) R.string.crashes_sent else R.string.crashes_not_sent), "crashes" in open, { toggle("crashes") }) {
@@ -555,6 +563,31 @@ private fun VoiceSlider(label: String, value: Float, range: ClosedFloatingPointR
             onValueChangeFinished = { onChange(current) },
             valueRange = range,
         )
+    }
+}
+
+/** Settings → Updates: for installs from GitHub, look for newer releases there once a day. */
+@Composable
+private fun UpdateSettings() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val enabled by Updates.enabled.collectAsStateWithLifecycle()
+    Row(
+        Modifier.fillMaxWidth().toggleable(
+            value = enabled,
+            onValueChange = { on ->
+                Updates.setEnabled(context, on)
+                if (on) scope.launch { Updates.check(context.applicationContext, force = true) }
+            },
+            role = Role.Switch,
+        ),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(stringResource(R.string.updates_check), style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.updates_check_help), style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = enabled, onCheckedChange = null, modifier = Modifier.padding(start = 8.dp))
     }
 }
 

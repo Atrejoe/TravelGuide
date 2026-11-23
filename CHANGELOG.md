@@ -9,6 +9,10 @@ All notable changes to this project are documented here. The format follows
 
 ### Added
 
+- Update notices for installs from GitHub: once a day the app asks GitHub for its newest
+  release, and a newer one shows on the guide screen and as a notification that opens its release
+  page. Stable versions are offered stable releases, alpha versions every release. Turn it off
+  under Settings → Updates. Installs from Google Play leave updates to Play.
 - Stable releases also come as an app bundle (`.aab`), the format Google Play takes, with the
   native debug symbols Play uses to show where the on-device storyteller crashed.
 

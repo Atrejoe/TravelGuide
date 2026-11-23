@@ -58,6 +58,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.atrejoe.travelguide.R
+import io.github.atrejoe.travelguide.update.Updates
 import io.github.atrejoe.travelguide.GuideStatus
 import io.github.atrejoe.travelguide.GuideUiState
 import io.github.atrejoe.travelguide.StoryItem
@@ -88,6 +89,7 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
     val installed by context.app.voiceModels.installed.collectAsStateWithLifecycle()
     val route by RouteRepository.route.collectAsStateWithLifecycle()
     val navigation by NavigationState.status.collectAsStateWithLifecycle()
+    val updateAvailable by Updates.available.collectAsStateWithLifecycle()
 
     val permissions = buildList {
         add(Manifest.permission.ACCESS_FINE_LOCATION)
@@ -127,6 +129,24 @@ fun GuideScreen(onOpenSettings: () -> Unit) {
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+                // A newer release, for installs from GitHub (see Updates).
+                updateAvailable?.let { release ->
+                    item(key = "update") {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+                            Column(Modifier.padding(16.dp)) {
+                                Text(stringResource(R.string.update_available, release.version.toString()), style = MaterialTheme.typography.titleMedium)
+                                Text(stringResource(R.string.update_available_help), style = MaterialTheme.typography.bodyMedium)
+                                Row {
+                                    TextButton(onClick = { context.startActivity(Intent(Intent.ACTION_VIEW, release.url.toUri())) }) {
+                                        Text(stringResource(R.string.update_download))
+                                    }
+                                    TextButton(onClick = { Updates.dismiss(context) }) { Text(stringResource(R.string.update_later)) }
+                                }
+                            }
+                        }
+                    }
+                }
+
                 val neural = VoiceCatalog.neural(settings.voiceId)
                 if (neural != null && neural.pkg.id !in installed) {
                     item {
